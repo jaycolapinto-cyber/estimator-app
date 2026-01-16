@@ -306,14 +306,7 @@ export default function App() {
     //
     // FILE MENU + CONFIRM MODALS
     //
-    const openRecent = (rf: RecentFile) => {
-      try {
-        applySnapshot(rf.json);
-        pushRecent(rf.name, rf.json);
-        refreshRecents();
-        setRecentOpen(false);
-        setFileOpen(false);
-        setActiveNav("estimator");
+  
       } catch (e) {
         console.error("Failed to open recent:", e);
         alert("Could not open that recent file.");
@@ -332,7 +325,14 @@ export default function App() {
         if (hasUnsavedEstimateChanges()) setConfirmNewOpen(true);
         else handleNewProject();
       };
-
+      const openRecent = (rf: RecentFile) => {
+        try {
+          applySnapshot(rf.json);
+          pushRecent(rf.name, rf.json);
+          refreshRecents();
+          setRecentOpen(false);
+          setFileOpen(false);
+          setActiveNav("estimator");
       const cancelNew = () => setConfirmNewOpen(false);
 
       const discardAndNew = () => {
