@@ -15,7 +15,7 @@ import { supabase } from "./supabaseClient";
 import AnalyticsPage from "./AnalyticsPage";
 import ReviewProposalPage from "./ReviewProposalPage";
 
-// ================================
+// 
 // ADD ITEM – CATEGORY MASTER LIST
 type AddItemRow = {
   rowId: string;
@@ -243,9 +243,9 @@ function SidebarNavItem({ label, isActive, onClick }: SidebarNavItemProps) {
   );
 }
 
-// ===============================
+// 
 // RECENT FILES (localStorage)
-// ===============================
+//
 type RecentFile = { name: string; json: any; ts: number };
 const RECENTS_KEY = "du_recent_files_v1";
 const RECENTS_MAX = 8;
@@ -306,9 +306,9 @@ export default function App() {
 }
 
 function AppShell({ isAdmin }: { isAdmin: boolean }) {
-  // ===============================
+  // 
   // FILE MENU + CONFIRM MODALS
-  // ===============================
+  // 
   const [fileOpen, setFileOpen] = useState(false);
   const [confirmNewOpen, setConfirmNewOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -321,15 +321,14 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
   };
 
   const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null);
-  // ===============================
+  // 
   // STEP 3: SEND FROM EMAIL MODAL
   // - Always enqueue first (offline safe)
   // - If online: flush queue (sends now)
   // - Close modal + clear draft
-  // ===============================
-  // ===============================
+  // 
   // HELPER: Convert Blob → base64 (no data: prefix)
-  // ===============================
+  // 
   async function blobToBase64NoPrefix(blob: Blob): Promise<string> {
     const arrayBuffer = await blob.arrayBuffer();
     let binary = "";
@@ -444,9 +443,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  // ===============================
+  // 
   // OFFLINE / ONLINE STATE
-  // ===============================
+  // 
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== "undefined" ? navigator.onLine : true
   );
@@ -468,9 +467,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     setToast(msg);
     window.setTimeout(() => setToast(null), 3500);
   };
-  // ===============================
+  // 
   // EMAIL DRAFT (in-app send window)
-  // ===============================
+  // 
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [sendMeCopy, setSendMeCopy] = useState(false);
 
@@ -480,9 +479,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
   const [recentOpen, setRecentOpen] = useState(false);
   const refreshRecents = () => setRecentFiles(getRecents());
 
-  // ===============================
+  // 
   // STATE: ESTIMATE + UI
-  // ===============================
+  // 
   const [activeNav, setActiveNav] = useState<
     "estimator" | "pricingAdmin" | "proposals" | "analytics" | "settings"
   >("estimator");
@@ -643,9 +642,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     );
   };
 
-  // ===============================
+  // 
   // DIRTY STATE (unsaved changes)
-  // ===============================
+  // 
   const [isDirty, setIsDirty] = useState(false);
   const dirtySuspendedRef = useRef(true);
   const markDirty = () => {
@@ -653,9 +652,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     setIsDirty(true);
   };
 
-  // ===============================
+  // 
   // USER SETTINGS (for Proposal PDF)
-  // ===============================
+  // 
   // NOTE: Keeping your existing shape so SettingsPage / ProposalPage don't break.
   // We are only removing “email proposal / email preview” UI behavior from App.
   const [userSettings, setUserSettings] = useState(() => {
@@ -705,9 +704,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     } catch {}
   }, [userSettings]);
 
-  // ===============================
+  // 
   // FILE OPEN/SAVE helpers
-  // ===============================
+  // 
   const hasUnsavedEstimateChanges = () => {
     return (
       !!clientLastName ||
@@ -854,12 +853,12 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     setIsDirty(false);
     setShowBreakdown(false);
   };
-  // ===============================
+  // 
   // EMAIL PROPOSAL (JOIST STYLE)
   // 1) Save proposal to Supabase
   // 2) Call Edge Function to SEND email
   // 3) Show success toast
-  // ===============================
+  // 
 
   const renderTemplate = (
     tpl: string,
@@ -1090,9 +1089,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  // ===============================
+  // 
   // FILE → OPEN
-  // ===============================
+  // 
   const openFileInputRef = useRef<HTMLInputElement | null>(null);
   const onPickOpenFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1240,9 +1239,8 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     handleNewProject();
   };
 
-  // ===============================
   // ✅ PRICING STATE (FIXED)
-  // ===============================
+  
   const [pricingItems, setPricingItems] = useState<PricingItemRow[]>([]);
   useEffect(() => {
     // Only do this when user selected "Skirting"
@@ -1378,9 +1376,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     loadPricing();
   }, []);
 
-  // ===============================
+  // 
   // ESTIMATOR DERIVED DATA
-  // ===============================
+  // 
   const constructionTypeRef = useRef<HTMLSelectElement | null>(null);
   const skirtingCategoryRef = useRef<HTMLSelectElement | null>(null);
 
@@ -1562,10 +1560,10 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
 
   const baseRailingUnit = selectedRailing?.cost ?? 0;
   const railingSubtotal = baseRailingUnit * railingLf;
-  // ===============================
+  // 
   // STAIRS — shared pricing helper
   // (used by Main Stairs + Add Item stairs)
-  // ===============================
+  // 
   function computeEffectiveStairsRate(params: {
     pricingItems: PricingItemRow[];
     selectedDecking: PricingItemRow | undefined;
@@ -1683,9 +1681,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
   const baseSkirtingUnit = selectedSkirting?.cost ?? 0;
   const skirtingSubtotal = baseSkirtingUnit * skirtingSf;
 
-  // ===============================
+  // 
   // ADD ITEMS — categories + pricing
-  // ===============================
+  // 
   const addItemCategories = useMemo(() => {
     const BLOCKED = new Set(
       [
@@ -2298,9 +2296,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     JSON.stringify(addItems),
   ]);
 
-  // ===============================
+  // 
   // UPLIFTS
-  // ===============================
+  // 
   const baseProjectTotal =
     deckingSubtotal +
     railingSubtotal +
@@ -2405,9 +2403,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     return `${c} — ${i}`;
   };
 
-  // ===============================
+  // 
   // RENDER
-  // ===============================
+  // 
   return (
     <div className="app-shell">
       {/* hidden open input */}
@@ -2638,14 +2636,14 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
             (activeNav === "pricingAdmin" ? "main-grid--pricing " : "")
           }
         >
-          {/* ====== ANALYTICS ====== */}
+          {/*  ANALYTICS  */}
           {activeNav === "analytics" && (
             <section className="analytics-page">
               <AnalyticsPage />
             </section>
           )}
 
-          {/* ====== ESTIMATOR ====== */}
+          {/*  ESTIMATOR  */}
           {activeNav === "estimator" && (
             <section className="estimator-pane">
               <div>
@@ -2661,7 +2659,7 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
 
                 {pricingLoaded && !pricingError && (
                   <>
-                    {/* ===== UPLIFT / MSRP ROW ===== */}
+                    {/*  UPLIFT / MSRP ROW  */}
                     <div className="msrp-pill-row">
                       {/* Left: MSRP toggle pill */}
                       <span
@@ -2709,7 +2707,7 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     </div>
 
-                    {/* ===== Client Info ===== */}
+                    {/* Client Info */}
                     <section className="estimator-section estimator-section--no-bottom">
                       <div className="estimator-section-body">
                         <div className="client-info-row">
@@ -2800,7 +2798,7 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     </section>
 
-                    {/* ===== Decking + Construction Type ===== */}
+                    {/*  Decking + Construction Type  */}
                     <section className="estimator-section">
                       <header className="estimator-section-header">
                         <div className="decking-header-row">
@@ -2911,7 +2909,7 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     </section>
 
-                    {/* ===== RAILING ===== */}
+                    {/*  RAILING  */}
                     <section className="estimator-section">
                       <div className="estimator-section-body">
                         <div className="form-row form-row--3">
@@ -2967,7 +2965,7 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     </section>
 
-                    {/* ===== STAIRS ===== */}
+                    {/*  STAIRS  */}
                     <section className="estimator-section">
                       <div className="estimator-section-body">
                         <div className="form-row form-row--3">
@@ -3021,7 +3019,7 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     </section>
 
-                    {/* ===== FASTENERS ===== */}
+                    {/*  FASTENERS*/}
                     <section className="estimator-section">
                       <div className="estimator-section-body">
                         <div className="form-row form-row--3">
@@ -3073,7 +3071,7 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     </section>
 
-                    {/* ===== DEMOLITION ===== */}
+                    {/* DEMOLITION*/}
                     <section className="estimator-section">
                       <div className="estimator-section-body">
                         <div className="form-row form-row--3">
@@ -3127,7 +3125,7 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     </section>
 
-                    {/* ===== SKIRTING / LATTICE ===== */}
+                    {/* SKIRTING / LATTICE  */}
                     <section className="estimator-section">
                       <div className="estimator-section-body">
                         <div className="form-row form-row--3">
@@ -3207,7 +3205,7 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     </section>
 
-                    {/* ===== ADD ITEMS ===== */}
+                    {/*  ADD ITEMS */}
                     <div className="estimator-section-body">
                       <div className="add-items-header-row">
                         <button
@@ -3719,9 +3717,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
           )}
         </div>
       </main>
-      {/* =============================== */}
+      {/*  */}
       {/* EMAIL MODAL (TEMP TEST) */}
-      {/* =============================== */}
+      {/*  */}
       {emailModalOpen && (
         <div
           style={{
@@ -3877,9 +3875,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-// ===============================
+// 
 // CONFIRM MODAL
-// ===============================
+// 
 function ConfirmNewProjectModal({
   open,
   onCancel,
@@ -3935,55 +3933,5 @@ function ConfirmNewProjectModal({
   );
 }
 
-// ===============================
-// ANALYTICS DASHBOARD (your original)
-// ===============================
-type CategoryRow = { category: string; before: number; after: number };
-type AnalyticsDashboardProps = {
-  permitThreshold: number | null;
-  baseTotal: number;
-  finalTotal: number;
-  upliftMultiplier: number;
-
-  financePct: number;
-  perceivedPct: number;
-  miPct: number;
-  permitPct: number;
-  smallJobPct: number;
-
-  financeDollars: number;
-  perceivedDollars: number;
-  miDollars: number;
-  permitDollars: number;
-  smallJobDollars: number;
-
-  totalUpliftDollars: number;
-  categoryRows: CategoryRow[];
-};
-function AnalyticsDashboard(props: AnalyticsDashboardProps) {
-  return (
-    <>
-      {upliftCards.map((c) => (
-        <div key={c.label} className="tesla-card">
-          <div className="tesla-kicker">{c.label}</div>
-          <div className="tesla-big">{money0(c.value)}</div>
-        </div>
-      ))}
-
-      <div className="tesla-card tesla-card--hero">
-        <div className="tesla-kicker">Final Estimate</div>
-        <div className="tesla-big">{money0(finalTotal)}</div>
-
-        <div className="tesla-sub">
-          Total Uplift{" "}
-          <span className="tesla-mono">{money0(totalUpliftDollars)}</span>
-        </div>
-
-        <div className="tesla-sub" style={{ opacity: 0.7 }}>
-          Category total check:{" "}
-          <span className="tesla-mono">{money0(totalAfter)}</span>
-        </div>
-      </div>
-    </>
-  );
-}
+// 
+export default App;
