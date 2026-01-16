@@ -1,0 +1,3990 @@
+// App.tsx
+// ✅ NO LOGIN (everyone is admin)
+// ✅ NO “email proposal / email preview” features
+// ✅ Estimator works (fixes invalid hook usage in Estimate Summary + removes email suggestion dropdown)
+// ✅ Everything else remains as-is
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import ReactDOM from "react-dom";
+
+import PricingAdmin from "./PricingAdmin";
+import ProposalPage from "./ProposalPage";
+import SettingsPage from "./SettingsPage";
+import "./styles.css";
+import { supabase } from "./supabaseClient";
+import AnalyticsPage from "./AnalyticsPage";
+import ReviewProposalPage from "./ReviewProposalPage";
+
+// ================================
+// ADD ITEM – CATEGORY MASTER LIST
+type AddItemRow = {
+  rowId: string;
+  category: string; // Supabase category name (or "Misc")
+  itemId: string; // Supabase item id (blank for Misc)
+  qty: number;
+  // ✅ Bench subtype (Add Items)
+  benchType?: string; // "12_flat" | "12_back" | "12_storage" | "18_flat" | "18_back" | "18_storage"
+
+  // 🆕 Construction Options (Add Items only)
+  constructionType?: string;
+  deckingId?: string;
+
+  // ✅ Misc / custom user item
+  customName?: string;
+  customPrice?: number;
+  isFixedPrice?: boolean;
+};
+
+// ------------------------------
+// TYPES
+// ------------------------------
+export type PricingItemRow = {
+  id: number | string;
+
+  category: string | null;
+  category2?: string | null;
+  category_id?: number | null;
+
+  name: string;
+  display_name?: string | null;
+
+  cost: number;
+  unit: string | null;
+  base_unit?: string | null;
+
+  group: string | null;
+  sort_order: number | null;
+  active: boolean;
+  proposal_description?: string | null;
+  deleted_at?: string | null;
+
+  subcategory_id?: number | null;
+  option_group_id?: number | null;
+};
+
+type PricingCategoryRow = {
+  id: number;
+  name: string;
+  is_active: boolean;
+};
+
+// ------------------------------
+// PERMIT UPLIFT HELPER
+// ------------------------------
+function getPermitTierForTotal(
+  rows: PricingItemRow[],
+  deckTotal: number
+): { multiplier: number; threshold: number | null } {
+  if (!deckTotal || !Number.isFinite(deckTotal))
+    return { multiplier: 1, threshold: null };
+
+  const permitRows = rows.filter(
+    (row) =>
+      (row.unit || "").toLowerCase().trim() === "global_multiplier" &&
+      (row.name || "").toLowerCase().includes("permit deck")
+  );
+
+  if (!permitRows.length) return { multiplier: 1, threshold: null };
+
+  let chosenThreshold: number | null = null;
+  let chosenMultiplier = 1;
+
+  for (const row of permitRows) {
+    const match = (row.name || "").match(/less than\s+(\d+)(k?)/i);
+    if (!match) continue;
+
+    const num = Number(match[1]);
+    const hasK = !!match[2];
+    const threshold = hasK ? num * 1000 : num;
+    const multiplier = row.cost ?? 1;
+
+    if (deckTotal <= threshold) {
+      if (chosenThreshold === null || threshold < chosenThreshold) {
+        chosenThreshold = threshold;
+        chosenMultiplier = multiplier;
+      }
+    }
+  }
+
+  return { multiplier: chosenMultiplier, threshold: chosenThreshold };
+}
+
+// ------------------------------
+// SMALL JOB UPLIFT HELPER
+// ------------------------------
+function getSmallJobTierForTotal(
+  rows: PricingItemRow[],
+  deckTotal: number
+): { multiplier: number; threshold: number | null } {
+  if (!deckTotal || !Number.isFinite(deckTotal))
+    return { multiplier: 1, threshold: null };
+
+  const smallRows = rows.filter((row) => {
+    const unit = (row.unit || "").toLowerCase().trim();
+    const name = (row.name || "").toLowerCase();
+    return unit === "global_multiplier" && name.includes("deck less than");
+  });
+
+  if (!smallRows.length) return { multiplier: 1, threshold: null };
+
+  const parsed = smallRows
+    .map((row) => {
+      const match = (row.name || "").match(/less than\s+(\d+)(k?)/i);
+      if (!match) return null;
+
+      const num = Number(match[1]);
+      const hasK = !!match[2];
+      const threshold = hasK ? num * 1000 : num;
+
+      if (!Number.isFinite(threshold) || threshold > 9000) return null;
+
+      return { threshold, multiplier: row.cost ?? 1 };
+    })
+    .filter(Boolean) as { threshold: number; multiplier: number }[];
+
+  if (parsed.length === 0) return { multiplier: 1, threshold: null };
+
+  const candidates = parsed
+    .filter((t) => deckTotal <= t.threshold)
+    .sort((a, b) => a.threshold - b.threshold);
+
+  if (candidates.length === 0) return { multiplier: 1, threshold: null };
+
+  return {
+    multiplier: candidates[0].multiplier,
+    threshold: candidates[0].threshold,
+  };
+}
+
+// ------------------------------
+// CONSTRUCTION TYPE ADJUSTMENTS ($ per SF)
+// ------------------------------
+const CONSTRUCTION_TYPES = [
+  { value: "", label: "Construction Type", adjust: 0 },
+  { value: "New_Construction", label: "New Construction", adjust: 0 },
+  { value: "ReSurface", label: "Resurface", adjust: -4 },
+  { value: "Second_Story", label: "Second Story", adjust: 2 },
+  {
+    value: "Second_Story_Resurface",
+    label: "Second Story Resurface",
+    adjust: 0,
+  },
+  { value: "Sleeper_System", label: "Sleeper System", adjust: -2 },
+  {
+    value: "Second_Story_Sleeper_System",
+    label: "Second Story Sleeper System",
+    adjust: 0,
+  },
+];
+const BENCH_TYPES = [
+  { value: "12_flat", label: "12in Flat Bench" },
+  { value: "12_back", label: "12in Flat Bench w back" },
+  { value: "12_storage", label: "12in Flat Bench w storage" },
+  { value: "18_flat", label: "18 inch Bench" },
+  { value: "18_back", label: "18 inch Bench w back" },
+  { value: "18_storage", label: "18 inch Bench w storage" },
+] as const;
+
+type BenchTypeValue = (typeof BENCH_TYPES)[number]["value"];
+
+function isBenchCategory(cat: string) {
+  return normalizeCat(cat || "") === "bench";
+}
+
+function getConstructionAdjustment(type: string): number {
+  const found = CONSTRUCTION_TYPES.find((t) => t.value === type);
+  return found?.adjust ?? 0;
+}
+function normalizeName(v: string) {
+  return (v || "").toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function normalizeCat(v: string) {
+  return (v || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/-+/g, "_");
+}
+
+function isConstructionTypeCategory(cat: string) {
+  if (!cat) return false;
+  const norm = normalizeCat(cat);
+  return CONSTRUCTION_TYPES.some(
+    (t) => t.value && normalizeCat(t.value) === norm
+  );
+}
+
+function getConstructionTypeLabel(cat: string) {
+  if (!cat) return "";
+  const norm = normalizeCat(cat);
+  const found = CONSTRUCTION_TYPES.find(
+    (t) => t.value && normalizeCat(t.value) === norm
+  );
+  return found?.label || cat;
+}
+
+type SidebarNavItemProps = {
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+};
+
+function SidebarNavItem({ label, isActive, onClick }: SidebarNavItemProps) {
+  return (
+    <button
+      className={`sidebar-nav-item ${isActive ? "is-active" : ""}`}
+      onClick={onClick}
+      type="button"
+    >
+      <span className="sidebar-nav-dot" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+// ===============================
+// RECENT FILES (localStorage)
+// ===============================
+type RecentFile = { name: string; json: any; ts: number };
+const RECENTS_KEY = "du_recent_files_v1";
+const RECENTS_MAX = 8;
+const PRICING_ITEMS_CACHE_KEY = "du_cache::pricing_items2_v1";
+const PRICING_CATS_CACHE_KEY = "du_cache::pricing_categories_v1";
+const PRICING_CACHE_TS_KEY = "du_cache::pricing_ts_v1";
+
+function getRecents(): RecentFile[] {
+  try {
+    const raw = localStorage.getItem(RECENTS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+function saveRecents(next: RecentFile[]) {
+  try {
+    localStorage.setItem(
+      RECENTS_KEY,
+      JSON.stringify(next.slice(0, RECENTS_MAX))
+    );
+  } catch {}
+}
+function pushRecent(name: string, json: any) {
+  const now = Date.now();
+  const prev = getRecents();
+  const filtered = prev.filter((r) => r?.name !== name);
+  saveRecents([{ name, json, ts: now }, ...filtered]);
+}
+async function saveProposal(proposalData: any) {
+  const { data, error } = await supabase
+    .from("proposals")
+    .insert([{ data: proposalData }])
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Failed to save proposal", error);
+    alert("Failed to save proposal");
+    return null;
+  }
+
+  return data.id;
+}
+
+// ------------------------------
+// ✅ TEMPORARY: NO LOGIN. EVERYONE IS ADMIN.
+// ------------------------------
+export default function App() {
+  const path = window.location.pathname;
+
+  if (path.startsWith("/review/")) {
+    return <ReviewProposalPage />;
+  }
+
+  return <AppShell isAdmin={true} />;
+}
+
+function AppShell({ isAdmin }: { isAdmin: boolean }) {
+  // ===============================
+  // FILE MENU + CONFIRM MODALS
+  // ===============================
+  const [fileOpen, setFileOpen] = useState(false);
+  const [confirmNewOpen, setConfirmNewOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  type EmailDraft = {
+    to: string;
+    subject: string;
+    body: string;
+    link?: string;
+    sendMeCopy?: boolean;
+  };
+
+  const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null);
+  // ===============================
+  // STEP 3: SEND FROM EMAIL MODAL
+  // - Always enqueue first (offline safe)
+  // - If online: flush queue (sends now)
+  // - Close modal + clear draft
+  // ===============================
+  // ===============================
+  // HELPER: Convert Blob → base64 (no data: prefix)
+  // ===============================
+  async function blobToBase64NoPrefix(blob: Blob): Promise<string> {
+    const arrayBuffer = await blob.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(arrayBuffer);
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  }
+  const handleSendEmailFromModal = async () => {
+    if (!emailDraft) return;
+    await sendEmailNow();
+  };
+
+  const sendEmailNow = async () => {
+    if (!emailDraft) return;
+
+    try {
+      const to = (emailDraft.to || "").trim();
+      const subject = (emailDraft.subject || "").trim();
+      const bodyText = emailDraft.body || "";
+      const replyTo = (userSettings?.userEmail || "").trim();
+
+      // ✅ default OFF
+      const sendMeCopy = !!emailDraft?.sendMeCopy;
+
+      // ✅ Button link (your review URL)
+      const proposalLink = (emailDraft as any)?.link || "";
+
+      // ✅ Email HTML (includes a real "View Proposal" button)
+      const html = `
+        <div style="font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif; font-size: 14px; line-height: 1.6; color:#111;">
+          <div style="white-space:pre-wrap;">${String(bodyText)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")}</div>
+  
+          ${
+            proposalLink
+              ? `
+            <div style="margin-top:18px;">
+              <a href="${proposalLink}"
+                style="display:inline-block; background:#16a34a; color:#fff; text-decoration:none; padding:12px 16px; border-radius:10px; font-weight:700;">
+                View Proposal
+              </a>
+            </div>
+            <div style="margin-top:10px; font-size:12px; color:#555;">
+              If the button doesn’t work, paste this link into your browser:<br/>
+              <span>${proposalLink}</span>
+            </div>
+          `
+              : ""
+          }
+        </div>
+      `;
+
+      console.log("sendEmailNow -> invoking edge function", {
+        to,
+        subject,
+        replyTo,
+        bodyLen: bodyText.length,
+        htmlLen: html.length,
+      });
+
+      const { data, error } = await supabase.functions.invoke(
+        "send-proposal-email",
+        {
+          body: {
+            to,
+            subject,
+            html, // ✅ function expects html
+            text: bodyText, // optional
+            replyTo: replyTo || undefined,
+
+            // ✅ send copy to you (Edge Function should honor cc/bcc)
+            cc: sendMeCopy && replyTo ? [replyTo] : undefined,
+          },
+        }
+      );
+
+      if (error) {
+        console.error("EDGE FUNCTION ERROR (raw):", error);
+        console.error(
+          "EDGE FUNCTION ERROR (json):",
+          JSON.stringify(error, null, 2)
+        );
+
+        const msg =
+          (error as any)?.message ||
+          (error as any)?.context?.body ||
+          JSON.stringify(error, null, 2);
+
+        alert("Send failed (edge function):\n\n" + msg);
+        return;
+      }
+
+      console.log("EDGE FUNCTION SUCCESS:", data);
+
+      setEmailModalOpen(false);
+      setEmailDraft(null);
+
+      showToast("Email sent ✅");
+    } catch (err: any) {
+      console.error("SEND EMAIL CRASH:", err);
+      alert(
+        "Send crashed:\n\n" +
+          (err?.message ||
+            err?.error_description ||
+            err?.details ||
+            JSON.stringify(err, null, 2))
+      );
+    }
+  };
+
+  // ===============================
+  // OFFLINE / ONLINE STATE
+  // ===============================
+  const [isOnline, setIsOnline] = useState<boolean>(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+
+  useEffect(() => {
+    const on = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 3500);
+  };
+  // ===============================
+  // EMAIL DRAFT (in-app send window)
+  // ===============================
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [sendMeCopy, setSendMeCopy] = useState(false);
+
+  const [recentFiles, setRecentFiles] = useState<RecentFile[]>(() =>
+    getRecents()
+  );
+  const [recentOpen, setRecentOpen] = useState(false);
+  const refreshRecents = () => setRecentFiles(getRecents());
+
+  // ===============================
+  // STATE: ESTIMATE + UI
+  // ===============================
+  const [activeNav, setActiveNav] = useState<
+    "estimator" | "pricingAdmin" | "proposals" | "analytics" | "settings"
+  >("estimator");
+  const EMAIL_DOMAINS = [
+    "gmail.com",
+    "icloud.com",
+    "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+  ];
+
+  function getEmailSuggestions(input: string) {
+    const v = (input || "").trim();
+    const at = v.indexOf("@");
+    if (at < 0) return [];
+    const name = v.slice(0, at);
+    const partial = v.slice(at + 1).toLowerCase();
+    if (!name) return [];
+    return EMAIL_DOMAINS.filter((d) => d.startsWith(partial))
+      .slice(0, 5)
+      .map((d) => `${name}@${d}`);
+  }
+
+  // ✅ FIX: this state must live at component level (NOT inside render)
+  const [showBreakdown, setShowBreakdown] = useState(false);
+
+  const [estimateId, setEstimateId] = useState<string>(() => {
+    try {
+      return localStorage.getItem("du_estimate_id") || "";
+    } catch {
+      return "";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("du_estimate_id", estimateId);
+    } catch {}
+  }, [estimateId]);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+
+  const [estimateName, setEstimateName] = useState<string>(() => {
+    try {
+      return localStorage.getItem("du_estimate_name") || "";
+    } catch {
+      return "";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("du_estimate_name", estimateName);
+    } catch {}
+  }, [estimateName]);
+  const [estimateNameLocked, setEstimateNameLocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("du_estimate_name_locked") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "du_estimate_name_locked",
+        estimateNameLocked ? "1" : "0"
+      );
+    } catch {}
+  }, [estimateNameLocked]);
+
+  const [clientTitle, setClientTitle] = useState("");
+  const [clientLastName, setClientLastName] = useState("");
+  const [clientTown, setClientTown] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  useEffect(() => {
+    const town = (clientTown || "").trim();
+    const last = (clientLastName || "").trim();
+
+    // need both fields filled out
+    if (!town || !last) return;
+
+    // if user saved/renamed, do not overwrite
+    if (estimateNameLocked) return;
+
+    // ✅ choose your format here:
+    // const auto = `${town} ${last}`;     // space version
+    const auto = `${town}_${last}`; // underscore version
+
+    // only set if it changed
+    if ((estimateName || "").trim() !== auto) {
+      setEstimateName(auto);
+      try {
+        localStorage.setItem("du_estimate_name", auto);
+      } catch {}
+    }
+  }, [clientTown, clientLastName, estimateNameLocked]);
+
+  const [constructionType, setConstructionType] = useState<string>("");
+  const [includePermit, setIncludePermit] = useState(false);
+  const [msrpMode, setMsrpMode] = useState(false);
+
+  const [selectedDeckingId, setSelectedDeckingId] = useState<string>("");
+  const [deckingSqFt, setDeckingSqFt] = useState<number>(0);
+
+  const [selectedRailingId, setSelectedRailingId] = useState<string>("");
+  const [railingLf, setRailingLf] = useState<number>(0);
+
+  const [selectedStairsId, setSelectedStairsId] = useState<string>("");
+  const [stairsCount, setStairsCount] = useState<number>(0);
+
+  const [selectedFastenerId, setSelectedFastenerId] = useState<string>("");
+
+  const [selectedDemoId, setSelectedDemoId] = useState<string>("");
+  const [demoQty, setDemoQty] = useState<number>(0);
+  const [selectedSkirtingId, setSelectedSkirtingId] = useState<string>("");
+  const [skirtingSf, setSkirtingSf] = useState<number>(0);
+  const [skirtingCategory, setSkirtingCategory] = useState<
+    "" | "Skirting" | "Lattice"
+  >("");
+
+  const [miValue, setMiValue] = useState<string>("");
+  const [emailSugOpen, setEmailSugOpen] = useState(false);
+  const emailSuggestions = useMemo(
+    () => getEmailSuggestions(clientEmail),
+    [clientEmail]
+  );
+  const [skirtingDeckingId, setSkirtingDeckingId] = useState<string>("");
+  const [skirtingDeckingTouched, setSkirtingDeckingTouched] = useState(false);
+  const lastAutoSkirtingDeckingId = useRef<string>("");
+  const [skirtingTypeTouched, setSkirtingTypeTouched] = useState(false);
+
+  // ADD ITEM rows
+  const [addItems, setAddItems] = useState<AddItemRow[]>([]);
+  const addAddItemRow = () => {
+    const newRow: AddItemRow = {
+      rowId:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()}`,
+      category: "",
+      itemId: "",
+      qty: 0,
+      constructionType: "",
+      deckingId: "",
+      customName: "",
+      customPrice: 0,
+    };
+    setAddItems((prev) => [...prev, newRow]);
+  };
+  const removeAddItemRow = (rowId: string) => {
+    setAddItems((prev) => prev.filter((r) => r.rowId !== rowId));
+  };
+  const updateAddItemRow = (rowId: string, patch: Partial<AddItemRow>) => {
+    setAddItems((prev) =>
+      prev.map((r) => (r.rowId === rowId ? { ...r, ...patch } : r))
+    );
+  };
+
+  // ===============================
+  // DIRTY STATE (unsaved changes)
+  // ===============================
+  const [isDirty, setIsDirty] = useState(false);
+  const dirtySuspendedRef = useRef(true);
+  const markDirty = () => {
+    if (dirtySuspendedRef.current) return;
+    setIsDirty(true);
+  };
+
+  // ===============================
+  // USER SETTINGS (for Proposal PDF)
+  // ===============================
+  // NOTE: Keeping your existing shape so SettingsPage / ProposalPage don't break.
+  // We are only removing “email proposal / email preview” UI behavior from App.
+  const [userSettings, setUserSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem("du_user_settings");
+      return saved
+        ? JSON.parse(saved)
+        : {
+            userName: "Jason Colapinto",
+            userPhone: "",
+            userEmail: "",
+
+            companyName: "Decks Unique",
+            companyPhone: "",
+            companyAddress: "",
+            companyWebsite: "",
+            companySlogan: "",
+            license: "",
+
+            logoDataUrl: "",
+            emailSubjectTemplate:
+              "Your Decks Unique Proposal – {{clientTown}} {{clientLastName}}",
+            emailBodyTemplate:
+              "Hi {{clientTitle}} {{clientLastName}},\n\n" +
+              "Thank you for the opportunity to quote your project.\n" +
+              "Attached is your proposal for review.\n\n" +
+              "If you have any questions, reply here or call/text me at {{userPhone}}.\n\n" +
+              "Thanks,\n" +
+              "{{userName}}\n" +
+              "{{companyName}}",
+          };
+    } catch {
+      return {
+        companyName: "Decks Unique",
+        userName: "Jason Colapinto",
+        userPhone: "",
+        userEmail: "",
+        license: "",
+        logoDataUrl: "",
+      };
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("du_user_settings", JSON.stringify(userSettings));
+    } catch {}
+  }, [userSettings]);
+
+  // ===============================
+  // FILE OPEN/SAVE helpers
+  // ===============================
+  const hasUnsavedEstimateChanges = () => {
+    return (
+      !!clientLastName ||
+      !!clientTown ||
+      !!clientEmail ||
+      !!constructionType ||
+      !!selectedDeckingId ||
+      deckingSqFt > 0 ||
+      !!selectedRailingId ||
+      railingLf > 0 ||
+      !!selectedStairsId ||
+      (stairsCount ?? 0) > 0 ||
+      !!selectedFastenerId ||
+      !!selectedDemoId ||
+      demoQty > 0 ||
+      !!skirtingCategory ||
+      !!selectedSkirtingId ||
+      skirtingSf > 0 ||
+      !!miValue ||
+      includePermit ||
+      msrpMode ||
+      addItems.length > 0
+    );
+  };
+
+  const handleNewProject = () => {
+    setClientTitle("");
+    setClientLastName("");
+    setClientTown("");
+    setClientEmail("");
+
+    setConstructionType("");
+    setIncludePermit(false);
+    setMsrpMode(false);
+
+    setSelectedDeckingId("");
+    setDeckingSqFt(0);
+    setSelectedRailingId("");
+    setRailingLf(0);
+    setSelectedStairsId("");
+    setStairsCount(0);
+    setSelectedFastenerId("");
+
+    setSelectedDemoId("");
+    setDemoQty(0);
+
+    setSkirtingCategory("");
+    setSelectedSkirtingId("");
+    setSkirtingSf(0);
+
+    setMiValue("");
+    setAddItems([]);
+
+    setEstimateName("");
+    setEstimateId("");
+    setEstimateNameLocked(false);
+
+    try {
+      localStorage.removeItem("du_estimate_name");
+      localStorage.removeItem("du_estimate_id");
+      localStorage.removeItem("du_estimate_name_locked");
+    } catch {}
+
+    setActiveNav("estimator");
+    setIsDirty(false);
+    setShowBreakdown(false);
+  };
+
+  const requestNewProject = () => {
+    if (hasUnsavedEstimateChanges()) setConfirmNewOpen(true);
+    else handleNewProject();
+  };
+
+  const cancelNew = () => setConfirmNewOpen(false);
+  const discardAndNew = () => {
+    setConfirmNewOpen(false);
+    handleNewProject();
+  };
+
+  const buildSnapshot = () => ({
+    savedAt: new Date().toISOString(),
+    estimateName,
+
+    clientTitle,
+    clientLastName,
+    clientTown,
+    clientEmail,
+
+    constructionType,
+    includePermit,
+    msrpMode,
+
+    selectedDeckingId,
+    deckingSqFt,
+    selectedRailingId,
+    railingLf,
+    selectedStairsId,
+    stairsCount,
+    selectedFastenerId,
+
+    selectedDemoId,
+    demoQty,
+    skirtingCategory,
+    selectedSkirtingId,
+    skirtingSf,
+    miValue,
+
+    addItems,
+  });
+
+  const applySnapshot = (snap: any) => {
+    setEstimateName(snap.estimateName || "");
+
+    setClientTitle(snap.clientTitle || "");
+    setClientLastName(snap.clientLastName || "");
+    setClientTown(snap.clientTown || "");
+    setClientEmail(snap.clientEmail || "");
+
+    setConstructionType(snap.constructionType || "");
+    setIncludePermit(!!snap.includePermit);
+    setMsrpMode(!!snap.msrpMode);
+
+    setSelectedDeckingId(snap.selectedDeckingId || "");
+    setDeckingSqFt(Number(snap.deckingSqFt || 0));
+
+    setSelectedRailingId(snap.selectedRailingId || "");
+    setRailingLf(Number(snap.railingLf || 0));
+
+    setSelectedStairsId(snap.selectedStairsId || "");
+    setStairsCount(Number(snap.stairsCount || 0));
+
+    setSelectedFastenerId(snap.selectedFastenerId || "");
+
+    setSelectedDemoId(snap.selectedDemoId || "");
+    setDemoQty(Number(snap.demoQty || 0));
+
+    setSkirtingCategory((snap.skirtingCategory as any) || "");
+    setSelectedSkirtingId(snap.selectedSkirtingId || "");
+    setSkirtingSf(Number(snap.skirtingSf || 0));
+
+    setMiValue(snap.miValue || "");
+    setAddItems(Array.isArray(snap.addItems) ? snap.addItems : []);
+
+    setIsDirty(false);
+    setShowBreakdown(false);
+  };
+  // ===============================
+  // EMAIL PROPOSAL (JOIST STYLE)
+  // 1) Save proposal to Supabase
+  // 2) Call Edge Function to SEND email
+  // 3) Show success toast
+  // ===============================
+
+  const renderTemplate = (
+    tpl: string,
+    vars: Record<string, string>
+  ): string => {
+    return (tpl || "").replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_, key) => {
+      return vars[key] ?? "";
+    });
+  };
+  const handleEmailProposal = async () => {
+    const to = (clientEmail || "").trim();
+
+    if (!to) {
+      showToast("Enter the client email first (Estimator → Client Email).");
+      setActiveNav("estimator");
+      return;
+    }
+
+    // if offline, we cannot create a /review link
+    if (!isOnline) {
+      // Queue a placeholder email (no share link yet)
+      setEmailDraft({
+        to,
+        subject: renderTemplate(
+          userSettings?.emailSubjectTemplate ||
+            "Your Proposal – {{clientLastName}}",
+          {
+            clientTitle: (clientTitle || "").trim(),
+            clientLastName: (clientLastName || "").trim(),
+            clientTown: (clientTown || "").trim(),
+            clientEmail: (clientEmail || "").trim(),
+            userName: (userSettings?.userName || "").trim(),
+            userPhone: (userSettings?.userPhone || "").trim(),
+            userEmail: (userSettings?.userEmail || "").trim(),
+            companyName: (userSettings?.companyName || "").trim(),
+          }
+        ),
+        body: "Offline mode: proposal link will be generated and sent automatically when you're back online.\n",
+        link: "",
+        proposalId: "",
+      });
+
+      setEmailModalOpen(true);
+      showToast("Offline: draft opened. Click Send to queue it ✅");
+      return;
+    }
+
+    try {
+      // 1) Save proposal to Supabase
+      const findItem = (id: string) =>
+        pricingItems.find((p: any) => String(p.id) === String(id));
+
+      const deckRow = selectedDeckingId ? findItem(selectedDeckingId) : null;
+      const railRow = selectedRailingId ? findItem(selectedRailingId) : null;
+      const stairRow = selectedStairsId ? findItem(selectedStairsId) : null;
+      const fastRow = selectedFastenerId ? findItem(selectedFastenerId) : null;
+      const demoRow = selectedDemoId ? findItem(selectedDemoId) : null;
+      const skirtRow = selectedSkirtingId ? findItem(selectedSkirtingId) : null;
+
+      const deckingType = (deckRow?.name || "").toString();
+      const railingType = (railRow?.name || "").toString();
+      const stairsType = (stairRow?.name || "").toString();
+      const fastenerType = (fastRow?.name || "").toString();
+      const demoType = (demoRow?.name || "").toString();
+      const skirtingType = (skirtRow?.name || "").toString();
+      const deckingDescription = (deckRow as any)?.proposal_description || null;
+      const railingDescription = (railRow as any)?.proposal_description || null;
+      const stairsDescription = (stairRow as any)?.proposal_description || null;
+      const fastenerDescription =
+        (fastRow as any)?.proposal_description || null;
+      const demoDescription = (demoRow as any)?.proposal_description || null;
+      const skirtingDescription =
+        (skirtRow as any)?.proposal_description || null;
+
+      const deckingQty = Number(deckingSqFt || 0);
+      const deckingUnit = "sf";
+      const railingQty = Number(railingLf || 0);
+      const railingUnit = "lf";
+      const stairsQty = Number(stairsCount || 0);
+      const stairsUnit = "ea";
+      const fastenerQty = Number(fastenerQtyAuto || 0);
+      const fastenerUnit = "ea";
+      const skirtingQty = Number(skirtingSf || 0);
+      const skirtingUnit = "sf";
+
+      const payload = {
+        estimate_name: estimateName || "Untitled Estimate",
+        data: {
+          // ✅ keep snapshot fields (good for timeline/notes keys etc.)
+          ...buildSnapshot(),
+
+          // ✅ REQUIRED by ProposalPage.tsx
+          userSettings,
+
+          estimateName,
+          finalEstimate,
+          constructionType,
+          sowModeSnapshot:
+            (localStorage.getItem(`du_sow_mode::${estimateName}`) as any) ||
+            "auto",
+          sowCustomTextSnapshot:
+            localStorage.getItem(`du_sow_custom::${estimateName}`) || "",
+          startWeeksSnapshot: Number(
+            localStorage.getItem(`du_timeline_start_weeks::${estimateName}`) ||
+              3
+          ),
+          durationDaysSnapshot: Number(
+            localStorage.getItem(
+              `du_timeline_duration_days::${estimateName}`
+            ) || 2
+          ),
+
+          clientTitle,
+          clientLastName,
+          clientTown,
+          clientEmail,
+
+          deckingSubtotal,
+          railingSubtotal,
+          stairsSubtotal,
+          fastenerSubtotal,
+          demoSubtotal,
+          skirtingSubtotal,
+
+          addItemsDetailed,
+          upliftMultiplier,
+          showLineItemPricesSnapshot:
+            localStorage.getItem(`du_show_line_prices::${estimateName}`) ===
+            "1",
+
+          deckingType,
+          railingType,
+          stairsType,
+          fastenerType,
+          demoType,
+          skirtingType,
+          deckingDescription,
+          railingDescription,
+          stairsDescription,
+          fastenerDescription,
+          demoDescription,
+          skirtingDescription,
+
+          deckingQty,
+          deckingUnit,
+          railingQty,
+          railingUnit,
+          stairsQty,
+          stairsUnit,
+          fastenerQty,
+          fastenerUnit,
+          skirtingQty,
+          skirtingUnit,
+        },
+      };
+
+      const { data, error } = await supabase
+        .from("proposals")
+        .insert(payload)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      function getPublicBaseUrl() {
+        const origin = window.location.origin;
+
+        // ✅ If you're inside CodeSandbox editor/preview, never send that to clients.
+        if (origin.includes("codesandbox.io")) {
+          return "https://26gqfx.csb.app"; // <-- your public app URL
+        }
+
+        // ✅ Otherwise use whatever domain the app is actually running on
+        return origin.replace(/\/$/, "");
+      }
+
+      const proposalId = data?.id;
+      const link = `${getPublicBaseUrl()}/review/${proposalId}`;
+
+      // 2) Build subject/body from Settings templates
+      const vars: Record<string, string> = {
+        clientTitle: (clientTitle || "").trim(),
+        clientLastName: (clientLastName || "").trim(),
+        clientTown: (clientTown || "").trim(),
+        clientEmail: (clientEmail || "").trim(),
+
+        userName: (userSettings?.userName || "").trim(),
+        userPhone: (userSettings?.userPhone || "").trim(),
+        userEmail: (userSettings?.userEmail || "").trim(),
+        companyName: (userSettings?.companyName || "").trim(),
+      };
+
+      const subject = renderTemplate(
+        userSettings?.emailSubjectTemplate ||
+          "Your Proposal – {{clientLastName}}",
+        vars
+      );
+
+      // Add the link at the bottom (always)
+      const bodyBase = renderTemplate(
+        userSettings?.emailBodyTemplate || "",
+        vars
+      );
+
+      const body =
+        (bodyBase || "").trim() + "\n\nView proposal here:\n" + link + "\n";
+
+      // helpful: copy link to clipboard
+      try {
+        await navigator.clipboard.writeText(link);
+      } catch {
+        // ignore if browser blocks it
+      }
+      // 3) Store draft + open in-app send window
+      setEmailDraft({ to, subject, body, link, proposalId });
+
+      setEmailModalOpen(true);
+    } catch (err: any) {
+      console.error("EMAIL PROPOSAL ERROR:", err);
+
+      const msg =
+        err?.message ||
+        err?.error_description ||
+        err?.details ||
+        JSON.stringify(err, null, 2);
+
+      showToast("Email Proposal failed. Check console for details.");
+      console.error("EMAIL PROPOSAL ERROR DETAILS:", msg);
+    }
+  };
+
+  // ===============================
+  // FILE → OPEN
+  // ===============================
+  const openFileInputRef = useRef<HTMLInputElement | null>(null);
+  const onPickOpenFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const snapshot = JSON.parse(text);
+      if (!snapshot || typeof snapshot !== "object") {
+        alert("Invalid estimate file.");
+        return;
+      }
+
+      applySnapshot(snapshot);
+
+      const recentName =
+        (snapshot.estimateName || "").trim() ||
+        file.name.replace(/\.json$/i, "").replace(/\.duest$/i, "");
+
+      pushRecent(recentName, snapshot);
+      refreshRecents();
+
+      dirtySuspendedRef.current = false;
+      setActiveNav("estimator");
+    } catch (err: any) {
+      alert("Could not open that file. It may be corrupted.");
+      console.error(err);
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const EST_EXT = ".DUest";
+  const defaultFileName = () => {
+    const town = (clientTown || "").trim();
+    const last = (clientLastName || "").trim();
+    const base = [town, last].filter(Boolean).join(" ").trim() || "Estimate";
+    const name = (estimateName || "").trim();
+    const file = `${name || base}${EST_EXT}`;
+    return file.replace(/\s+/g, " ");
+  };
+
+  const normalizeFileName = (name: string) => {
+    const trimmed = (name || "").trim();
+    if (!trimmed) return "";
+    if (trimmed.toLowerCase().endsWith(".json"))
+      return trimmed.slice(0, -5) + EST_EXT;
+    if (!trimmed.toLowerCase().endsWith(EST_EXT.toLowerCase()))
+      return trimmed + EST_EXT;
+    return trimmed;
+  };
+
+  const downloadTextFile = (filename: string, text: string) => {
+    const blob = new Blob([text], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileSave = () => {
+    if (!estimateName) {
+      const town = (clientTown || "").trim();
+      const last = (clientLastName || "").trim();
+      if (!town || !last) {
+        alert("Please enter Location and Last Name before saving.");
+        setActiveNav("estimator");
+        return;
+      }
+      const baseName = `${town} ${last}`.trim();
+      const counterKey = `du_estimate_counter::${baseName.toLowerCase()}`;
+      const current = Number(localStorage.getItem(counterKey) || "0");
+      const next = current + 1;
+      localStorage.setItem(counterKey, String(next));
+      const name = `${baseName} Est${next}`;
+      setEstimateName(name);
+      setEstimateNameLocked(true);
+      showToast("Name created. Click Save again to download the file.");
+      return;
+    }
+    setEstimateNameLocked(true);
+
+    const snap = buildSnapshot();
+    pushRecent(estimateName, snap);
+    refreshRecents();
+
+    downloadTextFile(defaultFileName(), JSON.stringify(snap, null, 2));
+    setIsDirty(false);
+  };
+
+  const handleFileSaveAs = () => {
+    const input = prompt("Save As file name:", defaultFileName());
+    if (!input) return;
+
+    const filename = normalizeFileName(input);
+    if (!filename) return;
+
+    const snap = buildSnapshot();
+
+    const recentLabel = filename.replace(new RegExp(`${EST_EXT}$`, "i"), "");
+    pushRecent(recentLabel, snap);
+    refreshRecents();
+
+    downloadTextFile(filename, JSON.stringify(snap, null, 2));
+    setIsDirty(false);
+  };
+
+  const handleFileOpen = () => openFileInputRef.current?.click();
+
+  const openRecent = (rf: RecentFile) => {
+    try {
+      applySnapshot(rf.json);
+      pushRecent(rf.name, rf.json);
+      refreshRecents();
+      setRecentOpen(false);
+      setFileOpen(false);
+      setActiveNav("estimator");
+    } catch (e) {
+      console.error("Failed to open recent:", e);
+      alert("Could not open that recent file.");
+    }
+  };
+  const buildDefaultEstimateName = () => {
+    const town = (clientTown || "").trim();
+    const last = (clientLastName || "").trim();
+    const baseName = `${town} ${last}`.trim();
+
+    if (!town || !last) return "";
+
+    const counterKey = `du_estimate_counter::${baseName.toLowerCase()}`;
+    const current = Number(localStorage.getItem(counterKey) || "0");
+    const next = current + 1;
+    localStorage.setItem(counterKey, String(next));
+
+    return `${baseName} Est${next}`;
+  };
+
+  const saveAndNew = () => {
+    handleFileSaveAs(); // <-- force prompt + default filename
+    setConfirmNewOpen(false);
+    handleNewProject();
+  };
+
+  // ===============================
+  // ✅ PRICING STATE (FIXED)
+  // ===============================
+  const [pricingItems, setPricingItems] = useState<PricingItemRow[]>([]);
+  useEffect(() => {
+    // Only do this when user selected "Skirting"
+    if (skirtingCategory !== "Skirting") {
+      lastAutoSkirtingDeckingId.current = "";
+      setSkirtingTypeTouched(false); // reset for next time
+      return;
+    }
+
+    // Need a decking selected to match against
+    if (!selectedDeckingId) return;
+
+    // If user already manually chose a skirting type, don't override
+    if (skirtingTypeTouched) return;
+
+    // If we already auto-set for this same decking id, do nothing
+    if (lastAutoSkirtingDeckingId.current === selectedDeckingId) return;
+
+    // Find the selected decking record
+    const deckRow = pricingItems.find(
+      (p: any) => String(p.id) === String(selectedDeckingId)
+    );
+    const deckName = (deckRow?.name || "").trim().toLowerCase();
+    if (!deckName) return;
+
+    // Pull skirting options (your category might be "Skirting" or "Skirting_options")
+    const skirtingOptions = pricingItems.filter((p: any) =>
+      String(p.category || "")
+        .toLowerCase()
+        .includes("skirting")
+    );
+
+    // Match by name containing the decking name (your naming convention)
+    const match = skirtingOptions.find((p: any) =>
+      String(p.name || "")
+        .trim()
+        .toLowerCase()
+        .includes(deckName)
+    );
+
+    if (match) {
+      setSelectedSkirtingId(String(match.id));
+      lastAutoSkirtingDeckingId.current = selectedDeckingId;
+    }
+  }, [skirtingCategory, selectedDeckingId, pricingItems, skirtingTypeTouched]);
+
+  const [pricingCategories, setPricingCategories] = useState<
+    PricingCategoryRow[]
+  >([]);
+  const [pricingLoaded, setPricingLoaded] = useState(false);
+  const [pricingError, setPricingError] = useState<string | null>(null);
+
+  // ------------------------------
+  // LOAD PRICING (NETWORK FIRST, CACHE FALLBACK)
+  // ------------------------------
+  useEffect(() => {
+    const loadPricing = async () => {
+      setPricingLoaded(false);
+      setPricingError(null);
+
+      // helper: apply items/cats to state
+      const applyPricing = (itemsRaw: any[], catsRaw: any[]) => {
+        const cleanedItems = (itemsRaw || []).map((r: any) => ({
+          ...r,
+          active: r.active !== false,
+          deleted_at: r.deleted_at ?? null,
+          category: r.category ?? null,
+          category2: r.category2 ?? null,
+        }));
+
+        setPricingItems(cleanedItems as PricingItemRow[]);
+        setPricingCategories((catsRaw || []) as PricingCategoryRow[]);
+        setPricingLoaded(true);
+        dirtySuspendedRef.current = false;
+      };
+
+      // 1) Try Supabase first
+      try {
+        const [itemsRes, catsRes] = await Promise.all([
+          supabase
+            .from("pricing_items2")
+            .select("*")
+            .order("sort_order", { ascending: true })
+            .order("name", { ascending: true }),
+          supabase
+            .from("pricing_categories")
+            .select("id, name, is_active")
+            .order("name", { ascending: true }),
+        ]);
+
+        if (itemsRes.error) throw itemsRes.error;
+        if (catsRes.error) throw catsRes.error;
+
+        const items = itemsRes.data || [];
+        const cats = catsRes.data || [];
+
+        // ✅ cache successful response
+        try {
+          localStorage.setItem(PRICING_ITEMS_CACHE_KEY, JSON.stringify(items));
+          localStorage.setItem(PRICING_CATS_CACHE_KEY, JSON.stringify(cats));
+          localStorage.setItem(PRICING_CACHE_TS_KEY, String(Date.now()));
+        } catch {}
+
+        applyPricing(items, cats);
+        return;
+      } catch (err: any) {
+        // 2) If Supabase fails, try cache
+        try {
+          const rawItems = localStorage.getItem(PRICING_ITEMS_CACHE_KEY);
+          const rawCats = localStorage.getItem(PRICING_CATS_CACHE_KEY);
+
+          if (rawItems && rawCats) {
+            const cachedItems = JSON.parse(rawItems);
+            const cachedCats = JSON.parse(rawCats);
+
+            applyPricing(cachedItems, cachedCats);
+            setPricingError(
+              "Offline mode: using last saved pricing. (Reconnect to refresh.)"
+            );
+            return;
+          }
+        } catch {}
+
+        // 3) No cache available
+        setPricingError(
+          err?.message ||
+            "Failed to load pricing (no internet and no cached pricing yet)."
+        );
+        setPricingLoaded(false);
+      }
+    };
+
+    loadPricing();
+  }, []);
+
+  // ===============================
+  // ESTIMATOR DERIVED DATA
+  // ===============================
+  const constructionTypeRef = useRef<HTMLSelectElement | null>(null);
+  const skirtingCategoryRef = useRef<HTMLSelectElement | null>(null);
+
+  useEffect(() => {
+    if (activeNav === "estimator" && pricingLoaded && !pricingError) {
+      constructionTypeRef.current?.focus();
+    }
+  }, [activeNav, pricingLoaded, pricingError]);
+
+  const deckingOptions = pricingItems
+    .filter((item) => {
+      const cat = (item.category || "").toLowerCase().trim();
+      const unit = (item.unit || "").toLowerCase().trim();
+      const isDeckMaterial =
+        (cat === "decking" || cat === "ipe" || cat === "composite_decking") &&
+        unit === "sf";
+      return (
+        isDeckMaterial &&
+        item.active !== false &&
+        (item.deleted_at ?? null) == null
+      );
+    })
+    .sort((a, b) => {
+      const aOrder = a.sort_order ?? 999;
+      const bOrder = b.sort_order ?? 999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name);
+    });
+
+  const stairsOptions = pricingItems
+    .filter((item) => {
+      const cat1 = (item.category || "").toLowerCase().trim();
+      const cat2 = (item.category2 || "").toLowerCase().trim();
+      return (
+        (cat1 === "stair_options" || cat2 === "stair_options") &&
+        item.active !== false &&
+        (item.deleted_at ?? null) == null
+      );
+    })
+    .sort((a, b) => {
+      const aOrder = a.sort_order ?? 999;
+      const bOrder = b.sort_order ?? 999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name);
+    });
+
+  const fastenerOptions = pricingItems
+    .filter((item) => {
+      const cat = item.category?.toLowerCase().trim();
+      return (
+        cat &&
+        cat.includes("fasten") &&
+        item.active !== false &&
+        (item.deleted_at ?? null) == null
+      );
+    })
+    .sort((a, b) => {
+      const aOrder = a.sort_order ?? 999;
+      const bOrder = b.sort_order ?? 999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name);
+    });
+
+  const demoOptions = pricingItems
+    .filter((item) => {
+      const cat = (item.category || "").toLowerCase().trim();
+      return (
+        (cat === "demolition" || cat === "demo") &&
+        item.active !== false &&
+        (item.deleted_at ?? null) == null
+      );
+    })
+    .sort((a, b) => {
+      const aOrder = a.sort_order ?? 999;
+      const bOrder = b.sort_order ?? 999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name);
+    });
+
+  const skirtingOnlyOptions = pricingItems
+    .filter((item) => {
+      const cat = (item.category || "").toLowerCase().trim();
+      const cat2 = (item.category2 || "").toLowerCase().trim();
+      return (
+        (cat === "skirting" || cat2 === "skirting") &&
+        item.active !== false &&
+        (item.deleted_at ?? null) == null
+      );
+    })
+    .sort((a, b) => {
+      const aOrder = a.sort_order ?? 999;
+      const bOrder = b.sort_order ?? 999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name);
+    });
+
+  const latticeOnlyOptions = pricingItems.filter((item) => {
+    const cat = (item.category || "").toLowerCase().trim();
+    const cat2 = (item.category2 || "").toLowerCase().trim();
+    return (
+      (cat === "lattice" || cat2 === "lattice") &&
+      item.active !== false &&
+      (item.deleted_at ?? null) == null
+    );
+  });
+
+  const skirtingLatticeOptions =
+    skirtingCategory === "Skirting"
+      ? skirtingOnlyOptions
+      : skirtingCategory === "Lattice"
+      ? latticeOnlyOptions
+      : [];
+
+  const railingOptions = pricingItems
+    .filter((item) => {
+      const cat = (item.category ?? "").toLowerCase().trim();
+      const unit = (item.unit ?? "").toLowerCase().trim();
+      return (
+        cat === "railing" &&
+        unit === "lf" &&
+        item.active !== false &&
+        (item.deleted_at ?? null) == null
+      );
+    })
+    .sort((a, b) => {
+      const aOrder = a.sort_order ?? 999;
+      const bOrder = b.sort_order ?? 999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return (a.name ?? "").localeCompare(b.name ?? "");
+    });
+
+  const constructionOptions = pricingItems
+    .filter(
+      (item) =>
+        (item.category || "").toLowerCase().trim() === "construction_options"
+    )
+    .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+
+  const selectedDecking = deckingOptions.find(
+    (d) => String(d.id) === selectedDeckingId
+  );
+  const selectedRailing = railingOptions.find(
+    (r) => String(r.id) === selectedRailingId
+  );
+  const selectedFastener = fastenerOptions.find(
+    (f) => String(f.id) === selectedFastenerId
+  );
+  const selectedDemo = demoOptions.find((d) => String(d.id) === selectedDemoId);
+  const selectedSkirting = skirtingLatticeOptions.find(
+    (s) => String(s.id) === selectedSkirtingId
+  );
+
+  const selectedConstruction = constructionOptions.find(
+    (c) => c.name === constructionType
+  );
+  useEffect(() => {
+    // Only auto-pick once a decking type exists
+    if (!selectedDeckingId) return;
+
+    // Don’t override if user already chose a fastener
+    if (selectedFastenerId) return;
+
+    // Find "Hidden Clips" in your fastener options
+    const hiddenClips = fastenerOptions.find((it) =>
+      normalizeName(it.name || "").includes("hidden clips")
+    );
+
+    if (hiddenClips?.id != null) {
+      setSelectedFastenerId(String(hiddenClips.id));
+    }
+  }, [selectedDeckingId, selectedFastenerId, fastenerOptions]);
+
+  const constructionAdj = selectedConstruction?.cost ?? 0;
+
+  const baseDeckingUnit = selectedDecking?.cost ?? 0;
+  const adjustedDeckingUnit = baseDeckingUnit + constructionAdj;
+
+  const deckingSubtotal = adjustedDeckingUnit * deckingSqFt;
+
+  const baseRailingUnit = selectedRailing?.cost ?? 0;
+  const railingSubtotal = baseRailingUnit * railingLf;
+  // ===============================
+  // STAIRS — shared pricing helper
+  // (used by Main Stairs + Add Item stairs)
+  // ===============================
+  function computeEffectiveStairsRate(params: {
+    pricingItems: PricingItemRow[];
+    selectedDecking: PricingItemRow | undefined;
+    stairOptionRow: PricingItemRow | null; // row from stair_options
+  }): { baseUnit: number; effectiveRate: number; tooltip: string } {
+    const { pricingItems, selectedDecking, stairOptionRow } = params;
+
+    if (!selectedDecking) {
+      return {
+        baseUnit: 0,
+        effectiveRate: 0,
+        tooltip: "Select Decking Type to price stairs",
+      };
+    }
+
+    // base stair row is in category "stair" and name matches decking name
+    const deckNm = normalizeName(selectedDecking.name || "");
+    const baseStairRow = pricingItems.find((it) => {
+      if (it.active === false) return false;
+      if ((it.deleted_at ?? null) != null) return false;
+
+      const cat = normalizeCat(it.category || "");
+      if (cat !== "stair") return false;
+
+      return normalizeName(it.name || "") === deckNm;
+    });
+
+    const baseUnit = Number(baseStairRow?.cost || 0);
+    if (baseUnit <= 0) {
+      return {
+        baseUnit: 0,
+        effectiveRate: 0,
+        tooltip: `Missing base stair price: category "stair" name "${selectedDecking.name}"`,
+      };
+    }
+
+    // no option selected => base stairs
+    if (!stairOptionRow) {
+      return {
+        baseUnit,
+        effectiveRate: baseUnit,
+        tooltip: `Base stairs: $${baseUnit.toFixed(2)}/lf`,
+      };
+    }
+
+    const optUnit = String(stairOptionRow.unit || "")
+      .toLowerCase()
+      .trim();
+    const optCost = Number(stairOptionRow.cost || 0);
+    const optName = (stairOptionRow.name || "Stair Option").toString().trim();
+
+    let effectiveRate = baseUnit;
+
+    if (optUnit === "multiplier") {
+      effectiveRate = baseUnit * optCost;
+      return {
+        baseUnit,
+        effectiveRate,
+        tooltip: `${optName}: ${optCost} × $${baseUnit.toFixed(
+          2
+        )}/lf = $${effectiveRate.toFixed(2)}/lf`,
+      };
+    }
+
+    if (optUnit === "addon_lf") {
+      effectiveRate = baseUnit + optCost;
+      return {
+        baseUnit,
+        effectiveRate,
+        tooltip: `${optName}: $${baseUnit.toFixed(2)}/lf + $${optCost.toFixed(
+          2
+        )}/lf = $${effectiveRate.toFixed(2)}/lf`,
+      };
+    }
+
+    if (optUnit === "lf") {
+      effectiveRate = optCost;
+      return {
+        baseUnit,
+        effectiveRate,
+        tooltip: `${optName}: $${effectiveRate.toFixed(2)}/lf (override)`,
+      };
+    }
+
+    // fallback: treat as override
+    effectiveRate = optCost;
+    return {
+      baseUnit,
+      effectiveRate,
+      tooltip: `${optName}: $${effectiveRate.toFixed(2)}/lf`,
+    };
+  }
+
+  const selectedStairOption = stairsOptions.find(
+    (s) => String(s.id) === String(selectedStairsId)
+  );
+  const stairsCalc = computeEffectiveStairsRate({
+    pricingItems,
+    selectedDecking,
+    stairOptionRow: selectedStairOption || null,
+  });
+
+  const baseStairsUnit = stairsCalc.baseUnit;
+  const effectiveStairsRate = stairsCalc.effectiveRate;
+
+  const stairsSubtotal = effectiveStairsRate * (stairsCount ?? 0);
+
+  const baseFastenerUnit = selectedFastener?.cost ?? 0;
+  const fastenerQtyAuto = deckingSqFt || 0;
+  const fastenerSubtotal = baseFastenerUnit * fastenerQtyAuto;
+
+  const baseDemoUnit = selectedDemo?.cost ?? 0;
+  const demoSubtotal = baseDemoUnit * demoQty;
+
+  const baseSkirtingUnit = selectedSkirting?.cost ?? 0;
+  const skirtingSubtotal = baseSkirtingUnit * skirtingSf;
+
+  // ===============================
+  // ADD ITEMS — categories + pricing
+  // ===============================
+  const addItemCategories = useMemo(() => {
+    const BLOCKED = new Set(
+      [
+        "uplift",
+        "uplifts",
+        "price_adjusters",
+        "price adjusters",
+        "global_multiplier",
+        "admin",
+        "internal",
+
+        // ⛔ remove from Add Item menu
+        "construction",
+        "construction options",
+        "construction types",
+
+        // ✅ remove core estimator categories from Add Items
+        "decking",
+        "composite_decking",
+        "ipe",
+
+        // ✅ hide base stair pricing category (still used for calculations)
+        "stair",
+        "stairs",
+      ].map((s) => s.toLowerCase())
+    );
+
+    const cats = (pricingCategories || [])
+      .filter((c) => c.is_active)
+      .map((c) => (c?.name || "").trim())
+      .filter(Boolean)
+      .filter((name) => !BLOCKED.has(name.toLowerCase()));
+
+    // ✅ Ensure "Misc" is always available
+    const hasMisc = cats.some((c) => normalizeCat(c) === "misc");
+    const withMisc = hasMisc ? cats : ["Misc", ...cats];
+
+    return withMisc;
+  }, [pricingCategories]);
+
+  const addItemOptionsForRow = (row: AddItemRow) => {
+    const want = normalizeCat(row.category || "");
+    if (!want) return [];
+    if (want === "misc") return [];
+    if (want === "construction_options") return [];
+
+    // simple aliases
+    const wantAliases = new Set<string>([want]);
+    if (want === "demolition") wantAliases.add("demo");
+
+    return pricingItems
+      .filter((it) => {
+        if (it.active === false) return false;
+        if ((it.deleted_at ?? null) != null) return false;
+
+        const cat1 = normalizeCat(it.category || "");
+        const cat2 = normalizeCat((it as any).category2 || "");
+
+        return wantAliases.has(cat1) || wantAliases.has(cat2);
+      })
+      .sort((a, b) => {
+        const aOrder = (a as any).sort_order ?? 999;
+        const bOrder = (b as any).sort_order ?? 999;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return (a.name || "").localeCompare(b.name || "");
+      });
+  };
+  const selectedStairsRow = pricingItems.find(
+    (p) => String(p.id) === String(selectedStairsId)
+  );
+
+  const addItemsDetailed = addItems.map((row) => {
+    const rowCat = normalizeCat(row.category || "");
+    if ((row.category || "").toLowerCase().includes("stair")) {
+      console.log("ADD-ITEM DEBUG:", {
+        category: row.category,
+        rowCat,
+        qty: row.qty,
+        itemId: row.itemId,
+      });
+    }
+
+    const isMisc = rowCat === "misc";
+    let baseRow: any = null;
+    // ✅ DB pricing row (use this for unit/cost math)
+    const pickedRow = pricingItems.find(
+      (p) => String(p.id) === String(row.itemId)
+    );
+
+    // ✅ dropdown options (use this for the dropdown list only)
+    const opts = addItemOptionsForRow(row);
+    const pickedOpt = opts.find(
+      (o) => String((o as any).id) === String(row.itemId)
+    );
+
+    // ✅ unify naming so the rest of your logic can use `picked`
+    const picked: any = pickedRow || pickedOpt || null;
+
+    const pickedNameRaw = (pickedRow?.name ?? pickedOpt?.name ?? "").toString();
+    const pickedName = pickedNameRaw; // keep your existing variable name
+    const pickedNameLc = pickedNameRaw.toLowerCase();
+    // ✅ init these ONCE so any special pricing blocks can safely assign to them
+
+    let lineBase = 0;
+    let tooltip = "";
+    let unitLabel = ((picked as any)?.unit || "ea").toString();
+    let unit = unitLabel;
+    let displayUnitCost = 0;
+
+    // ----------------------------
+    // ✅ STAIR OPTIONS (Add Item) = SAME pricing as the MAIN stairs selection up top
+    // ----------------------------
+    const isAddItemStairOptions = rowCat === "stair_options";
+
+    if (isAddItemStairOptions) {
+      const qtySafe = Number(row.qty || 0);
+
+      const baseStairs = Number(selectedStairsRow?.cost || 0);
+      const baseStairsName = (selectedStairsRow?.name || "").toString().trim();
+
+      if (!baseStairsName || baseStairs <= 0) {
+        displayUnitCost = 0;
+        lineBase = 0;
+        tooltip = "Select Stair Options (top of estimator) to price this item";
+      } else {
+        // price this add-item exactly like stairs up top
+        displayUnitCost = baseStairs;
+        lineBase = displayUnitCost * qtySafe;
+
+        // ✅ force unit label to match stairs behavior
+        unitLabel = "lf";
+        unit = "lf";
+      }
+    }
+
+    // ----------------------------
+    // 1) MISC = fixed price, no uplift
+    // ----------------------------
+    if (isMisc) {
+      const priceSafe = Number(row.customPrice || 0);
+      const displayName = (row.customName || "").trim() || "Misc Item";
+      const lineBase = priceSafe * 1;
+
+      return {
+        ...row,
+        qty: 1,
+        picked: { name: displayName } as any,
+        unitCost: priceSafe,
+        lineBase,
+        unitLabel: "ea",
+        unit: "ea",
+        tooltip: `Fixed price: $${priceSafe.toFixed(2)} (no uplift)`,
+        isFixedPrice: true,
+        displayName,
+      };
+    }
+
+    // ----------------------------
+    // 2) CONSTRUCTION TYPE ROW (special row category)
+    // ----------------------------
+    const isConstructionRow = isConstructionTypeCategory(row.category || "");
+    if (isConstructionRow) {
+      const qtySafe = Number(row.qty || 0);
+
+      const deckingRowForThisLine = pricingItems.find(
+        (d) => String(d.id) === String(row.deckingId || "")
+      );
+
+      const baseRateSf = deckingRowForThisLine?.cost ?? 0;
+      const adjSf = getConstructionAdjustment(row.category || "");
+      const rateSf = baseRateSf + adjSf;
+
+      const ctLabel =
+        getConstructionTypeLabel(row.category || "") || "Construction";
+
+      const lineBase =
+        !deckingRowForThisLine || !row.deckingId || rateSf <= 0
+          ? 0
+          : rateSf * qtySafe;
+
+      return {
+        ...row,
+        qty: qtySafe,
+        picked: {
+          name: `${ctLabel} – ${deckingRowForThisLine?.name || ""}`,
+        } as any,
+        unitCost: rateSf,
+        lineBase,
+        unitLabel: "sf",
+        unit: "sf",
+        tooltip: !row.deckingId
+          ? "Select Decking Type"
+          : `$${rateSf.toFixed(2)} / sf  ($${baseRateSf.toFixed(2)}${
+              adjSf >= 0 ? " + " : " - "
+            }${Math.abs(adjSf).toFixed(2)})`,
+        isFixedPrice: false,
+        displayName: `${ctLabel} – ${deckingRowForThisLine?.name || ""}`,
+      };
+    }
+    // ----------------------------
+    // 3A) BENCH PRICING (special)
+    // ----------------------------
+    if (normalizeCat(row.category || "") === "bench") {
+      const qtyLf = Number(row.qty || 0);
+      const bt = String(row.benchType || "12_flat"); // e.g. "12_flat", "12_back", "18_storage_back", etc.
+
+      const deckName = (selectedDecking?.name || "").trim();
+      const prettyType =
+        BENCH_TYPES.find((x) => x.value === bt)?.label || "Bench";
+
+      if (!deckName) {
+        return {
+          ...row,
+          qty: qtyLf,
+          picked: { name: prettyType } as any,
+          unitCost: 0,
+          lineBase: 0,
+          unitLabel: "lf",
+          unit: "lf",
+          tooltip: "Select Decking Type to price bench",
+          isFixedPrice: false,
+          displayName: prettyType,
+        };
+      }
+
+      const is18 = bt.startsWith("18_");
+
+      // ✅ Base row lookup
+      // 12": category Bench, name "<Decking> bench"
+      // 18": category Bench_18in, name "<Decking> bench 18in"
+      const baseNeedle = is18
+        ? normalizeName(`${deckName} bench 18in`)
+        : normalizeName(`${deckName} bench`);
+
+      const baseRow = pricingItems.find((it) => {
+        if (it.active === false) return false;
+        if ((it.deleted_at ?? null) != null) return false;
+
+        const cat = normalizeCat(it.category || "");
+        const wantCat = is18 ? "bench_18in" : "bench";
+        if (cat !== wantCat) return false;
+
+        return normalizeName(it.name || "") === baseNeedle;
+      });
+
+      const baseBenchLf = Number(baseRow?.cost || 0);
+
+      if (baseBenchLf <= 0) {
+        return {
+          ...row,
+          qty: qtyLf,
+          picked: { name: prettyType } as any,
+          unitCost: 0,
+          lineBase: 0,
+          unitLabel: "lf",
+          unit: "lf",
+          tooltip: is18
+            ? `Missing Supabase price: "${deckName} bench 18in" (Category: Bench_18in)`
+            : `Missing Supabase price: "${deckName} bench" (Category: Bench)`,
+          isFixedPrice: false,
+          displayName: prettyType,
+        };
+      }
+
+      // ✅ Add-ons:
+      // 12" uses % from Supabase helper
+      // 18" uses flat $ add-ons: +40 back, +10 storage (can stack if both)
+      let unitCost = baseBenchLf;
+      let tooltip = "";
+
+      if (is18) {
+        const addBack = bt.includes("_back") ? 40 : 0;
+        const addStorage = bt.includes("_storage") ? 10 : 0;
+        const addonPerLf = addBack + addStorage;
+
+        unitCost = baseBenchLf + addonPerLf;
+
+        tooltip =
+          addonPerLf > 0
+            ? `${prettyType}: $${unitCost.toFixed(
+                2
+              )}/lf = base $${baseBenchLf.toFixed(
+                2
+              )} + add $${addonPerLf.toFixed(2)}/lf`
+            : `${prettyType}: $${unitCost.toFixed(
+                2
+              )}/lf = base $${baseBenchLf.toFixed(2)}`;
+      } else {
+        const backPct = bt.includes("_back")
+          ? getBenchAddonPct(pricingItems, "12", "back")
+          : 0;
+
+        const storagePct = bt.includes("_storage")
+          ? getBenchAddonPct(pricingItems, "12", "storage")
+          : 0;
+
+        const addonPct = backPct || storagePct || 0;
+
+        unitCost = baseBenchLf * (1 + addonPct / 100);
+
+        tooltip =
+          addonPct > 0
+            ? `${prettyType}: $${unitCost.toFixed(
+                2
+              )}/lf = base $${baseBenchLf.toFixed(2)} × (1 + ${addonPct}%)`
+            : `${prettyType}: $${unitCost.toFixed(
+                2
+              )}/lf = base $${baseBenchLf.toFixed(2)}`;
+      }
+
+      const lineBase = unitCost * qtyLf;
+
+      return {
+        ...row,
+        qty: qtyLf,
+        picked: { name: prettyType } as any,
+        unitCost,
+        lineBase,
+        unitLabel: "lf",
+        unit: "lf",
+        tooltip,
+        isFixedPrice: false,
+        displayName: prettyType,
+      };
+    }
+    // ----------------------------
+    // ✅ STAIR OPTIONS (Add Item) — SAME pricing as MAIN stairs
+    // Base comes from category "stair" matching selectedDecking.name
+    // Option comes from the selected stair_options row (multiplier / addon_lf / lf)
+    // ----------------------------
+    if (normalizeCat(row.category || "") === "stair_options") {
+      const qtyLf = Number(row.qty || 0);
+
+      // row "Type" selection (this is a stair_options row)
+      const stairOptionRow = pricingItems.find(
+        (p) => String(p.id) === String(row.itemId)
+      ) as PricingItemRow | undefined;
+
+      const stairsCalc = computeEffectiveStairsRate({
+        pricingItems,
+        selectedDecking,
+        stairOptionRow: stairOptionRow || null,
+      });
+
+      const unitCost = stairsCalc.effectiveRate;
+      const lineBase = unitCost * qtyLf;
+
+      return {
+        ...row,
+        qty: qtyLf,
+        picked: {
+          name: (stairOptionRow?.name || "Stair Option").toString(),
+        } as any,
+        unitCost: unitCost,
+        lineBase: lineBase,
+        unitLabel: "lf",
+        unit: "lf",
+        tooltip: stairsCalc.tooltip,
+        isFixedPrice: false,
+        displayName: (stairOptionRow?.name || "Stair Option").toString(),
+      };
+    }
+
+    // ----------------------------
+    // 3) If no type picked yet, return a safe row (prevents null crash)
+    // ----------------------------
+    if (!picked) {
+      const qtySafe = Number(row.qty || 0);
+      return {
+        ...row,
+        qty: qtySafe,
+        picked: null,
+        unitCost: 0,
+        lineBase: 0,
+        unitLabel: "",
+        unit: "",
+        tooltip: row.category ? "Select Type" : "Select Category",
+        isFixedPrice: false,
+        displayName: "",
+      };
+    }
+
+    // ----------------------------
+    // ----------------------------
+    // 4) Default pricing
+    // ----------------------------
+    const qty = Number(row.qty || 0);
+    const rawUnitCost = Number((picked as any).cost || 0);
+
+    const pickedUnit = ((picked as any).unit || "").toLowerCase().trim();
+
+    /* 👆👆👆 END STEP 3 👆👆👆 */
+
+    const isPlanter = pickedName.includes("planter");
+    const isRamp = pickedName.includes("ramp");
+
+    // bases
+    const baseDeckSf = selectedDecking?.cost ?? 0; // selected decking $/sf
+    const baseRailLf = selectedRailing?.cost ?? 0; // selected railing $/lf
+
+    // Keep EXACTLY the same behavior you already have for decking + railing.
+    // Only change: make "stair options" in Add Item correctly reference the main Stairs base price.
+
+    const referencesDecking =
+      rowCat.includes("deck") ||
+      rowCat === "decking_options" ||
+      rowCat === "bench" ||
+      pickedNameLc.includes("deck") ||
+      pickedNameLc.includes("stair landing") ||
+      pickedNameLc.includes("diagonal") ||
+      pickedNameLc.includes("picture frame") ||
+      pickedNameLc.includes("pic frame") ||
+      pickedNameLc.includes("planter") ||
+      pickedNameLc.includes("ramp") ||
+      pickedNameLc.includes("board over board");
+
+    // ✅ Stairs (Add Item) should price off the selected *main stairs* selection.
+    // - Includes the stair_options category
+    // - Includes tread/riser add-ons
+    // - Includes "stair" in name, but avoids stair landing (which is decking-based)
+    const referencesStairs =
+      rowCat === "stair_options" ||
+      rowCat.includes("stair") ||
+      pickedNameLc.includes("tread") ||
+      pickedNameLc.includes("riser") ||
+      (pickedNameLc.includes("stair") && !pickedNameLc.includes("landing"));
+
+    const referencesRailing =
+      rowCat.includes("rail") ||
+      pickedNameLc.includes("rail") ||
+      pickedNameLc.includes("baluster");
+
+    // ----------------------------
+    // 5) PIC FRAME BORDER (LF) = 0.75 × selected decking $/sf
+    // ----------------------------
+    const isPicFrameBorder =
+      pickedName.includes("pic frame") ||
+      pickedName.includes("picture frame") ||
+      pickedName.includes("picframe");
+
+    if (isPicFrameBorder) {
+      if (!selectedDecking || baseDeckSf <= 0) {
+        displayUnitCost = 0;
+        lineBase = 0;
+        tooltip = "Select Decking Type to price picture frame";
+      } else {
+        displayUnitCost = baseDeckSf * 0.75;
+        lineBase = displayUnitCost * qty;
+        tooltip = `Pic Frame Border: $${displayUnitCost.toFixed(
+          2
+        )}/lf (0.75 × $${baseDeckSf.toFixed(2)}/sf)`;
+      }
+    }
+    // ✅ PLANTER (LF) = 0.90 × selected decking $/sf
+    if (isPlanter) {
+      if (!selectedDecking || baseDeckSf <= 0) {
+        displayUnitCost = 0;
+        lineBase = 0;
+        tooltip = "Select Decking Type to price planter";
+      } else {
+        displayUnitCost = baseDeckSf * 0.9;
+        lineBase = displayUnitCost * qty;
+        tooltip = `Planter: $${displayUnitCost.toFixed(
+          2
+        )}/lf (0.90 × $${baseDeckSf.toFixed(2)}/sf)`;
+      }
+    }
+    // ✅ RAMP (SF) = (picked multiplier) × selected decking $/sf
+    if (isRamp) {
+      if (!selectedDecking || baseDeckSf <= 0) {
+        displayUnitCost = 0;
+        lineBase = 0;
+        tooltip = "Select Decking Type to price ramp";
+      } else {
+        const mult = Number((picked as any).cost || 0); // Ramp sf row cost (multiplier)
+        displayUnitCost = baseDeckSf * mult;
+        lineBase = displayUnitCost * qty;
+        tooltip = `Ramp: $${displayUnitCost.toFixed(2)}/sf (${mult.toFixed(
+          2
+        )} × $${baseDeckSf.toFixed(2)}/sf)`;
+      }
+    }
+
+    // ----------------------------
+    if (
+      pickedUnit === "multiplier" &&
+      rowCat !== "bench" &&
+      rowCat !== "stair_options" &&
+      !isPicFrameBorder &&
+      !isPlanter &&
+      !isRamp
+    ) {
+      const base =
+        referencesRailing && baseRailLf > 0
+          ? baseRailLf
+          : referencesDecking && baseDeckSf > 0
+          ? baseDeckSf
+          : 0;
+
+      if (base <= 0) {
+        displayUnitCost = 0;
+        lineBase = 0;
+        tooltip = referencesRailing
+          ? "Select Railing Type to price this item"
+          : "Select Decking Type to price this item";
+      } else {
+        const mult = Number((picked as any).cost || 0);
+        displayUnitCost = base * mult;
+        lineBase = displayUnitCost * qty;
+        tooltip = `multiplier ${mult.toFixed(2)} × base $${base.toFixed(
+          2
+        )} = $${displayUnitCost.toFixed(2)} per unit`;
+      }
+    }
+
+    // ----------------------------
+    // 8) addon_lf / addon_sf items (base + add)
+    //    IMPORTANT: don't run this for bench (bench has its own rules)
+    // ----------------------------
+    if (
+      (pickedUnit === "addon_lf" || pickedUnit === "addon_sf") &&
+      rowCat !== "bench"
+    ) {
+      const base =
+        referencesRailing && baseRailLf > 0
+          ? baseRailLf
+          : referencesDecking && baseDeckSf > 0
+          ? baseDeckSf
+          : 0;
+
+      if (base <= 0) {
+        displayUnitCost = 0;
+        lineBase = 0;
+        tooltip = referencesRailing
+          ? "Select Railing Type to price this item"
+          : "Select Decking Type to price this item";
+      } else {
+        const add = Number((picked as any).cost || 0);
+        displayUnitCost = base + add;
+        lineBase = displayUnitCost * qty;
+        tooltip = `base $${base.toFixed(2)} + add $${add.toFixed(
+          2
+        )} = $${displayUnitCost.toFixed(2)}`;
+      }
+    }
+    // ----------------------------
+    // ✅ DEFAULT pricing fallback for NORMAL Add Items
+    // If no special rule set a unit cost, use the picked row's cost.
+    // ----------------------------
+    if (displayUnitCost === 0) {
+      const fallback = Number((picked as any)?.cost ?? 0);
+      displayUnitCost = Number.isFinite(fallback) ? fallback : 0;
+      lineBase = displayUnitCost * qty;
+
+      if (!tooltip) {
+        tooltip = `unit $${displayUnitCost.toFixed(
+          2
+        )} × qty ${qty} = $${lineBase.toFixed(2)}`;
+      }
+    }
+
+    return {
+      ...row,
+      qty,
+      picked: { ...(picked as any), name: pickedNameRaw } as any,
+      unitCost: displayUnitCost,
+      lineBase,
+      unitLabel: (picked as any)?.unit || "ea",
+      unit: (picked as any)?.unit || "ea",
+      tooltip,
+      isFixedPrice: false,
+      displayName: pickedNameRaw,
+    };
+  });
+
+  const addItemsSubtotalUpliftable = addItemsDetailed.reduce(
+    (sum: number, r: any) => sum + (!r.isFixedPrice ? r.lineBase || 0 : 0),
+    0
+  );
+  const addItemsSubtotalFixed = addItemsDetailed.reduce(
+    (sum: number, r: any) => sum + (r.isFixedPrice ? r.lineBase || 0 : 0),
+    0
+  );
+
+  // MARK DIRTY
+  useEffect(() => {
+    markDirty();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    clientTitle,
+    clientLastName,
+    clientTown,
+    clientEmail,
+    constructionType,
+    includePermit,
+    msrpMode,
+    selectedDeckingId,
+    deckingSqFt,
+    selectedRailingId,
+    railingLf,
+    selectedStairsId,
+    stairsCount,
+    selectedFastenerId,
+    selectedDemoId,
+    demoQty,
+    skirtingCategory,
+    selectedSkirtingId,
+    skirtingSf,
+    miValue,
+    JSON.stringify(addItems),
+  ]);
+
+  // ===============================
+  // UPLIFTS
+  // ===============================
+  const baseProjectTotal =
+    deckingSubtotal +
+    railingSubtotal +
+    stairsSubtotal +
+    fastenerSubtotal +
+    demoSubtotal +
+    skirtingSubtotal +
+    addItemsSubtotalUpliftable;
+
+  const financeRow = pricingItems.find(
+    (row) => row.unit === "global_multiplier" && row.name === "Finance"
+  );
+  const perceivedRow = pricingItems.find(
+    (row) => row.unit === "global_multiplier" && row.name === "Perceived Value"
+  );
+
+  const financeMultiplier = financeRow?.cost ?? 1;
+  const perceivedMultiplier = perceivedRow?.cost ?? 1;
+
+  const permitTier = includePermit
+    ? getPermitTierForTotal(pricingItems, baseProjectTotal)
+    : { multiplier: 1, threshold: null };
+  const permitMultiplier = permitTier.multiplier;
+  const permitThreshold = permitTier.threshold;
+
+  const smallTier = getSmallJobTierForTotal(pricingItems, baseProjectTotal) ?? {
+    multiplier: 1,
+    threshold: null,
+  };
+  const smallProjectMultiplier =
+    baseProjectTotal > 0 ? smallTier.multiplier : 1;
+
+  const rawFinancePercent = (financeMultiplier - 1) * 100;
+  const rawPerceivedPercent = (perceivedMultiplier - 1) * 100;
+
+  const financePercent = msrpMode ? 0 : rawFinancePercent;
+  const perceivedPercent = msrpMode ? 0 : rawPerceivedPercent;
+
+  const miPercent = miValue ? Number(miValue) : 0;
+
+  const smallJobPercent = (smallProjectMultiplier - 1) * 100;
+  const permitPercent = (permitMultiplier - 1) * 100;
+
+  const totalUpliftPercent =
+    financePercent +
+    perceivedPercent +
+    miPercent +
+    smallJobPercent +
+    permitPercent;
+
+  const upliftMultiplier = 1 + totalUpliftPercent / 100;
+
+  const totalUpliftDollars =
+    baseProjectTotal > 0 ? (baseProjectTotal * totalUpliftPercent) / 100 : 0;
+  const financeUpliftDollars =
+    baseProjectTotal > 0 ? (baseProjectTotal * financePercent) / 100 : 0;
+  const perceivedUpliftDollars =
+    baseProjectTotal > 0 ? (baseProjectTotal * perceivedPercent) / 100 : 0;
+  const miUpliftDollars =
+    baseProjectTotal > 0 ? (baseProjectTotal * miPercent) / 100 : 0;
+  const permitUpliftDollars =
+    baseProjectTotal > 0 ? (baseProjectTotal * permitPercent) / 100 : 0;
+  const smallJobUpliftDollars =
+    baseProjectTotal > 0 ? (baseProjectTotal * smallJobPercent) / 100 : 0;
+
+  const projectTotalWithUplift =
+    baseProjectTotal > 0 ? baseProjectTotal * upliftMultiplier : 0;
+  const finalEstimate = projectTotalWithUplift + addItemsSubtotalFixed;
+  const prettyCat = (cat: string) =>
+    (cat || "").replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+  function getBenchAddonPct(
+    pricingItems: PricingItemRow[],
+    size: "12" | "18",
+    kind: "back" | "storage"
+  ) {
+    const wantCat = size === "18" ? "bench_18in" : "bench";
+    const wantNeedle = kind === "back" ? "w back" : "w storage";
+
+    const row = pricingItems.find((it) => {
+      if (it.active === false) return false;
+      if ((it.deleted_at ?? null) != null) return false;
+
+      const cat = String(it.category || "")
+        .toLowerCase()
+        .trim();
+      if (normalizeCat(cat) !== wantCat) return false;
+
+      // these rows are your add-on percent rows in Supabase
+      const nm = String(it.name || "").toLowerCase();
+      return nm.includes(wantNeedle);
+    });
+
+    const pct = Number(row?.cost || 0);
+    return Number.isFinite(pct) ? pct : 0;
+  }
+
+  const catItemLabel = (cat: string, item: string) => {
+    const c = prettyCat(cat);
+    const i = (item || "").trim();
+    if (!c) return i || "";
+    if (!i) return c;
+    return `${c} — ${i}`;
+  };
+
+  // ===============================
+  // RENDER
+  // ===============================
+  return (
+    <div className="app-shell">
+      {/* hidden open input */}
+      <input
+        ref={openFileInputRef}
+        type="file"
+        accept=".json,.DUest,.duest"
+        style={{ display: "none" }}
+        onChange={onPickOpenFile}
+      />
+
+      {/* LEFT SIDEBAR */}
+      <aside className="sidebar-left">
+        <div className="sidebar-logo">
+          <div className="sidebar-logo-mark">DU</div>
+          <div className="sidebar-logo-text">
+            <div className="sidebar-logo-title">Deck Estimator</div>
+            <div className="sidebar-logo-subtitle">Decks Unique</div>
+          </div>
+        </div>
+
+        <div className="sidebar-file">
+          <button
+            type="button"
+            className={`sidebar-nav-item sidebar-file-trigger ${
+              fileOpen ? "is-open" : ""
+            }`}
+            onClick={() => setFileOpen((v) => !v)}
+          >
+            <span className="sidebar-nav-dot" />
+            <span className="sidebar-file-label">File</span>
+            <span className="sidebar-file-caret">{fileOpen ? "▾" : "▸"}</span>
+          </button>
+
+          {fileOpen && (
+            <div className="sidebar-file-menu">
+              <button
+                type="button"
+                className="sidebar-file-item"
+                onClick={() => {
+                  setFileOpen(false);
+                  requestNewProject();
+                }}
+              >
+                New
+              </button>
+              <button
+                type="button"
+                className="sidebar-file-item"
+                onClick={() => {
+                  handleFileOpen();
+                  setTimeout(() => setFileOpen(false), 0);
+                }}
+              >
+                Open…
+              </button>
+              <button
+                type="button"
+                className="sidebar-file-item"
+                onClick={() => {
+                  refreshRecents();
+                  setRecentOpen((v) => !v);
+                }}
+              >
+                Open Recent {recentOpen ? "▾" : "▸"}
+              </button>
+              {recentOpen && (
+                <div
+                  style={{ paddingLeft: 10, paddingTop: 6, paddingBottom: 6 }}
+                >
+                  {recentFiles.length === 0 ? (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        opacity: 0.7,
+                        padding: "6px 10px",
+                      }}
+                    >
+                      No recent files yet.
+                    </div>
+                  ) : (
+                    recentFiles.map((rf) => (
+                      <button
+                        key={rf.ts + rf.name}
+                        type="button"
+                        className="sidebar-file-item"
+                        style={{ fontSize: 12, opacity: 0.95 }}
+                        onClick={() => openRecent(rf)}
+                        title={new Date(rf.ts).toLocaleString()}
+                      >
+                        {rf.name}
+                      </button>
+                    ))
+                  )}
+
+                  {recentFiles.length > 0 && (
+                    <button
+                      type="button"
+                      className="sidebar-file-item"
+                      style={{ fontSize: 12, opacity: 0.8 }}
+                      onClick={() => {
+                        localStorage.removeItem(RECENTS_KEY);
+                        refreshRecents();
+                        setRecentOpen(false);
+                      }}
+                    >
+                      Clear Recent
+                    </button>
+                  )}
+                </div>
+              )}
+              <button
+                type="button"
+                className="sidebar-file-item"
+                onClick={() => {
+                  handleFileSaveAs(); // prompt + correct default filename
+                  setFileOpen(false); // close File menu
+                }}
+              >
+                Save As…
+              </button>
+
+              <div className="sidebar-file-sep" />
+              <button
+                type="button"
+                className="sidebar-file-item"
+                onClick={() => {
+                  setFileOpen(false);
+                  setActiveNav("proposals");
+                  setTimeout(() => {
+                    const originalTitle = document.title;
+                    const safeLast = (clientLastName || "Client")
+                      .trim()
+                      .replace(/[^a-z0-9]+/gi, " ")
+                      .trim();
+                    document.title = `${safeLast} Proposal`;
+                    window.print();
+                    setTimeout(() => {
+                      document.title = originalTitle;
+                    }, 800);
+                  }, 200);
+                }}
+              >
+                Print
+              </button>
+            </div>
+          )}
+        </div>
+
+        <nav className="sidebar-nav">
+          <SidebarNavItem
+            label="Estimator"
+            isActive={activeNav === "estimator"}
+            onClick={() => setActiveNav("estimator")}
+          />
+          <SidebarNavItem
+            label="Proposals"
+            isActive={activeNav === "proposals"}
+            onClick={() => setActiveNav("proposals")}
+          />
+          {isAdmin && (
+            <SidebarNavItem
+              label="Pricing Admin"
+              isActive={activeNav === "pricingAdmin"}
+              onClick={() => setActiveNav("pricingAdmin")}
+            />
+          )}
+          <SidebarNavItem
+            label="Analytics"
+            isActive={activeNav === "analytics"}
+            onClick={() => setActiveNav("analytics")}
+          />
+          <SidebarNavItem
+            label="Settings"
+            isActive={activeNav === "settings"}
+            onClick={() => setActiveNav("settings")}
+          />
+        </nav>
+        {/* Offline indicator (sidebar) */}
+        {(!isOnline ||
+          (pricingError || "").toLowerCase().includes("offline mode")) && (
+          <div className="sidebar-offline">
+            <span className="sidebar-offline-dot" />
+            Offline Mode
+          </div>
+        )}
+
+        <div className="sidebar-footer">
+          <div className="sidebar-footer-title">Estimator2.0</div>
+          <div className="sidebar-footer-subtitle">Jason Colapinto</div>
+        </div>
+      </aside>
+
+      <main
+        className={
+          "main-content " +
+          (activeNav === "pricingAdmin" ? "main-content--full" : "")
+        }
+      >
+        {/* PAGE HEADER (Joist-style) */}
+        <header className="page-header">
+          <div className="page-header__left">
+            <div className="page-header__title">
+              {activeNav === "estimator" && "Deck Estimate"}
+              {activeNav === "proposals" && "Proposals"}
+              {activeNav === "pricingAdmin" && "Pricing Admin"}
+              {activeNav === "analytics" && "Analytics"}
+              {activeNav === "settings" && "Settings"}
+            </div>
+
+            <div className="page-header__subtitle">
+              {activeNav === "estimator" &&
+                "Build an estimate and generate a proposal"}
+            </div>
+          </div>
+        </header>
+
+        {toast && <div className="du-toast">{toast}</div>}
+
+        <div
+          className={
+            "main-grid " +
+            (activeNav === "analytics" ||
+            activeNav === "proposals" ||
+            activeNav === "settings"
+              ? "main-grid--single "
+              : "") +
+            (activeNav === "pricingAdmin" ? "main-grid--pricing " : "")
+          }
+        >
+          {/* ====== ANALYTICS ====== */}
+          {activeNav === "analytics" && (
+            <section className="analytics-page">
+              <AnalyticsPage />
+            </section>
+          )}
+
+          {/* ====== ESTIMATOR ====== */}
+          {activeNav === "estimator" && (
+            <section className="estimator-pane">
+              <div>
+                {!pricingLoaded && !pricingError && (
+                  <div className="banner banner-info">
+                    Loading pricing from Supabase…
+                  </div>
+                )}
+
+                {pricingError && (
+                  <div className="banner banner-error">{pricingError}</div>
+                )}
+
+                {pricingLoaded && !pricingError && (
+                  <>
+                    {/* ===== UPLIFT / MSRP ROW ===== */}
+                    <div className="msrp-pill-row">
+                      {/* Left: MSRP toggle pill */}
+                      <span
+                        className={`pill pill--uplift msrp-pill ${
+                          msrpMode ? "on" : "off"
+                        }`}
+                        onClick={() => setMsrpMode(!msrpMode)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setMsrpMode(!msrpMode);
+                          }
+                        }}
+                        aria-pressed={msrpMode}
+                        title={
+                          msrpMode
+                            ? "MSRP mode ON (uplifts disabled)"
+                            : "MSRP mode OFF"
+                        }
+                      />
+
+                      {/* Right: Uplift multiplier pill (1.17) + hover breakdown */}
+                      <div className="pill-wrapper uplift-hover">
+                        <span className="pill pill--uplift">
+                          {upliftMultiplier.toFixed(2)}
+                        </span>
+
+                        <div className="uplift-hover-box">
+                          <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                            Uplift Breakdown
+                          </div>
+                          <div>Finance: {Math.round(financePercent)}%</div>
+                          <div>
+                            Perceived Value: {Math.round(perceivedPercent)}%
+                          </div>
+                          <div>Manual Index: {Math.round(miPercent)}%</div>
+                          <div>Small Job: {Math.round(smallJobPercent)}%</div>
+                          <div>Permit: {Math.round(permitPercent)}%</div>
+                          <div style={{ marginTop: 8, fontWeight: 700 }}>
+                            Total: {Math.round(totalUpliftPercent)}%
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ===== Client Info ===== */}
+                    <section className="estimator-section estimator-section--no-bottom">
+                      <div className="estimator-section-body">
+                        <div className="client-info-row">
+                          <div className="client-field">
+                            <label>Title</label>
+                            <select
+                              value={clientTitle}
+                              onChange={(e) => setClientTitle(e.target.value)}
+                            >
+                              <option value="">—</option>
+                              <option value="Mr.">Mr.</option>
+                              <option value="Mrs.">Mrs.</option>
+                              <option value="Ms.">Ms.</option>
+                              <option value="Dr.">Dr.</option>
+                            </select>
+                          </div>
+
+                          <div className="client-field">
+                            <label>Last Name</label>
+                            <input
+                              type="text"
+                              value={clientLastName}
+                              onChange={(e) =>
+                                setClientLastName(e.target.value)
+                              }
+                              placeholder="Last name"
+                            />
+                          </div>
+
+                          <div className="client-field">
+                            <label>Location</label>
+                            <input
+                              type="text"
+                              value={clientTown}
+                              onChange={(e) => setClientTown(e.target.value)}
+                              placeholder="Town / City"
+                            />
+                          </div>
+
+                          <div
+                            className="client-field"
+                            style={{ position: "relative" }}
+                          >
+                            <label>Email</label>
+                            <input
+                              type="email"
+                              value={clientEmail}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setClientEmail(v);
+                                setEmailSugOpen(v.includes("@"));
+                              }}
+                              onFocus={() => {
+                                if (clientEmail.includes("@"))
+                                  setEmailSugOpen(true);
+                              }}
+                              onBlur={() => {
+                                // let click register on a suggestion
+                                window.setTimeout(
+                                  () => setEmailSugOpen(false),
+                                  120
+                                );
+                              }}
+                              placeholder="Email"
+                              autoComplete="off"
+                            />
+
+                            {emailSugOpen && emailSuggestions.length > 0 && (
+                              <div className="email-suggest">
+                                {emailSuggestions.map((s) => (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    className="email-suggest-item"
+                                    onMouseDown={(e) => e.preventDefault()} // prevent blur before click
+                                    onClick={() => {
+                                      setClientEmail(s);
+                                      setEmailSugOpen(false);
+                                    }}
+                                  >
+                                    {s}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* ===== Decking + Construction Type ===== */}
+                    <section className="estimator-section">
+                      <header className="estimator-section-header">
+                        <div className="decking-header-row">
+                          <div
+                            className="form-field"
+                            style={{ width: "260px" }}
+                          >
+                            <select
+                              ref={constructionTypeRef}
+                              className="form-select"
+                              value={constructionType}
+                              onChange={(e) =>
+                                setConstructionType(e.target.value)
+                              }
+                            >
+                              <option value="" disabled hidden>
+                                Construction Type
+                              </option>
+                              {constructionOptions.map((opt) => (
+                                <option key={opt.id} value={opt.name}>
+                                  {opt.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="permit-control">
+                            <span className="permit-title">Permit</span>
+                            <button
+                              type="button"
+                              className={`permit-switch ${
+                                includePermit ? "is-on" : "is-off"
+                              }`}
+                              onClick={() => setIncludePermit((v) => !v)}
+                              aria-pressed={includePermit}
+                            >
+                              <span className="permit-switch-knob" />
+                            </button>
+                          </div>
+                        </div>
+                      </header>
+
+                      <div className="estimator-section-body">
+                        <div className="form-row form-row--4">
+                          {/* Decking Type */}
+                          <div className="form-field">
+                            <select
+                              className="form-select"
+                              value={selectedDeckingId}
+                              onChange={(e) =>
+                                setSelectedDeckingId(e.target.value)
+                              }
+                            >
+                              <option value="" disabled hidden>
+                                Decking Type
+                              </option>
+                              {deckingOptions.map((opt) => (
+                                <option key={opt.id} value={opt.id}>
+                                  {opt.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* MI */}
+                          <div className="form-field">
+                            <input
+                              type="number"
+                              className="form-input no-spinner mi-input"
+                              placeholder="MI"
+                              value={miValue}
+                              onChange={(e) => setMiValue(e.target.value)}
+                              aria-label="Manual uplift index"
+                            />
+                          </div>
+
+                          {/* SF + tooltip */}
+                          <div className="tooltip-wrapper">
+                            <input
+                              type="number"
+                              className="form-input no-spinner"
+                              placeholder="SF"
+                              value={deckingSqFt === 0 ? "" : deckingSqFt}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setDeckingSqFt(v === "" ? 0 : Number(v));
+                              }}
+                            />
+
+                            <div className="tooltip-box">
+                              <div>
+                                Base decking: {baseDeckingUnit.toFixed(2)} / sf
+                              </div>
+                              <div>
+                                Construction ({constructionType || "None"}):{" "}
+                                {constructionAdj >= 0 ? "+" : ""}
+                                {constructionAdj.toFixed(2)} / sf
+                              </div>
+                              <div
+                                style={{ marginTop: "4px", fontWeight: 600 }}
+                              >
+                                Adjusted rate: {adjustedDeckingUnit.toFixed(2)}{" "}
+                                / sf
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* ===== RAILING ===== */}
+                    <section className="estimator-section">
+                      <div className="estimator-section-body">
+                        <div className="form-row form-row--3">
+                          <div className="form-field">
+                            <select
+                              className="form-select"
+                              value={selectedRailingId}
+                              onChange={(e) =>
+                                setSelectedRailingId(e.target.value)
+                              }
+                            >
+                              <option value="" disabled hidden>
+                                Railing Type
+                              </option>
+                              {railingOptions.map((opt) => (
+                                <option key={opt.id} value={String(opt.id)}>
+                                  {opt.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="tooltip-wrapper">
+                            <input
+                              type="number"
+                              className="form-input no-spinner"
+                              placeholder="LF"
+                              value={railingLf === 0 ? "" : railingLf}
+                              onChange={(e) =>
+                                setRailingLf(
+                                  e.target.value === ""
+                                    ? 0
+                                    : Number(e.target.value)
+                                )
+                              }
+                            />
+                            <div className="tooltip-box">
+                              <div>
+                                {selectedRailing
+                                  ? `${selectedRailing.name}`
+                                  : "Select railing"}{" "}
+                                · ${(baseRailingUnit || 0).toFixed(2)} / lf
+                              </div>
+                              <div style={{ marginTop: 4, fontWeight: 600 }}>
+                                Subtotal: $
+                                {railingSubtotal.toLocaleString(undefined, {
+                                  maximumFractionDigits: 0,
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* ===== STAIRS ===== */}
+                    <section className="estimator-section">
+                      <div className="estimator-section-body">
+                        <div className="form-row form-row--3">
+                          <div className="form-field">
+                            <select
+                              className="form-select"
+                              value={selectedStairsId}
+                              onChange={(e) =>
+                                setSelectedStairsId(e.target.value)
+                              }
+                            >
+                              <option value="" disabled hidden>
+                                Stair Options
+                              </option>
+                              {stairsOptions.map((opt) => (
+                                <option key={opt.id} value={String(opt.id)}>
+                                  {opt.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="tooltip-wrapper">
+                            <input
+                              type="number"
+                              className="form-input no-spinner"
+                              placeholder="lf of treads"
+                              value={stairsCount === 0 ? "" : stairsCount}
+                              onChange={(e) =>
+                                setStairsCount(
+                                  e.target.value === ""
+                                    ? 0
+                                    : Number(e.target.value)
+                                )
+                              }
+                            />
+                            <div className="tooltip-box">
+                              <div>
+                                Base: ${baseStairsUnit.toFixed(2)} · Effective:
+                                ${effectiveStairsRate.toFixed(2)}
+                              </div>
+                              <div style={{ marginTop: 4, fontWeight: 600 }}>
+                                Subtotal: $
+                                {stairsSubtotal.toLocaleString(undefined, {
+                                  maximumFractionDigits: 0,
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* ===== FASTENERS ===== */}
+                    <section className="estimator-section">
+                      <div className="estimator-section-body">
+                        <div className="form-row form-row--3">
+                          <div className="form-field">
+                            <select
+                              className="form-select"
+                              value={selectedFastenerId}
+                              onChange={(e) =>
+                                setSelectedFastenerId(e.target.value)
+                              }
+                            >
+                              <option value="" disabled hidden>
+                                Fastener Type
+                              </option>
+                              {fastenerOptions.map((opt) => (
+                                <option key={opt.id} value={String(opt.id)}>
+                                  {opt.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="tooltip-wrapper">
+                            <input
+                              type="number"
+                              className="form-input no-spinner"
+                              placeholder="Auto Qty"
+                              value={
+                                fastenerQtyAuto === 0 ? "" : fastenerQtyAuto
+                              }
+                              readOnly
+                            />
+                            <div className="tooltip-box">
+                              <div>
+                                Auto qty = Decking SF ({deckingSqFt || 0})
+                              </div>
+                              <div>
+                                Rate: ${baseFastenerUnit.toFixed(2)} / ea
+                              </div>
+                              <div style={{ marginTop: 4, fontWeight: 600 }}>
+                                Subtotal: $
+                                {fastenerSubtotal.toLocaleString(undefined, {
+                                  maximumFractionDigits: 0,
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* ===== DEMOLITION ===== */}
+                    <section className="estimator-section">
+                      <div className="estimator-section-body">
+                        <div className="form-row form-row--3">
+                          <div className="form-field">
+                            <select
+                              className="form-select"
+                              value={selectedDemoId}
+                              onChange={(e) =>
+                                setSelectedDemoId(e.target.value)
+                              }
+                            >
+                              <option value="" disabled hidden>
+                                Demo Type
+                              </option>
+                              {demoOptions.map((opt) => (
+                                <option key={opt.id} value={String(opt.id)}>
+                                  {opt.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="tooltip-wrapper">
+                            <input
+                              type="number"
+                              className="form-input no-spinner"
+                              placeholder="Qty"
+                              value={demoQty === 0 ? "" : demoQty}
+                              onChange={(e) =>
+                                setDemoQty(
+                                  e.target.value === ""
+                                    ? 0
+                                    : Number(e.target.value)
+                                )
+                              }
+                            />
+                            <div className="tooltip-box">
+                              <div>
+                                Rate: ${baseDemoUnit.toFixed(2)} · Unit:{" "}
+                                {selectedDemo?.unit || "ea"}
+                              </div>
+                              <div style={{ marginTop: 4, fontWeight: 600 }}>
+                                Subtotal: $
+                                {demoSubtotal.toLocaleString(undefined, {
+                                  maximumFractionDigits: 0,
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* ===== SKIRTING / LATTICE ===== */}
+                    <section className="estimator-section">
+                      <div className="estimator-section-body">
+                        <div className="form-row form-row--3">
+                          <div className="form-field">
+                            <select
+                              ref={skirtingCategoryRef}
+                              className="form-select"
+                              value={skirtingCategory}
+                              onChange={(e) => {
+                                const next = e.target.value as
+                                  | ""
+                                  | "Skirting"
+                                  | "Lattice";
+                                setSkirtingCategory(next);
+
+                                // reset skirting type when switching category
+                                setSelectedSkirtingId("");
+                                setSkirtingTypeTouched(false);
+                              }}
+                            >
+                              <option value="" disabled hidden>
+                                Skirting / Lattice
+                              </option>
+                              <option value="Skirting">Skirting</option>
+                              <option value="Lattice">Lattice</option>
+                            </select>
+                          </div>
+
+                          <div className="form-field">
+                            <select
+                              className="form-select"
+                              value={selectedSkirtingId}
+                              onChange={(e) => {
+                                setSkirtingTypeTouched(true);
+                                setSelectedSkirtingId(e.target.value);
+                              }}
+                              disabled={!skirtingCategory}
+                            >
+                              <option value="" disabled hidden>
+                                Type
+                              </option>
+                              {skirtingLatticeOptions.map((opt) => (
+                                <option key={opt.id} value={String(opt.id)}>
+                                  {opt.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="tooltip-wrapper">
+                            <input
+                              type="number"
+                              className="form-input no-spinner"
+                              placeholder="SF"
+                              value={skirtingSf === 0 ? "" : skirtingSf}
+                              onChange={(e) =>
+                                setSkirtingSf(
+                                  e.target.value === ""
+                                    ? 0
+                                    : Number(e.target.value)
+                                )
+                              }
+                            />
+                            <div className="tooltip-box">
+                              <div>
+                                Rate: ${baseSkirtingUnit.toFixed(2)} / sf
+                              </div>
+                              <div style={{ marginTop: 4, fontWeight: 600 }}>
+                                Subtotal: $
+                                {skirtingSubtotal.toLocaleString(undefined, {
+                                  maximumFractionDigits: 0,
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* ===== ADD ITEMS ===== */}
+                    <div className="estimator-section-body">
+                      <div className="add-items-header-row">
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={addAddItemRow}
+                        >
+                          + Add Item
+                        </button>
+                      </div>
+
+                      <div className="add-items-rows">
+                        {addItemsDetailed.length === 0 ? (
+                          <div className="section-placeholder">
+                            Click <strong>+ Add Item</strong> to add benches,
+                            lighting, columns, etc.
+                          </div>
+                        ) : (
+                          addItemsDetailed.map((row: any) => {
+                            const options = addItemOptionsForRow(row);
+
+                            return (
+                              <div
+                                key={row.rowId}
+                                className="add-item-row add-item-row--grid"
+                              >
+                                <div className="form-field">
+                                  <select
+                                    className="form-select"
+                                    value={row.category || ""}
+                                    onChange={(e) => {
+                                      const nextCat = e.target.value;
+                                      updateAddItemRow(row.rowId, {
+                                        category: nextCat,
+                                        itemId: "",
+                                        qty: 0,
+                                        customName: "",
+                                        customPrice: 0,
+                                        constructionType: "",
+                                        deckingId: "",
+                                        benchType:
+                                          normalizeCat(nextCat) === "bench"
+                                            ? "12_flat"
+                                            : "",
+                                      });
+                                    }}
+                                  >
+                                    <option value="" disabled hidden>
+                                      Category
+                                    </option>
+
+                                    {/* Normal Add Item categories */}
+                                    {addItemCategories.map((cat) => (
+                                      <option key={cat} value={cat}>
+                                        {cat.replace(/_/g, " ")}
+                                      </option>
+                                    ))}
+
+                                    {/* Divider */}
+                                    <option disabled value="__divider__">
+                                      ─────────────
+                                    </option>
+
+                                    {/* Construction Types at bottom */}
+                                    {CONSTRUCTION_TYPES.filter(
+                                      (t) => !!t.value
+                                    ).map((t) => (
+                                      <option key={t.value} value={t.value}>
+                                        {t.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {isConstructionTypeCategory(
+                                  row.category || ""
+                                ) ? (
+                                  <>
+                                    <div className="form-field">
+                                      <select
+                                        className="form-select"
+                                        value={row.deckingId || ""}
+                                        onChange={(e) =>
+                                          updateAddItemRow(row.rowId, {
+                                            deckingId: e.target.value,
+                                          })
+                                        }
+                                      >
+                                        <option value="" disabled hidden>
+                                          Decking Type
+                                        </option>
+                                        {deckingOptions.map((opt) => (
+                                          <option
+                                            key={opt.id}
+                                            value={String(opt.id)}
+                                          >
+                                            {opt.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    <div
+                                      className="additem-qty-wrap"
+                                      data-tooltip={row.tooltip || ""}
+                                    >
+                                      <input
+                                        type="number"
+                                        className="form-input no-spinner"
+                                        placeholder="SF"
+                                        value={row.qty === 0 ? "" : row.qty}
+                                        onChange={(e) =>
+                                          updateAddItemRow(row.rowId, {
+                                            qty:
+                                              e.target.value === ""
+                                                ? 0
+                                                : Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                      <button
+                                        type="button"
+                                        className="additem-remove"
+                                        onClick={() =>
+                                          removeAddItemRow(row.rowId)
+                                        }
+                                        aria-label="Remove item"
+                                        title="Remove"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : normalizeCat(row.category || "") ===
+                                  "misc" ? (
+                                  <>
+                                    <div className="form-field">
+                                      <input
+                                        type="text"
+                                        className="form-input"
+                                        placeholder="Description (e.g., Dumpster)"
+                                        value={row.customName || ""}
+                                        onChange={(e) =>
+                                          updateAddItemRow(row.rowId, {
+                                            customName: e.target.value,
+                                            qty: 1,
+                                          })
+                                        }
+                                      />
+                                    </div>
+
+                                    <div
+                                      className="additem-qty-wrap"
+                                      data-tooltip={
+                                        row.tooltip || "Fixed price (no uplift)"
+                                      }
+                                    >
+                                      <input
+                                        type="number"
+                                        className="form-input no-spinner"
+                                        placeholder="$ Price"
+                                        value={
+                                          row.customPrice === 0 ||
+                                          row.customPrice == null
+                                            ? ""
+                                            : String(row.customPrice)
+                                        }
+                                        onChange={(e) =>
+                                          updateAddItemRow(row.rowId, {
+                                            customPrice:
+                                              e.target.value === ""
+                                                ? 0
+                                                : Number(e.target.value),
+                                            qty: 1,
+                                          })
+                                        }
+                                      />
+                                      <button
+                                        type="button"
+                                        className="additem-remove"
+                                        onClick={() =>
+                                          removeAddItemRow(row.rowId)
+                                        }
+                                        aria-label="Remove item"
+                                        title="Remove"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    {normalizeCat(row.category || "") ===
+                                    "bench" ? (
+                                      <div className="form-field">
+                                        <select
+                                          className="form-select"
+                                          value={row.benchType || "12_flat"}
+                                          onChange={(e) =>
+                                            updateAddItemRow(row.rowId, {
+                                              benchType: e.target.value,
+                                              itemId: "", // bench does not use itemId
+                                              qty: 0,
+                                            })
+                                          }
+                                          disabled={!row.category}
+                                        >
+                                          <option value="" disabled hidden>
+                                            Bench Type
+                                          </option>
+
+                                          {BENCH_TYPES.map((bt) => (
+                                            <option
+                                              key={bt.value}
+                                              value={bt.value}
+                                            >
+                                              {bt.label}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    ) : (
+                                      <div className="form-field">
+                                        <select
+                                          className="form-select"
+                                          value={row.itemId}
+                                          onChange={(e) =>
+                                            updateAddItemRow(row.rowId, {
+                                              itemId: e.target.value,
+                                              qty: 0,
+                                              customName: "",
+                                              customPrice: 0,
+                                              constructionType: "",
+                                              deckingId: "",
+                                            })
+                                          }
+                                          disabled={!row.category}
+                                        >
+                                          <option value="" disabled hidden>
+                                            Type
+                                          </option>
+
+                                          {options.map((opt) => (
+                                            <option
+                                              key={opt.id}
+                                              value={String(opt.id)}
+                                            >
+                                              {opt.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    )}
+
+                                    <div
+                                      className="additem-qty-wrap"
+                                      data-tooltip={
+                                        row.tooltip || "Enter quantity"
+                                      }
+                                    >
+                                      <input
+                                        type="number"
+                                        className="form-input no-spinner"
+                                        placeholder="Qty"
+                                        value={row.qty === 0 ? "" : row.qty}
+                                        onChange={(e) =>
+                                          updateAddItemRow(row.rowId, {
+                                            qty:
+                                              e.target.value === ""
+                                                ? 0
+                                                : Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                      <button
+                                        type="button"
+                                        className="additem-remove"
+                                        onClick={() =>
+                                          removeAddItemRow(row.rowId)
+                                        }
+                                        aria-label="Remove item"
+                                        title="Remove"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </section>
+          )}
+
+          {activeNav === "pricingAdmin" &&
+            (isAdmin ? (
+              <PricingAdmin />
+            ) : (
+              <div style={{ padding: 24, fontWeight: 700 }}>
+                Admin access required.
+              </div>
+            ))}
+
+          {activeNav === "settings" && (
+            <SettingsPage
+              userSettings={userSettings}
+              setUserSettings={setUserSettings}
+            />
+          )}
+
+          {activeNav === "proposals" && (
+            <ProposalPage
+              constructionType={constructionType}
+              userSettings={userSettings}
+              estimateName={estimateName}
+              finalEstimate={finalEstimate}
+              clientTitle={clientTitle}
+              clientLastName={clientLastName}
+              clientTown={clientTown}
+              clientEmail={clientEmail}
+              deckingSubtotal={deckingSubtotal}
+              railingSubtotal={railingSubtotal}
+              stairsSubtotal={stairsSubtotal}
+              fastenerSubtotal={fastenerSubtotal}
+              demoSubtotal={demoSubtotal}
+              skirtingSubtotal={skirtingSubtotal}
+              deckingType={selectedDecking?.name || ""}
+              railingType={selectedRailing?.name || ""}
+              stairsType={selectedStairOption?.name || ""}
+              fastenerType={selectedFastener?.name || ""}
+              demoType={selectedDemo?.name || ""}
+              skirtingType={selectedSkirting?.name || ""}
+              deckingDescription={selectedDecking?.proposal_description || ""}
+              railingDescription={selectedRailing?.proposal_description || ""}
+              stairsDescription={
+                selectedStairOption?.proposal_description || ""
+              }
+              fastenerDescription={selectedFastener?.proposal_description || ""}
+              demoDescription={selectedDemo?.proposal_description || ""}
+              skirtingDescription={selectedSkirting?.proposal_description || ""}
+              deckingQty={deckingSqFt}
+              deckingUnit="sf"
+              railingQty={railingLf}
+              railingUnit="lf"
+              stairsQty={stairsCount ?? 0}
+              stairsUnit="ea"
+              fastenerQty={fastenerQtyAuto}
+              fastenerUnit="ea"
+              demoQty={demoQty}
+              demoUnit="ea"
+              skirtingQty={skirtingSf}
+              skirtingUnit="sf"
+              addItemsDetailed={addItemsDetailed as any}
+              upliftMultiplier={upliftMultiplier}
+              onEmailProposal={handleEmailProposal}
+            />
+          )}
+
+          {/* RIGHT: ESTIMATE SUMMARY */}
+          {activeNav === "estimator" && (
+            <aside className="estimate-summary">
+              <div className="estimate-panel">
+                {(() => {
+                  const money0 = (n: number) =>
+                    (n || 0).toLocaleString(undefined, {
+                      maximumFractionDigits: 0,
+                    });
+                  const deckingRow = pricingItems.find(
+                    (p) => String(p.id) === String(selectedDeckingId)
+                  );
+
+                  const railingRow = pricingItems.find(
+                    (p) => String(p.id) === String(selectedRailingId)
+                  );
+
+                  const stairsRow = pricingItems.find(
+                    (p) => String(p.id) === String(selectedStairsId)
+                  );
+
+                  const fastenerRow = pricingItems.find(
+                    (p) => String(p.id) === String(selectedFastenerId)
+                  );
+
+                  const demoRow = pricingItems.find(
+                    (p) => String(p.id) === String(selectedDemoId)
+                  );
+
+                  const skirtingRow = pricingItems.find(
+                    (p) => String(p.id) === String(selectedSkirtingId)
+                  );
+                  const line = (label: string, amount: number) => {
+                    const neg = amount < 0;
+                    const abs = Math.abs(amount);
+
+                    return (
+                      <div className="estimate-panel__row" key={label}>
+                        <span>{label}</span>
+                        <span>
+                          {neg ? `–$${money0(abs)}` : `$${money0(abs)}`}
+                        </span>
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <>
+                      <div className="estimate-panel__header">
+                        <div className="estimate-panel__title">ESTIMATE</div>
+                        <div className="estimate-panel__total">
+                          ${money0(finalEstimate)}
+                        </div>
+                      </div>
+
+                      <div
+                        className="estimate-panel__disclosure"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setShowBreakdown((v) => !v)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setShowBreakdown((v) => !v);
+                          }
+                        }}
+                        aria-expanded={showBreakdown}
+                      >
+                        <span className="estimate-panel__disclosure-label">
+                          {showBreakdown ? "less" : "...more"}
+                        </span>
+                        <span
+                          className={`estimate-panel__chev ${
+                            showBreakdown ? "is-open" : ""
+                          }`}
+                          aria-hidden="true"
+                        >
+                          ▾
+                        </span>
+                      </div>
+
+                      {showBreakdown && (
+                        <div className="estimate-panel__rows">
+                          {deckingSubtotal > 0 &&
+                            line(
+                              catItemLabel("Decking", deckingRow?.name || ""),
+                              deckingSubtotal * upliftMultiplier
+                            )}
+                          {railingSubtotal > 0 &&
+                            line(
+                              catItemLabel("Railing", railingRow?.name || ""),
+                              railingSubtotal * upliftMultiplier
+                            )}
+                          {stairsSubtotal > 0 &&
+                            line(
+                              catItemLabel("Stairs", stairsRow?.name || ""),
+                              stairsSubtotal * upliftMultiplier
+                            )}
+                          {fastenerSubtotal > 0 &&
+                            line(
+                              catItemLabel(
+                                "Fasteners",
+                                fastenerRow?.name || ""
+                              ),
+                              fastenerSubtotal * upliftMultiplier
+                            )}
+
+                          {demoSubtotal > 0 &&
+                            line(
+                              catItemLabel("Demolition", demoRow?.name || ""),
+                              demoSubtotal * upliftMultiplier
+                            )}
+
+                          {skirtingSubtotal > 0 &&
+                            line(
+                              catItemLabel(
+                                skirtingCategory || "Skirting / Lattice",
+                                skirtingRow?.name || ""
+                              ),
+                              skirtingSubtotal * upliftMultiplier
+                            )}
+                          {(addItemsDetailed as any[])
+                            .filter(
+                              (r) => r.picked && Number(r.lineBase || 0) !== 0
+                            )
+
+                            .map((r) =>
+                              line(
+                                catItemLabel(
+                                  r.category || "Add Item",
+                                  r.picked?.name || ""
+                                ),
+                                r.isFixedPrice
+                                  ? r.lineBase
+                                  : r.lineBase * upliftMultiplier
+                              )
+                            )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </aside>
+          )}
+        </div>
+      </main>
+      {/* =============================== */}
+      {/* EMAIL MODAL (TEMP TEST) */}
+      {/* =============================== */}
+      {emailModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setEmailModalOpen(false)}
+        >
+          <div
+            style={{
+              width: "min(720px, 95vw)",
+              background: "#fff",
+              borderRadius: 12,
+              padding: 16,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>
+              Send Estimate
+            </div>
+            <div style={{ fontSize: 13, marginBottom: 8 }}>
+              <div>
+                <b>To:</b>{" "}
+                {(emailDraft?.to || clientEmail || "").trim() || "(empty)"}
+              </div>
+
+              <div>
+                <b>Subject:</b> {emailDraft?.subject || "(empty)"}
+              </div>
+
+              {/* ✅ STEP 2C: Show CC only when toggle is ON */}
+              {emailDraft?.sendMeCopy &&
+              (userSettings?.userEmail || "").trim() ? (
+                <div>
+                  <b>CC:</b> {(userSettings?.userEmail || "").trim()}
+                </div>
+              ) : null}
+            </div>
+
+            {sendMeCopy && (userSettings?.userEmail || "").trim() ? (
+              <div>
+                <b>CC:</b> {(userSettings?.userEmail || "").trim()}
+              </div>
+            ) : null}
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                margin: "10px 0 12px",
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600 }}>
+                Send me a copy
+              </span>
+
+              <label
+                style={{
+                  position: "relative",
+                  display: "inline-block",
+                  width: 34,
+                  height: 18,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={sendMeCopy}
+                  onChange={(e) => setSendMeCopy(e.target.checked)}
+                  style={{ opacity: 0, width: 0, height: 0 }}
+                />
+
+                {/* Track */}
+                <span
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    backgroundColor: sendMeCopy ? "#16a34a" : "#d1d5db",
+                    borderRadius: 999,
+                    transition: "0.2s",
+                  }}
+                />
+
+                {/* Knob */}
+                <span
+                  style={{
+                    position: "absolute",
+                    height: 14,
+                    width: 14,
+                    left: sendMeCopy ? 18 : 2,
+                    top: 2,
+                    backgroundColor: "#fff",
+                    borderRadius: "50%",
+                    transition: "0.2s",
+                  }}
+                />
+              </label>
+            </div>
+
+            <textarea
+              value={emailDraft?.body || ""}
+              onChange={(e) =>
+                setEmailDraft((d) => (d ? { ...d, body: e.target.value } : d))
+              }
+              style={{
+                fontFamily:
+                  'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
+                fontSize: "14px",
+                lineHeight: "1.5",
+                padding: "10px",
+                resize: "none",
+                height: "180px",
+                width: "100%",
+              }}
+            />
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 10,
+                marginTop: 12,
+              }}
+            >
+              <button onClick={() => setEmailModalOpen(false)}>Cancel</button>
+
+              <button
+                onClick={handleSendEmailFromModal}
+                style={{ fontWeight: 700 }}
+                disabled={!emailDraft}
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmNewProjectModal
+        open={confirmNewOpen}
+        onCancel={cancelNew}
+        onDiscard={discardAndNew}
+        onSave={saveAndNew}
+      />
+    </div>
+  );
+}
+
+// ===============================
+// CONFIRM MODAL
+// ===============================
+function ConfirmNewProjectModal({
+  open,
+  onCancel,
+  onDiscard,
+  onSave,
+}: {
+  open: boolean;
+  onCancel: () => void;
+  onDiscard: () => void;
+  onSave: () => void;
+}) {
+  if (!open) return null;
+
+  return ReactDOM.createPortal(
+    <div className="du-modal-overlay" role="dialog" aria-modal="true">
+      <div className="du-modal-card">
+        <div className="du-modal-title">Start a new estimate?</div>
+        <div className="du-modal-subtitle">
+          You have unsaved changes. Choose what to do before starting a new
+          estimate.
+        </div>
+
+        <div className="du-modal-actions">
+          <button
+            type="button"
+            className="du-btn du-btn-ghost"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+
+          <div className="du-modal-actions-right">
+            <button
+              type="button"
+              className="du-btn du-btn-secondary"
+              onClick={onDiscard}
+            >
+              Discard &amp; New
+            </button>
+
+            <button
+              type="button"
+              className="du-btn du-btn-primary"
+              onClick={onSave}
+            >
+              Save &amp; New
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ===============================
+// ANALYTICS DASHBOARD (your original)
+// ===============================
+type CategoryRow = { category: string; before: number; after: number };
+type AnalyticsDashboardProps = {
+  permitThreshold: number | null;
+  baseTotal: number;
+  finalTotal: number;
+  upliftMultiplier: number;
+
+  financePct: number;
+  perceivedPct: number;
+  miPct: number;
+  permitPct: number;
+  smallJobPct: number;
+
+  financeDollars: number;
+  perceivedDollars: number;
+  miDollars: number;
+  permitDollars: number;
+  smallJobDollars: number;
+
+  totalUpliftDollars: number;
+  categoryRows: CategoryRow[];
+};
+function AnalyticsDashboard(props: AnalyticsDashboardProps) {
+  return (
+    <>
+      {upliftCards.map((c) => (
+        <div key={c.label} className="tesla-card">
+          <div className="tesla-kicker">{c.label}</div>
+          <div className="tesla-big">{money0(c.value)}</div>
+        </div>
+      ))}
+
+      <div className="tesla-card tesla-card--hero">
+        <div className="tesla-kicker">Final Estimate</div>
+        <div className="tesla-big">{money0(finalTotal)}</div>
+
+        <div className="tesla-sub">
+          Total Uplift{" "}
+          <span className="tesla-mono">{money0(totalUpliftDollars)}</span>
+        </div>
+
+        <div className="tesla-sub" style={{ opacity: 0.7 }}>
+          Category total check:{" "}
+          <span className="tesla-mono">{money0(totalAfter)}</span>
+        </div>
+      </div>
+    </>
+  );
+}

@@ -1,0 +1,433 @@
+/* SettingsPage.css — Tesla-like LIGHT glass UI (easy to read) */
+
+:root {
+  --bg0: #f3f6fb;
+  --bg1: #eef2f8;
+
+  --card: rgba(255, 255, 255, 0.78);
+  --card2: rgba(255, 255, 255, 0.62);
+
+  --stroke: rgba(15, 23, 42, 0.12);
+  --stroke2: rgba(15, 23, 42, 0.16);
+
+  --text: rgba(15, 23, 42, 0.92);
+  --muted: rgba(15, 23, 42, 0.62);
+
+  --accent: #2563eb; /* blue */
+  --accent2: #7c3aed; /* violet */
+  --danger: #e11d48;
+
+  --shadow: 0 22px 60px rgba(15, 23, 42, 0.12);
+  --shadow2: 0 10px 28px rgba(15, 23, 42, 0.08);
+
+  --r: 18px;
+  --r2: 14px;
+  --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial,
+    "Helvetica Neue";
+}
+/* ✅ default logo size (overridden inline via style prop on #proposal-doc) */
+.proposal-doc {
+  --proposal-logo-size: 70px;
+}
+
+/* Critical: kill horizontal overflow */
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+}
+
+/* Shell full width and scrolls */
+.settings-shell {
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-family: var(--font);
+  color: var(--text);
+
+  background: radial-gradient(
+      900px 700px at 15% 10%,
+      rgba(37, 99, 235, 0.18),
+      transparent 55%
+    ),
+    radial-gradient(
+      800px 600px at 85% 0%,
+      rgba(124, 58, 237, 0.16),
+      transparent 55%
+    ),
+    linear-gradient(180deg, var(--bg0), var(--bg1));
+}
+
+/* Header */
+.settings-top {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 26px 20px 10px;
+}
+
+.settings-kicker {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(15, 23, 42, 0.55);
+}
+
+.settings-h1 {
+  margin-top: 8px;
+  font-size: 34px;
+  font-weight: 850;
+  letter-spacing: -0.03em;
+}
+
+.settings-sub {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Content */
+.settings-content {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 14px 20px 40px;
+  display: grid;
+  gap: 14px;
+}
+
+/* Cards */
+.card {
+  background: linear-gradient(180deg, var(--card), var(--card2));
+  border: 1px solid var(--stroke);
+  border-radius: var(--r);
+  box-shadow: var(--shadow2);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 0 16px;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(15, 23, 42, 0.82);
+}
+
+.card-sub {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 80ch;
+}
+
+.card-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.card-body {
+  padding: 14px 16px 16px 16px;
+}
+
+/* Grid */
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 980px) {
+  .grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mt12 {
+  margin-top: 12px;
+}
+
+/* Fields */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.field-label {
+  font-size: 12px;
+  font-weight: 750;
+  color: rgba(15, 23, 42, 0.7);
+}
+.span-all {
+  grid-column: 1 / -1;
+}
+
+/* Inputs */
+.ui-input,
+.ui-select,
+.ui-textarea {
+  width: 100%;
+  min-width: 0;
+  border-radius: 14px;
+  border: 1px solid var(--stroke2);
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--text);
+  padding: 11px 12px;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.ui-input::placeholder,
+.ui-textarea::placeholder {
+  color: rgba(15, 23, 42, 0.38);
+}
+
+.ui-input:focus,
+.ui-select:focus,
+.ui-textarea:focus {
+  border-color: rgba(37, 99, 235, 0.48);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+}
+
+.ui-textarea {
+  resize: vertical;
+  line-height: 1.45;
+}
+
+/* Buttons */
+.ui-btn {
+  border-radius: 999px;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  background: rgba(37, 99, 235, 0.1);
+  color: rgba(15, 23, 42, 0.92);
+  padding: 9px 12px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease,
+    border-color 120ms ease, filter 120ms ease;
+  white-space: nowrap;
+}
+
+.ui-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.44);
+  box-shadow: var(--shadow);
+}
+
+.ui-btn:active {
+  transform: translateY(0px);
+  filter: brightness(0.98);
+}
+.ui-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.ui-btn.ghost {
+  background: transparent;
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+.ui-btn.danger {
+  border-color: rgba(225, 29, 72, 0.26);
+  background: rgba(225, 29, 72, 0.1);
+}
+
+.ui-btn.danger:hover {
+  border-color: rgba(225, 29, 72, 0.45);
+}
+
+.micro {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.55);
+}
+
+/* Logo */
+.logo-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.logo-preview {
+  width: 200px;
+  height: 90px;
+  border-radius: 16px;
+  border: 1px dashed rgba(15, 23, 42, 0.22);
+  background: rgba(255, 255, 255, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.logo-empty {
+  color: rgba(15, 23, 42, 0.45);
+  font-weight: 800;
+}
+
+.logo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  background: rgba(37, 99, 235, 0.1);
+  padding: 9px 12px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  width: fit-content;
+}
+.file-btn input {
+  display: none;
+}
+
+/* Sections */
+.section-list {
+  display: grid;
+  gap: 10px;
+}
+
+.section-item {
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.62);
+  padding: 12px;
+}
+
+.section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.section-left {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.section-title {
+  width: min(520px, 70vw);
+}
+
+.section-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Toggle */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+}
+.toggle input {
+  display: none;
+}
+
+.toggle-ui {
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: rgba(15, 23, 42, 0.06);
+  position: relative;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.toggle-ui::after {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.68);
+  position: absolute;
+  top: 2.5px;
+  left: 3px;
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.toggle input:checked + .toggle-ui {
+  border-color: rgba(37, 99, 235, 0.4);
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.toggle input:checked + .toggle-ui::after {
+  transform: translateX(18px);
+  background: rgba(37, 99, 235, 0.95);
+}
+
+/* Scope */
+.scope-top {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.empty {
+  padding: 10px 0;
+  color: rgba(15, 23, 42, 0.55);
+}
+
+.scope-item {
+  margin-top: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.62);
+  padding: 12px;
+}
+
+.scope-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.scope-key {
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.settings-footer-spacer {
+  height: 22px;
+}

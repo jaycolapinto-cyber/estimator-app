@@ -1,0 +1,663 @@
+/* PricingAdmin.css — OUTLOOK-ISH (simple, clean, office UI) */
+/* CSS ONLY — no imports, no JS */
+
+/* =========================================================
+   1) LAYOUT: allow Pricing Admin to use the shell width,
+      but keep the CONTENT pleasantly constrained (fits screen)
+   ========================================================= */
+
+body.pa-wide .main-content {
+  max-width: none !important;
+  width: 100% !important;
+  padding-right: 0 !important;
+}
+
+body.pa-wide .main-grid,
+body.pa-wide .main-grid--pricing,
+body.pa-wide .main-grid--pricingAdmin {
+  max-width: none !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+body.pa-wide .page-header {
+  max-width: none !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+body.pa-wide .page-header,
+body.pa-wide .main-grid {
+  padding-right: 0 !important;
+}
+
+/* =========================================================
+     2) THEME TOKENS
+     ========================================================= */
+
+:root {
+  --pa-bg: #f3f4f6; /* outlook-ish canvas */
+  --pa-panel: #ffffff; /* cards/bars */
+  --pa-border: rgba(15, 23, 42, 0.14);
+  --pa-border-soft: rgba(15, 23, 42, 0.1);
+  --pa-text: #0f172a;
+  --pa-muted: rgba(15, 23, 42, 0.62);
+
+  --pa-blue: #0f6cbd; /* Outlook-ish blue */
+  --pa-blue-weak: rgba(15, 108, 189, 0.1);
+
+  --pa-danger: #d13438; /* Office red */
+  --pa-danger-weak: rgba(209, 52, 56, 0.1);
+
+  --pa-radius: 12px;
+  --pa-shadow: 0 8px 22px rgba(2, 6, 23, 0.06);
+}
+
+/* =========================================================
+     3) PAGE WRAPPER
+     ========================================================= */
+
+.paPage {
+  background: var(--pa-bg);
+  color: var(--pa-text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+
+  /* Fit to screen with a nice max width like Outlook reading pane */
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 16px 16px 22px;
+}
+
+/* =========================================================
+     4) HEADER (top toolbar vibe)
+     ========================================================= */
+
+.paHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-border-soft);
+  border-radius: var(--pa-radius);
+  box-shadow: var(--pa-shadow);
+  padding: 12px 12px;
+  margin-bottom: 12px;
+}
+
+.paSub {
+  font-size: 13px;
+  color: var(--pa-muted);
+}
+
+.paHeaderActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* =========================================================
+     5) NOTICES
+     ========================================================= */
+
+.paNotices {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.paNotice {
+  border-radius: var(--pa-radius);
+  padding: 10px 12px;
+  font-size: 13px;
+  border: 1px solid var(--pa-border-soft);
+  background: var(--pa-panel);
+  box-shadow: var(--pa-shadow);
+}
+
+.paNotice.err {
+  border-color: rgba(209, 52, 56, 0.35);
+  background: var(--pa-danger-weak);
+}
+
+.paNotice.ok {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+/* =========================================================
+     6) CONTROLS BAR (Outlook list filters vibe)
+     ========================================================= */
+
+.paBar {
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-border-soft);
+  border-radius: var(--pa-radius);
+  box-shadow: var(--pa-shadow);
+  padding: 12px 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.paBarLeft {
+  display: grid;
+  gap: 6px;
+  min-width: 260px;
+}
+
+.paLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.7);
+}
+
+.paSelect {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--pa-border);
+  padding: 0 12px;
+  min-width: 320px;
+  background: white;
+}
+
+.paMeta {
+  font-size: 12px;
+  color: var(--pa-muted);
+}
+
+.paBarRight {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.paInput {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--pa-border);
+  padding: 0 12px;
+  min-width: 260px;
+  background: white;
+}
+
+/* =========================================================
+     7) BUTTONS (Office-ish)
+     ========================================================= */
+
+.paBtn {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--pa-border);
+  background: white;
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--pa-text);
+}
+
+.paBtn:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.paBtn.primary {
+  background: var(--pa-blue);
+  border-color: var(--pa-blue);
+  color: white;
+}
+
+.paBtn.primary:hover {
+  filter: brightness(0.96);
+}
+
+.paBtn.danger {
+  background: var(--pa-danger-weak);
+  border-color: rgba(209, 52, 56, 0.45);
+  color: var(--pa-text);
+}
+
+.paBtn.on {
+  background: var(--pa-blue-weak);
+  border-color: rgba(15, 108, 189, 0.35);
+}
+
+.paBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* =========================================================
+     8) TOP HORIZONTAL SCROLLBAR (keep, but subtle)
+     ========================================================= */
+
+.paTopScroll {
+  margin-top: 10px;
+  height: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.paTopScrollInner {
+  height: 1px;
+}
+
+/* =========================================================
+     9) TABLE WRAP
+     ========================================================= */
+
+.paTableWrap {
+  margin-top: 10px;
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-border-soft);
+  border-radius: var(--pa-radius);
+  box-shadow: var(--pa-shadow);
+  overflow: auto;
+
+  /* gives a “mail list” viewport feel */
+  max-height: calc(100vh - 230px);
+}
+
+/* =========================================================
+     10) TABLE (email-list vibe)
+     ========================================================= */
+
+.paTable {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.paTable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+
+  background: #fbfbfc;
+  color: rgba(15, 23, 42, 0.8);
+
+  text-align: left;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  padding: 10px 10px;
+  white-space: nowrap;
+}
+
+.paTable tbody tr:hover {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.paTable tbody td {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 10px;
+  vertical-align: top;
+}
+
+/* Inputs look like Office fields */
+.paCellInput {
+  width: 100%;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  padding: 0 10px;
+  background: white;
+}
+
+.paCellInput:focus {
+  outline: none;
+  border-color: rgba(15, 108, 189, 0.55);
+  box-shadow: 0 0 0 3px rgba(15, 108, 189, 0.12);
+}
+
+.paCellArea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  padding: 8px 10px;
+  background: white;
+  resize: vertical;
+}
+
+.paCellArea:focus {
+  outline: none;
+  border-color: rgba(15, 108, 189, 0.55);
+  box-shadow: 0 0 0 3px rgba(15, 108, 189, 0.12);
+}
+
+.paEmpty {
+  padding: 18px;
+  text-align: center;
+  color: var(--pa-muted);
+}
+
+.trashRow {
+  opacity: 0.65;
+}
+
+/* =========================================================
+     11) COLUMN RESIZERS + COLUMN PICKER (from our TSX)
+     ========================================================= */
+
+.paTh {
+  position: relative;
+  user-select: none;
+}
+
+/* grab handle */
+.paResizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+/* subtle visual on hover */
+.paResizer:hover {
+  background: rgba(15, 108, 189, 0.1);
+}
+
+/* Columns popover */
+.paColsWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.paColsPop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 50;
+
+  background: white;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 12px;
+  padding: 10px;
+  min-width: 240px;
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.18);
+}
+
+.paColsTitle {
+  font-weight: 850;
+  font-size: 12px;
+  margin-bottom: 8px;
+  color: rgba(15, 23, 42, 0.85);
+}
+
+.paColsRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 6px 6px;
+  border-radius: 8px;
+}
+
+.paColsRow:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.paColsHint {
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.65;
+}
+
+/* =========================================================
+     12) RESPONSIVE
+     ========================================================= */
+
+@media (max-width: 980px) {
+  .paPage {
+    padding: 12px 10px 18px;
+  }
+  .paSelect {
+    min-width: 240px;
+  }
+  .paInput {
+    min-width: 200px;
+  }
+}
+/* ===== Make column resize handles obvious ===== */
+
+.paTh {
+  position: relative;
+  user-select: none;
+  padding-right: 18px; /* leave room for handle */
+}
+
+/* visible grip area */
+.paResizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 14px;
+  height: 100%;
+  cursor: col-resize;
+
+  /* show a faint divider + grip dots */
+  border-right: 2px solid rgba(15, 23, 42, 0.18);
+  background: linear-gradient(
+    to left,
+    rgba(15, 108, 189, 0.1),
+    rgba(15, 108, 189, 0)
+  );
+}
+
+/* grip dots */
+.paResizer::after {
+  content: "⋮⋮";
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: -2px;
+  color: rgba(15, 23, 42, 0.45);
+}
+
+.paResizer:hover {
+  border-right-color: rgba(15, 108, 189, 0.65);
+  background: rgba(15, 108, 189, 0.14);
+}
+
+.paResizer:active {
+  border-right-color: rgba(15, 108, 189, 0.95);
+  background: rgba(15, 108, 189, 0.22);
+}
+/* =========================================================
+   OUTLOOK LIST MODE (no "boxed" cells)
+   - looks like an email list with divider lines
+   ========================================================= */
+
+/* tighten the table padding so it feels like a list */
+.paTable thead th {
+  background: #ffffff;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  padding: 10px 12px;
+}
+
+.paTable tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: transparent;
+}
+
+/* list-row hover like Outlook */
+.paTable tbody tr:hover td {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+/* make inputs look like plain text (until focused) */
+.paCellInput,
+.paCellArea {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  outline: none !important;
+
+  padding: 6px 6px !important; /* small padding so it doesn't feel cramped */
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.92);
+}
+
+/* remove the "textbox height" feel */
+.paCellInput {
+  height: auto !important;
+  min-height: 28px;
+}
+.paCellArea {
+  resize: vertical !important; /* allow manual expansion */
+  min-height: 24px; /* compact default */
+  max-height: 160px; /* prevents runaway rows */
+  line-height: 1.35; /* tighter text */
+  overflow: hidden;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+/* show an edit affordance only on hover/focus */
+.paTable tbody tr:hover .paCellInput,
+.paTable tbody tr:hover .paCellArea {
+  background: rgba(15, 23, 42, 0.02) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* focus state: subtle blue outline like Office */
+.paCellInput:focus,
+.paCellArea:focus {
+  background: #ffffff !important;
+  border-color: rgba(15, 108, 189, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(15, 108, 189, 0.12) !important;
+}
+
+/* checkboxes align more like Outlook */
+.paTable input[type="checkbox"] {
+  transform: translateY(1px);
+}
+
+/* optional: make the "Trash" button look like a small action */
+.paBtn.danger {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+}
+
+/* optional: make columns feel less "spreadsheet" */
+.paTable {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+/* Column popover extras */
+.paColsShowAll {
+  width: 100%;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.paColsShowAll:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.paColsDivider {
+  height: 1px;
+  background: rgba(15, 23, 42, 0.12);
+  margin: 8px 0;
+}
+/* Ensure Proposal Description matches table text exactly */
+.paCellArea {
+  font-family: inherit !important; /* ← THIS fixes the font mismatch */
+  font-size: 13px !important;
+  line-height: 1;
+  color: rgba(15, 23, 42, 0.92);
+}
+/* Center Unit + Cost headers and cells */
+.paTable thead th:nth-child(2),
+.paTable thead th:nth-child(3),
+.paTable tbody td:nth-child(2),
+.paTable tbody td:nth-child(3) {
+  text-align: center !important;
+}
+/* Allow columns to shrink smaller */
+.paTable {
+  table-layout: fixed; /* makes width rules behave predictably */
+}
+
+/* Reduce padding so narrow columns can actually get narrow */
+.paTable thead th,
+.paTable tbody td {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+
+/* Reduce input padding so it can shrink without clipping */
+.paCellInput {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+  min-width: 0 !important;
+}
+
+/* Keep Unit/Cost nice and tight */
+.paTable thead th:nth-child(2),
+.paTable tbody td:nth-child(2) {
+  min-width: 60px !important;
+}
+
+.paTable thead th:nth-child(3),
+.paTable tbody td:nth-child(3) {
+  min-width: 80px !important;
+}
+
+/* Also center the input text inside those cells */
+.paTable tbody td:nth-child(2) .paCellInput,
+.paTable tbody td:nth-child(3) .paCellInput {
+  text-align: center !important;
+}
+/* Center columns that opt in (Unit + Cost) */
+.paCenterCol {
+  text-align: center !important;
+}
+
+.paCenterCol .paCellInput {
+  text-align: center !important;
+}
+/* Let tight columns actually get tight */
+.paCellInput {
+  min-width: 0 !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+
+/* reduce cell padding a bit (helps narrow columns) */
+.paTable thead th,
+.paTable tbody td {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+/* Column Show/Hide warning state */
+.paBtnColsWarning {
+  color: #b91c1c; /* red */
+  font-style: italic;
+  border-color: rgba(185, 28, 28, 0.45);
+  background: rgba(185, 28, 28, 0.06);
+}

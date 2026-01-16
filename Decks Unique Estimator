@@ -1,0 +1,520 @@
+import React, { useState } from "react";
+import "./styles.css";
+
+export default function App() {
+const handleAddItem = () => {
+  setExtraItems((prev) => [
+    ...prev,
+    {
+      id: Date.now(), // simple unique id
+      category: "",
+      option: "",
+      qty: ""
+    }
+  ]);
+};
+
+const handleUpdateItem = (id, field, value) => {
+  setExtraItems((prev) =>
+    prev.map((item) =>
+      item.id === id ? { ...item, [field]: value } : item
+    )
+  );
+};
+
+const handleRemoveItem = (id) => {
+  setExtraItems((prev) => prev.filter((item) => item.id !== id));
+};
+
+          </div>
+
+          <nav className="sidebar-nav">
+            <div className="sidebar-section-label">Main</div>
+            <button className="nav-item nav-item--active">Dashboard</button>
+            <button className="nav-item">Project Estimator</button>
+            <button className="nav-item">Pricing Admin</button>
+            <button className="nav-item">Proposals</button>
+
+            <div className="sidebar-section-label">Other</div>
+            <button className="nav-item">Settings</button>
+            <button className="nav-item">Help</button>
+          </nav>
+
+          <div className="sidebar-footer">
+            <div className="sidebar-footer-label">Logged in as</div>
+            <div className="sidebar-user">
+              <div className="sidebar-avatar">J</div>
+              <div className="sidebar-user-text">
+                <span className="sidebar-user-name">Jason</span>
+                <span className="sidebar-user-role">Owner · Decks Unique</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* RIGHT – MAIN CONTENT */}
+        <div className="app-content">
+          {/* TOP BAR */}
+          <header className="topbar">
+            <div className="topbar-title-group">
+              <h1 className="topbar-title">Project Estimator</h1>
+              <p className="topbar-subtitle">
+                Build on-the-spot pricing for backyard decks.
+              </p>
+            </div>
+
+            <div className="topbar-actions">
+              <input
+                className="topbar-search"
+                placeholder="Search projects..."
+              />
+              <div className="topbar-user">
+                <span className="topbar-avatar">J</span>
+              </div>
+            </div>
+          </header>
+
+          {/* MAIN ESTIMATOR LAYOUT */}
+          <main className="content-main">
+            <section className="content-header-row">
+              <div>
+                <h2 className="content-heading">Decks Unique</h2>
+                <p className="content-subheading">
+                  Project Estimator · Draft estimate
+                </p>
+              </div>
+              <button className="content-cta-button">New Project</button>
+            </section>
+
+            <div className="app-layout">
+              {/* LEFT SIDE – CARDS */}
+              <section className="app-panel app-panel--inputs">
+                <h3 className="panel-title">Project Details</h3>
+                <p className="panel-subtitle">
+                  Enter the measurements and options for your client&apos;s
+                  deck.
+                </p>
+
+                <div className="panel-group">
+                  {/* BASIC INFO */}
+                  <div className="panel-card">
+                    <h4 className="card-title">Basic Info</h4>
+                    <p className="card-placeholder">
+                      (Customer name, address, project name will go here.)
+                    </p>
+                  </div>
+
+                  {/* CONSTRUCTION TYPE – TITLE + DROPDOWN ON ONE ROW */}
+                  <div className="panel-card">
+                    <div className="construction-row">
+                      <h4 className="card-title">Construction Type</h4>
+                      <select className="field-input construction-dropdown">
+                        <option value="">Select type…</option>
+                        <option value="New Construction">
+                          New Construction
+                        </option>
+                        <option value="ReSurface">ReSurface</option>
+                        <option value="Second Story">Second Story</option>
+                        <option value="Second_Story_Resurface">
+                          Second_Story_Resurface
+                        </option>
+                        <option value="Sleeper_System">Sleeper_System</option>
+                        <option value="2nd Story Sleeper System">
+                          2nd Story Sleeper System
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+
+     {/* DECKING ROW */}
+<div className="panel-row decking-row">
+  <h4 className="card-title">Decking</h4>
+
+  <select className="field-input decking-dropdown">
+    <option value="">Select decking...</option>
+    <option>PT Pine 5/4</option>
+    <option>STK Cedar</option>
+    <option>Mahogany</option>
+    <option>Clear Cedar</option>
+    <option>IPE 1x6</option>
+    <option>IPE 5/4x6</option>
+    <option>PT Pine 2x6</option>
+    <option>STK Cedar 2x6</option>
+    <option>IPE 1x4 (T&amp;G)</option>
+    <option>Trex Transcend</option>
+    <option>Trex Signature</option>
+    <option>Trex Select</option>
+    <option>Trex Enhance Naturals</option>
+    <option>Trex Enhance Basics</option>
+    <option>Trex Lineage</option>
+    <option>T-Tech Pro Tropical</option>
+    <option>T-Tech Edge Prime+</option>
+    <option>T-Tech Edge Prime</option>
+    <option>T-Tech Edge Premier</option>
+    <option>T-Tech Pro Reserve</option>
+    <option>T-Tech Azek Harvest</option>
+    <option>T-Tech Pro Legacy</option>
+  </select>
+
+  {/* SF quantity input (same style as other small inputs) */}
+  <input
+    type="number"
+    placeholder="SF"
+    className="field-input qty-input"
+  />
+
+  {/* SF label pill (3rd box) */}
+  <div className="field-input unit-pill" aria-hidden="true">
+    SF
+  </div>
+</div>
+
+
+                  </div>
+                  <div className="panel-card">
+                    <div className="option-row">
+                      <h4 className="card-title">Railing</h4>
+
+                      <select className="field-input option-dropdown">
+                        <option value="">Select railing…</option>
+                        <option>PT Pine Standard</option>
+                        <option>Trex Transcend (white)</option>
+                        <option>Trex Transcend (color)</option>
+                        <option>Trex Select Flat Top White</option>
+                        <option>Trex Select Flat Top Black</option>
+                        <option>Trex Select T-Rail (wht sq.)</option>
+                        <option>Trex Select T-Rail (blk rnd)</option>
+                        <option>Trex Sig. (BLK) comp. post</option>
+                        <option>Trex Signature (BLK)</option>
+                        <option>Trex Sig. (WHT/BRZ) comp. post</option>
+                        <option>Trex Signature (WHT/BRZ)</option>
+                        <option>Trex Signature Rod</option>
+                        <option>Trex Select Alum.</option>
+                        <option>Trex Select Alum 4x4 Posts</option>
+                        <option>STK Cedar</option>
+                        <option>IPE</option>
+                        <option>PT Pine Classic</option>
+                        <option>PT Pine Builders</option>
+                        <option>Mahogany</option>
+                        <option>Clear Cedar</option>
+                        <option>Cable rail IPE/Mahogany</option>
+                        <option>Cable rail, composite (color)</option>
+                        <option>Cable rail, composite (white)</option>
+                        <option>Cable rail, PT/Cedar</option>
+                        <option>Colorguard Classic PVC</option>
+                        <option>Illusions PVC (white)</option>
+                        <option>Illusions PVC (color)</option>
+                        <option>Radiance Rail (white)</option>
+                        <option>Radiance Rail (color)</option>
+                        <option>Radiance Express (white)</option>
+                        <option>Radiance Express (color)</option>
+                        <option>Evolutions Builder</option>
+                        <option>Evolutions Contemporary</option>
+                        <option>Azek Premier (Color)</option>
+                        <option>Azek Premier (White)</option>
+                        <option>Azek Reserve (White only)</option>
+                        <option>Azek Trademark (White only)</option>
+                        <option>Keylink Alum Rail and Spindles</option>
+                        <option>Keylink Alum. Horizon. Cable</option>
+                        <option>Keylink Alum. Vertical Cable</option>
+                        <option>Keylink Outlook</option>
+                        <option>Atlant. Spectrum (Comp. top)</option>
+                        <option>Atlant. Spectrum (Hardwood top)</option>
+                        <option>Mesh Rail Black</option>
+                        <option>Mesh Rail SS</option>
+                      </select>
+
+                      <input
+                        className="field-input no-spin option-lf-input"
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="LF"
+                      />
+                    </div>
+                  </div>
+                  {/* STAIRS – TITLE + DROPDOWN + INPUT ON ONE ROW */}
+                  <div className="panel-card">
+                    <div className="stairs-row">
+                      <h4 className="card-title">Stairs</h4>
+
+                      <select className="field-input stairs-dropdown">
+                        <option value="">Select stairs…</option>
+                        <option>12" Treads</option>
+                        <option>18" Treads</option>
+                        <option>24" Tread (1)</option>
+                        <option>24" Treads (1+)</option>
+                        <option>12" Tread w/Skrt Stringer</option>
+                        <option>18" Tread w/Skrt Stringer</option>
+                      </select>
+
+                      <input
+                        className="field-input stairs-count-input no-spin"
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="LF"
+                        title="Number of treads or units"
+                      />
+                    </div>
+                  </div>
+                  {/* FASTENERS – TITLE + DROPDOWN ONLY */}
+                  <div className="panel-card">
+                    <div className="fasteners-row">
+                      <h4 className="card-title">Fasteners</h4>
+
+                      <select className="field-input fasteners-dropdown">
+                        <option value="">Select fasteners…</option>
+                        <option>Galv. Nails</option>
+                        <option>Screws</option>
+                        <option>IPE Hidden Clips</option>
+                        <option>Hidden Clips</option>
+                        <option>Azek Cortex</option>
+                        <option>HID Fast</option>
+                        <option>SS Scrails</option>
+                        <option>Camo Screws</option>
+                      </select>
+                    </div>
+                  </div>
+                  {/* DEMOLITION – TITLE + DROPDOWN + QTY INPUT */}
+                  <div className="panel-card">
+                    <div className="demo-row">
+                      <h4 className="card-title">Demolition</h4>
+
+                      <select className="field-input demo-dropdown">
+                        <option value="">Select demo option…</option>
+                        <option>Complete</option>
+                        <option>Surface</option>
+                        <option>2nd story surface demo</option>
+                        <option>2nd story full Demo</option>
+                        <option>Demo deck &amp; joists (sf)</option>
+                        <option>Demo rail only (lf)</option>
+                        <option>Remove rail &amp; reinstall</option>
+                        <option>Demo HotTub</option>
+                        <option>Demo screwed decking</option>
+                        <option>Demo Stoop 3'x2' 2 steps</option>
+                        <option>Demo concrete (sf)</option>
+                      </select>
+
+                      <input
+                        className="field-input demo-qty-input no-spin"
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="Qty"
+                        title="Enter SF / LF / count as needed"
+                      />
+                    </div>
+
+                    <p className="card-placeholder demo-help">
+                      Use SF, LF, or count depending on the selected demo
+                      option.
+                    </p>
+                  </div>
+                  {/* SKIRTING / LATTICE */}
+                  <div className="panel-card">
+                    <div className="skirt-row">
+                      <h4 className="card-title">Skirting / Lattice</h4>
+
+                      {/* FIRST DROPDOWN – Skirting vs Lattice */}
+                      <select className="field-input skirt-type-dropdown">
+                        <option value="">Type…</option>
+                        <option value="skirting">Skirting</option>
+                        <option value="lattice">Lattice</option>
+                      </select>
+
+                      {/* SECOND DROPDOWN – all options (we’ll make this dynamic later) */}
+                      <select className="field-input skirt-options-dropdown">
+                        <option value="">Select option…</option>
+
+                        {/* SKIRTING OPTIONS */}
+                        <optgroup label="Skirting">
+                          <option>PT Pine 5/4</option>
+                          <option>STK Cedar</option>
+                          <option>Mahogany</option>
+                          <option>Clear Cedar</option>
+                          <option>IPE</option>
+                          <option>IPE 5/4</option>
+                          <option>PT Pine 2x6</option>
+                          <option>Trex Transcend</option>
+                          <option>Trex Select</option>
+                          <option>Trex Enhance</option>
+                          <option>Trex Lineage</option>
+                          <option>Trex Signature</option>
+                          <option>T-Tech Azek Vintage</option>
+                          <option>T-Tech Azek Landmark</option>
+                          <option>T-Tech Azek Harvest</option>
+                          <option>T-Tech Azek Vintage 2x6</option>
+                          <option>T-Tech Azek Vintage Multi Width</option>
+                          <option>T-Tech Pro Legacy</option>
+                          <option>T-Tech Pro Reserve</option>
+                          <option>T-Tech Pro Terrain</option>
+                          <option>T-Tech Pro Tropical</option>
+                          <option>T-Tech Edge Premier</option>
+                          <option>T-Tech Edge Prime+</option>
+                          <option>T-Tech Edge Prime</option>
+                          <option>Evergrain Classic</option>
+                          <option>Envision Expression</option>
+                          <option>Envision Inspiration</option>
+                          <option>Envision Distinction</option>
+                          <option>T-Tech Porch</option>
+                          <option>Zuri</option>
+                          <option>Fiberon</option>
+                          <option>Horiztonal Skirting</option>
+                          <option>Pool Skirting</option>
+                          <option>MS Stratos</option>
+                          <option>MS Vision</option>
+                          <option>MS Meridan</option>
+                          <option>MS Elavate</option>
+                          <option>MS Vantage</option>
+                        </optgroup>
+
+                        {/* LATTICE OPTIONS */}
+                        <optgroup label="Lattice">
+                          <option>Colored Vinyl</option>
+                          <option>White Vinyl</option>
+                          <option>PT Pine</option>
+                          <option>Cedar</option>
+                          <option>Colored Vinyl w/PF</option>
+                          <option>White Vinyl w/PF</option>
+                          <option>PT Pine w/PF</option>
+                          <option>Cedar w/PF</option>
+                          <option>Perma-Latt w/PF</option>
+                        </optgroup>
+                      </select>
+
+                      {/* SF input */}
+                      <input
+                        className="field-input skirt-sf-input no-spin"
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="SF"
+                        title="Square footage for skirting/lattice"
+                      />
+                    </div>
+                  </div>
+                  {/* ADD ITEM – FLEXIBLE EXTRA LINE ITEM */}
+                  <div className="panel-card add-item-section">
+                    <button
+                      type="button"
+                      className="add-item-button"
+                      onClick={() => setShowAddItem(true)}
+                    >
+                      + Add Item
+                    </button>
+
+                    {showAddItem && (
+                      <div className="add-item-row">
+                        <span className="add-item-label">Category</span>
+
+                        {/* FIRST DROPDOWN – CATEGORY */}
+                        <select className="field-input add-item-select">
+                          <option value="">Select category…</option>
+                          <option>Accessories</option>
+                          <option>Capping</option>
+                          <option>Column</option>
+                          <option>Decking_options</option>
+                          <option>Demolition</option>
+                          <option>Discount</option>
+                          <option>Door_install</option>
+                          <option>Electrical</option>
+                          <option>Fastener</option>
+                          <option>Footing</option>
+                          <option>Framing</option>
+                          <option>Gazebo</option>
+                          <option>Hot_tub_Spa</option>
+                          <option>IPE</option>
+                          <option>Lattice</option>
+                          <option>Lighting</option>
+                          <option>Masonry</option>
+                          <option>New_Construction</option>
+                          <option>Pergola</option>
+                          <option>Permits</option>
+                          <option>Plumbing</option>
+                          <option>Privacy_Wall</option>
+                          <option>Railing_Options</option>
+                          <option>Railing</option>
+                          <option>Rain_Divergence</option>
+                          <option>ReSurface</option>
+                          <option>Second_Story</option>
+                          <option>Second_Story_ReSurface</option>
+                          <option>Second_Story_Sleeper</option>
+                          <option>Skirting</option>
+                          <option>Sleeper_System</option>
+                          <option>Stairs</option>
+                        </select>
+
+                        {/* SECOND DROPDOWN – OPTION (placeholder for now) */}
+                        <select className="field-input add-item-select">
+                          <option value="">Select option…</option>
+                          {/* Later this will depend on category – we’ll wire this up with your data */}
+                        </select>
+
+                        {/* QTY / NUMBER INPUT */}
+                        <input
+                          className="field-input no-spin add-item-qty-input"
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="Qty"
+                          title="Quantity / units for this item"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* MATERIALS & OPTIONS – placeholder for now */}
+                  <div className="panel-card">
+                    <h4 className="card-title">Materials &amp; Options</h4>
+                    <p className="card-placeholder">
+                      (Decking type, railing, stairs, skirting, demo, etc.)
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* RIGHT SIDE – SUMMARY CARD */}
+              <aside className="app-panel app-panel--summary">
+                <div className="summary-card">
+                  <div className="summary-header">
+                    <span>Estimate Summary</span>
+                    <span className="summary-tag">Draft</span>
+                  </div>
+
+                  <div className="summary-total">
+                    <span className="summary-total-label">Estimated Price</span>
+                    <span className="summary-total-value">$0</span>
+                  </div>
+
+                  <div className="summary-row">
+                    <span>Base Build Cost</span>
+                    <span>$0</span>
+                  </div>
+                  <div className="summary-row">
+                    <span>Adjusters &amp; Uplift</span>
+                    <span>+0%</span>
+                  </div>
+
+                  <div className="summary-divider" />
+
+                  <div className="summary-footer">
+                    <div
+                      className="uplift-pill"
+                      title="This will show your finance + negotiation margin."
+                    >
+                      Uplift: <strong>1.00×</strong>
+                    </div>
+                    <button className="primary-button" disabled>
+                      Generate Proposal
+                    </button>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}

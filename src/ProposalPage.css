@@ -1,0 +1,353 @@
+/* ProposalPage.css — PRO HEADER (Prepared | Logo | Meta) + PRINT SAFE */
+
+.proposal-page {
+  padding: 22px;
+}
+
+/* Top action row (screen only) */
+.proposal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.no-print {
+}
+.only-print {
+  display: none;
+}
+
+/* Document card */
+.proposal-doc {
+  max-width: 920px;
+  margin: 0 auto;
+  background: #fff;
+  color: #0b1220;
+  padding: 34px 40px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08);
+
+  /* ✅ restore clean, modern font */
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+}
+
+/* =========================
+   HEADER (Prepared | Logo | Meta)
+   ========================= */
+   .proposal-head {
+    display: grid;
+    grid-template-columns: 1fr 360px 1fr;
+    column-gap: 18px;
+    align-items: start;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  
+    position: relative;      /* ⬅ ADD THIS */
+    min-height: 120px;       /* ⬅ ADD THIS */
+  }
+  
+.proposal-headSlot {
+  min-width: 0;
+}
+
+.proposal-headSlot-left {
+  text-align: left;
+}
+.proposal-headSlot-center {
+  text-align: center;
+}
+.proposal-headSlot-right {
+  text-align: right;
+}
+
+/* blocks inside slots */
+.proposal-headBlock {
+  display: block;
+}
+
+/* Prepared by */
+.proposal-headTitle {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 10px;
+}
+
+.proposal-headLine {
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 3px 0;
+}
+
+/* Meta */
+.proposal-metaRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 3px 0;
+}
+
+.proposal-metaRow span {
+  opacity: 0.65;
+}
+
+.proposal-metaTotal strong {
+  font-size: 16px;
+}
+
+/* Logo block (in-flow, centered) */
+.proposal-logoBlock {
+  position: absolute;      /* ⬅ KEY */
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;    /* print + UX safe */
+}
+.proposal-logoBlock {
+  top: -10px;
+}
+
+.proposal-logoImg {
+  max-width: 420px;    /* BIG */
+  max-height: 160px;   /* BIG */
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+
+.proposal-logoFallback {
+  width: 220px;
+  height: 80px;
+  border: 1px dashed rgba(15, 23, 42, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+/* =========================
+   CLIENT BAR
+   ========================= */
+.proposal-clientBar {
+  margin-top: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.proposal-clientBarTitle {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 10px;
+}
+
+.proposal-clientBarRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.proposal-clientLabel {
+  font-size: 11px;
+}
+
+.proposal-clientValue {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+
+/* Titles / text */
+.proposal-title {
+  margin: 18px 0 10px;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+.proposal-secTitle {
+  margin: 18px 0 8px;
+  font-size: 14px; /* ⬅ was 16px */
+  letter-spacing: 0.14em; /* slightly increased for elegance */
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.proposal-text {
+  font-size: 11px;              /* ⬅ was 14px */
+  line-height: 1.6;
+}
+
+.proposal-muted {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.proposal-bullets li {
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+}
+
+/* Table */
+.proposal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.proposal-table th {
+  font-size: 11px;              /* headers */
+  letter-spacing: 0.12em;
+}
+
+.proposal-table td {
+  font-size: 11px;              /* row text */
+}
+
+
+/* Total */
+.proposal-totalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px solid rgba(15, 23, 42, 0.12);
+}
+
+.proposal-totalLabel {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.proposal-totalNumber {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+/* Timeline */
+.proposal-timeline {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.proposal-timeline-field {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.proposal-timeline-select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: #fff;
+}
+
+/* Bullets */
+.proposal-bullets {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.proposal-bullets li {
+  margin: 6px 0;
+  line-height: 1.55;
+}
+
+/* Notes */
+.proposal-notes-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
+/* =========================
+   PRINT
+   ========================= */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .only-print {
+    display: block !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  
+  .proposal-page {
+    padding: 34px 40px !important;
+
+    /* PRINT: make logo larger */
+.proposal-logoImg {
+  max-height: 110px !important;
+  max-width: 320px !important;
+}
+
+  }
+
+  /* Let @page control margins; keep padding on doc for consistent print */
+  .proposal-doc {
+    max-width: none !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* avoid awkward splits */
+  header,
+  .proposal-clientBar,
+  table,
+  tr,
+  td,
+  th,
+  section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+/* ============================
+   TOP SCROLLBAR (SPREADSHEET)
+   ============================ */
+
+   .paTopScroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 14px;
+    margin-bottom: 6px;
+  }
+  
+  .paTopScrollInner {
+    height: 1px;
+  }
+  
+  /* Hide bottom scrollbar visually (still works) */
+  .paSimpleTableWrap {
+    scrollbar-width: thin;
+  }
+  
+  .paSimpleTableWrap::-webkit-scrollbar {
+    height: 0;
+  }
+  
