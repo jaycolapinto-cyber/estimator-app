@@ -341,11 +341,7 @@ export default function App() {
       handleNewProject();
     };
 
-    const saveAndNew = () => {
-      setConfirmNewOpen(false);
-      // whatever save logic already exists here
-    };
-
+ 
     //
     // STEP 3: SEND FROM EMAIL MODAL
     // - Always enqueue first (offline safe)
