@@ -14,6 +14,13 @@ import "./styles.css";
 import { supabase } from "./supabaseClient";
 import AnalyticsPage from "./AnalyticsPage";
 import ReviewProposalPage from "./ReviewProposalPage";
+function makeId(): string {
+  if (typeof globalThis.crypto !== "undefined" && "randomUUID" in globalThis.crypto) {
+    return (globalThis.crypto as any).randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 
 //
 // ADD ITEM – CATEGORY MASTER LIST
@@ -658,9 +665,8 @@ export default function App() {
     const addAddItemRow = () => {
       const newRow: AddItemRow = {
         rowId:
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? (crypto as any).randomUUID()
-            : `${Date.now()}-${Math.random()}`,
+        id: makeId(),
+
         category: "",
         itemId: "",
         qty: 0,
