@@ -624,14 +624,14 @@ export default function App() {
   const addAddItemRow = () => {
     const newRow: AddItemRow = {
       rowId:
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? (crypto as any).randomUUID()
-      : `${Date.now()}-${Math.random()}`
-    
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? (crypto as any).randomUUID()
+          : `${Date.now()}-${Math.random()}`,
       category: "",
       itemId: "",
       qty: 0,
       constructionType: "",
+
       deckingId: "",
       customName: "",
       customPrice: 0,
