@@ -306,77 +306,89 @@ export default function App() {
     //
     // FILE MENU + CONFIRM MODALS
     //
-    const [fileOpen, setFileOpen] = useState(false);
-    const [confirmNewOpen, setConfirmNewOpen] = useState(false);
-    const [toast, setToast] = useState<string | null>(null);
-    type EmailDraft = {
-      to: string;
-      subject: string;
-      body: string;
-      link?: string;
-      sendMeCopy?: boolean;
-    };
-    const requestNewProject = () => {
-      if (hasUnsavedEstimateChanges()) setConfirmNewOpen(true);
-      else handleNewProject();
-    };
-
-    const cancelNew = () => setConfirmNewOpen(false);
-
-    const discardAndNew = () => {
-      setConfirmNewOpen(false);
-      handleNewProject();
-    };
-
-    const saveAndNew = () => {
-      setConfirmNewOpen(false);
-      // whatever save logic already exists here
-    };
-
-    //
-    // STEP 3: SEND FROM EMAIL MODAL
-    // - Always enqueue first (offline safe)
-    // - If online: flush queue (sends now)
-    // - Close modal + clear draft
-    //
-    // HELPER: Convert Blob → base64 (no data: prefix)
-    //
-    async function blobToBase64NoPrefix(blob: Blob): Promise<string> {
-      const arrayBuffer = await blob.arrayBuffer();
-      let binary = "";
-      const bytes = new Uint8Array(arrayBuffer);
-      const chunkSize = 0x8000;
-
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode(
-          ...Array.from(bytes.subarray(i, i + chunkSize))
-        );
+    const openRecent = (rf: RecentFile) => {
+      try {
+        applySnapshot(rf.json);
+        pushRecent(rf.name, rf.json);
+        refreshRecents();
+        setRecentOpen(false);
+        setFileOpen(false);
+        setActiveNav("estimator");
+      } catch (e) {
+        console.error("Failed to open recent:", e);
+        alert("Could not open that recent file.");
       }
+      const [fileOpen, setFileOpen] = useState(false);
+      const [confirmNewOpen, setConfirmNewOpen] = useState(false);
+      const [toast, setToast] = useState<string | null>(null);
+      type EmailDraft = {
+        to: string;
+        subject: string;
+        body: string;
+        link?: string;
+        sendMeCopy?: boolean;
+      };
+      const requestNewProject = () => {
+        if (hasUnsavedEstimateChanges()) setConfirmNewOpen(true);
+        else handleNewProject();
+      };
 
-      return btoa(binary);
-    }
-  }
-  const handleSendEmailFromModal = async () => {
-    await sendEmailNow();
-  };
+      const cancelNew = () => setConfirmNewOpen(false);
 
-  const sendEmailNow = async () => {
-    if (!emailDraft) return;
+      const discardAndNew = () => {
+        setConfirmNewOpen(false);
+        handleNewProject();
+      };
 
-    try {
-      const to = (emailDraft.to || "").trim();
-      const subject = (emailDraft.subject || "").trim();
-      const bodyText = emailDraft.body || "";
-      const replyTo = (userSettings?.userEmail || "").trim();
+      const saveAndNew = () => {
+        setConfirmNewOpen(false);
+        // whatever save logic already exists here
+      };
 
-      // ✅ default OFF
-      const sendMeCopy = !!emailDraft?.sendMeCopy;
+      //
+      // STEP 3: SEND FROM EMAIL MODAL
+      // - Always enqueue first (offline safe)
+      // - If online: flush queue (sends now)
+      // - Close modal + clear draft
+      //
+      // HELPER: Convert Blob → base64 (no data: prefix)
+      //
+      async function blobToBase64NoPrefix(blob: Blob): Promise<string> {
+        const arrayBuffer = await blob.arrayBuffer();
+        let binary = "";
+        const bytes = new Uint8Array(arrayBuffer);
+        const chunkSize = 0x8000;
 
-      // ✅ Button link (your review URL)
-      const proposalLink = (emailDraft as any)?.link || "";
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode(
+            ...Array.from(bytes.subarray(i, i + chunkSize))
+          );
+        }
 
-      // ✅ Email HTML (includes a real "View Proposal" button)
-      const html = `
+        return btoa(binary);
+      }
+    };
+    const handleSendEmailFromModal = async () => {
+      await sendEmailNow();
+    };
+
+    const sendEmailNow = async () => {
+      if (!emailDraft) return;
+
+      try {
+        const to = (emailDraft.to || "").trim();
+        const subject = (emailDraft.subject || "").trim();
+        const bodyText = emailDraft.body || "";
+        const replyTo = (userSettings?.userEmail || "").trim();
+
+        // ✅ default OFF
+        const sendMeCopy = !!emailDraft?.sendMeCopy;
+
+        // ✅ Button link (your review URL)
+        const proposalLink = (emailDraft as any)?.link || "";
+
+        // ✅ Email HTML (includes a real "View Proposal" button)
+        const html = `
         <div style="font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif; font-size: 14px; line-height: 1.6; color:#111;">
           <div style="white-space:pre-wrap;">${String(bodyText)
             .replace(/&/g, "&amp;")
@@ -402,831 +414,828 @@ export default function App() {
         </div>
       `;
 
-      console.log("sendEmailNow -> invoking edge function", {
-        to,
-        subject,
-        replyTo,
-        bodyLen: bodyText.length,
-        htmlLen: html.length,
-      });
+        console.log("sendEmailNow -> invoking edge function", {
+          to,
+          subject,
+          replyTo,
+          bodyLen: bodyText.length,
+          htmlLen: html.length,
+        });
 
-      const { data, error } = await supabase.functions.invoke(
-        "send-proposal-email",
-        {
-          body: {
-            to,
-            subject,
-            html, // ✅ function expects html
-            text: bodyText, // optional
-            replyTo: replyTo || undefined,
+        const { data, error } = await supabase.functions.invoke(
+          "send-proposal-email",
+          {
+            body: {
+              to,
+              subject,
+              html, // ✅ function expects html
+              text: bodyText, // optional
+              replyTo: replyTo || undefined,
 
-            // ✅ send copy to you (Edge Function should honor cc/bcc)
-            cc: sendMeCopy && replyTo ? [replyTo] : undefined,
-          },
-        }
-      );
-
-      if (error) {
-        console.error("EDGE FUNCTION ERROR (raw):", error);
-        console.error(
-          "EDGE FUNCTION ERROR (json):",
-          JSON.stringify(error, null, 2)
+              // ✅ send copy to you (Edge Function should honor cc/bcc)
+              cc: sendMeCopy && replyTo ? [replyTo] : undefined,
+            },
+          }
         );
 
-        const msg =
-          (error as any)?.message ||
-          (error as any)?.context?.body ||
-          JSON.stringify(error, null, 2);
-
-        alert("Send failed (edge function):\n\n" + msg);
-        return;
-      }
-
-      console.log("EDGE FUNCTION SUCCESS:", data);
-
-      setEmailModalOpen(false);
-      setEmailDraft(null);
-
-      showToast("Email sent ✅");
-    } catch (err: any) {
-      console.error("SEND EMAIL CRASH:", err);
-      alert(
-        "Send crashed:\n\n" +
-          (err?.message ||
-            err?.error_description ||
-            err?.details ||
-            JSON.stringify(err, null, 2))
-      );
-    }
-  };
-
-  //
-  // OFFLINE / ONLINE STATE
-  //
-  const [isOnline, setIsOnline] = useState<boolean>(
-    typeof navigator !== "undefined" ? navigator.onLine : true
-  );
-
-  useEffect(() => {
-    const on = () => setIsOnline(true);
-    const off = () => setIsOnline(false);
-
-    window.addEventListener("online", on);
-    window.addEventListener("offline", off);
-
-    return () => {
-      window.removeEventListener("online", on);
-      window.removeEventListener("offline", off);
-    };
-  }, []);
-  const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    window.setTimeout(() => setToast(null), 3500);
-  };
-  //
-  // EMAIL DRAFT (in-app send window)
-  //
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
-  const [sendMeCopy, setSendMeCopy] = useState(false);
-  const [emailDraft, setEmailDraft] = useState<any>(null);
-
-  const [recentFiles, setRecentFiles] = useState<RecentFile[]>(() =>
-    getRecents()
-  );
-  const [recentOpen, setRecentOpen] = useState(false);
-  const refreshRecents = () => setRecentFiles(getRecents());
-
-  //
-  // STATE: ESTIMATE + UI
-  //
-  const [activeNav, setActiveNav] = useState<
-    "estimator" | "pricingAdmin" | "proposals" | "analytics" | "settings"
-  >("estimator");
-  const EMAIL_DOMAINS = [
-    "gmail.com",
-    "icloud.com",
-    "yahoo.com",
-    "outlook.com",
-    "hotmail.com",
-  ];
-
-  function getEmailSuggestions(input: string) {
-    const v = (input || "").trim();
-    const at = v.indexOf("@");
-    if (at < 0) return [];
-    const name = v.slice(0, at);
-    const partial = v.slice(at + 1).toLowerCase();
-    if (!name) return [];
-    return EMAIL_DOMAINS.filter((d) => d.startsWith(partial))
-      .slice(0, 5)
-      .map((d) => `${name}@${d}`);
-  }
-
-  // ✅ FIX: this state must live at component level (NOT inside render)
-  const [showBreakdown, setShowBreakdown] = useState(false);
-
-  const [estimateId, setEstimateId] = useState<string>(() => {
-    try {
-      return localStorage.getItem("du_estimate_id") || "";
-    } catch {
-      return "";
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("du_estimate_id", estimateId);
-    } catch {}
-  }, [estimateId]);
-  const [emailOpen, setEmailOpen] = useState(false);
-  const [emailTo, setEmailTo] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailBody, setEmailBody] = useState("");
-
-  const [estimateName, setEstimateName] = useState<string>(() => {
-    try {
-      return localStorage.getItem("du_estimate_name") || "";
-    } catch {
-      return "";
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("du_estimate_name", estimateName);
-    } catch {}
-  }, [estimateName]);
-  const [estimateNameLocked, setEstimateNameLocked] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("du_estimate_name_locked") === "1";
-    } catch {
-      return false;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "du_estimate_name_locked",
-        estimateNameLocked ? "1" : "0"
-      );
-    } catch {}
-  }, [estimateNameLocked]);
-
-  const [clientTitle, setClientTitle] = useState("");
-  const [clientLastName, setClientLastName] = useState("");
-  const [clientTown, setClientTown] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  useEffect(() => {
-    const town = (clientTown || "").trim();
-    const last = (clientLastName || "").trim();
-
-    // need both fields filled out
-    if (!town || !last) return;
-
-    // if user saved/renamed, do not overwrite
-    if (estimateNameLocked) return;
-
-    // ✅ choose your format here:
-    // const auto = `${town} ${last}`;     // space version
-    const auto = `${town}_${last}`; // underscore version
-
-    // only set if it changed
-    if ((estimateName || "").trim() !== auto) {
-      setEstimateName(auto);
-      try {
-        localStorage.setItem("du_estimate_name", auto);
-      } catch {}
-    }
-  }, [clientTown, clientLastName, estimateNameLocked]);
-
-  const [constructionType, setConstructionType] = useState<string>("");
-  const [includePermit, setIncludePermit] = useState(false);
-  const [msrpMode, setMsrpMode] = useState(false);
-
-  const [selectedDeckingId, setSelectedDeckingId] = useState<string>("");
-  const [deckingSqFt, setDeckingSqFt] = useState<number>(0);
-
-  const [selectedRailingId, setSelectedRailingId] = useState<string>("");
-  const [railingLf, setRailingLf] = useState<number>(0);
-
-  const [selectedStairsId, setSelectedStairsId] = useState<string>("");
-  const [stairsCount, setStairsCount] = useState<number>(0);
-
-  const [selectedFastenerId, setSelectedFastenerId] = useState<string>("");
-
-  const [selectedDemoId, setSelectedDemoId] = useState<string>("");
-  const [demoQty, setDemoQty] = useState<number>(0);
-  const [selectedSkirtingId, setSelectedSkirtingId] = useState<string>("");
-  const [skirtingSf, setSkirtingSf] = useState<number>(0);
-  const [skirtingCategory, setSkirtingCategory] = useState<
-    "" | "Skirting" | "Lattice"
-  >("");
-
-  const [miValue, setMiValue] = useState<string>("");
-  const [emailSugOpen, setEmailSugOpen] = useState(false);
-  const emailSuggestions = useMemo(
-    () => getEmailSuggestions(clientEmail),
-    [clientEmail]
-  );
-  const [skirtingDeckingId, setSkirtingDeckingId] = useState<string>("");
-  const [skirtingDeckingTouched, setSkirtingDeckingTouched] = useState(false);
-  const lastAutoSkirtingDeckingId = useRef<string>("");
-  const [skirtingTypeTouched, setSkirtingTypeTouched] = useState(false);
-
-  // ADD ITEM rows
-  const [addItems, setAddItems] = useState<AddItemRow[]>([]);
-  const addAddItemRow = () => {
-    const newRow: AddItemRow = {
-      rowId:
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? (crypto as any).randomUUID()
-          : `${Date.now()}-${Math.random()}`,
-      category: "",
-      itemId: "",
-      qty: 0,
-      constructionType: "",
-
-      deckingId: "",
-      customName: "",
-      customPrice: 0,
-    };
-    setAddItems((prev) => [...prev, newRow]);
-  };
-  const removeAddItemRow = (rowId: string) => {
-    setAddItems((prev) => prev.filter((r) => r.rowId !== rowId));
-  };
-  const updateAddItemRow = (rowId: string, patch: Partial<AddItemRow>) => {
-    setAddItems((prev) =>
-      prev.map((r) => (r.rowId === rowId ? { ...r, ...patch } : r))
-    );
-  };
-
-  //
-  // DIRTY STATE (unsaved changes)
-  //
-  const [isDirty, setIsDirty] = useState(false);
-  const dirtySuspendedRef = useRef(true);
-  const markDirty = () => {
-    if (dirtySuspendedRef.current) return;
-    setIsDirty(true);
-  };
-
-  //
-  // USER SETTINGS (for Proposal PDF)
-  //
-  // NOTE: Keeping your existing shape so SettingsPage / ProposalPage don't break.
-  // We are only removing “email proposal / email preview” UI behavior from App.
-  const [userSettings, setUserSettings] = useState(() => {
-    try {
-      const saved = localStorage.getItem("du_user_settings");
-      return saved
-        ? JSON.parse(saved)
-        : {
-            userName: "Jason Colapinto",
-            userPhone: "",
-            userEmail: "",
-
-            companyName: "Decks Unique",
-            companyPhone: "",
-            companyAddress: "",
-            companyWebsite: "",
-            companySlogan: "",
-            license: "",
-
-            logoDataUrl: "",
-            emailSubjectTemplate:
-              "Your Decks Unique Proposal – {{clientTown}} {{clientLastName}}",
-            emailBodyTemplate:
-              "Hi {{clientTitle}} {{clientLastName}},\n\n" +
-              "Thank you for the opportunity to quote your project.\n" +
-              "Attached is your proposal for review.\n\n" +
-              "If you have any questions, reply here or call/text me at {{userPhone}}.\n\n" +
-              "Thanks,\n" +
-              "{{userName}}\n" +
-              "{{companyName}}",
-          };
-    } catch {
-      return {
-        companyName: "Decks Unique",
-        userName: "Jason Colapinto",
-        userPhone: "",
-        userEmail: "",
-        license: "",
-        logoDataUrl: "",
-      };
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("du_user_settings", JSON.stringify(userSettings));
-    } catch {}
-  }, [userSettings]);
-
-  //
-  // FILE OPEN/SAVE helpers
-  //
-  const hasUnsavedEstimateChanges = () => {
-    return (
-      !!clientLastName ||
-      !!clientTown ||
-      !!clientEmail ||
-      !!constructionType ||
-      !!selectedDeckingId ||
-      deckingSqFt > 0 ||
-      !!selectedRailingId ||
-      railingLf > 0 ||
-      !!selectedStairsId ||
-      (stairsCount ?? 0) > 0 ||
-      !!selectedFastenerId ||
-      !!selectedDemoId ||
-      demoQty > 0 ||
-      !!skirtingCategory ||
-      !!selectedSkirtingId ||
-      skirtingSf > 0 ||
-      !!miValue ||
-      includePermit ||
-      msrpMode ||
-      addItems.length > 0
-    );
-  };
-
-  const handleNewProject = () => {
-    setClientTitle("");
-    setClientLastName("");
-    setClientTown("");
-    setClientEmail("");
-
-    setConstructionType("");
-    setIncludePermit(false);
-    setMsrpMode(false);
-
-    setSelectedDeckingId("");
-    setDeckingSqFt(0);
-    setSelectedRailingId("");
-    setRailingLf(0);
-    setSelectedStairsId("");
-    setStairsCount(0);
-    setSelectedFastenerId("");
-
-    setSelectedDemoId("");
-    setDemoQty(0);
-
-    setSkirtingCategory("");
-    setSelectedSkirtingId("");
-    setSkirtingSf(0);
-
-    setMiValue("");
-    setAddItems([]);
-
-    setEstimateName("");
-    setEstimateId("");
-    setEstimateNameLocked(false);
-
-    try {
-      localStorage.removeItem("du_estimate_name");
-      localStorage.removeItem("du_estimate_id");
-      localStorage.removeItem("du_estimate_name_locked");
-    } catch {}
-
-    setActiveNav("estimator");
-    setIsDirty(false);
-    setShowBreakdown(false);
-  };
-
-  const buildSnapshot = () => ({
-    savedAt: new Date().toISOString(),
-    estimateName,
-
-    clientTitle,
-    clientLastName,
-    clientTown,
-    clientEmail,
-
-    constructionType,
-    includePermit,
-    msrpMode,
-
-    selectedDeckingId,
-    deckingSqFt,
-    selectedRailingId,
-    railingLf,
-    selectedStairsId,
-    stairsCount,
-    selectedFastenerId,
-
-    selectedDemoId,
-    demoQty,
-    skirtingCategory,
-    selectedSkirtingId,
-    skirtingSf,
-    miValue,
-
-    addItems,
-  });
-
-  const applySnapshot = (snap: any) => {
-    setEstimateName(snap.estimateName || "");
-
-    setClientTitle(snap.clientTitle || "");
-    setClientLastName(snap.clientLastName || "");
-    setClientTown(snap.clientTown || "");
-    setClientEmail(snap.clientEmail || "");
-
-    setConstructionType(snap.constructionType || "");
-    setIncludePermit(!!snap.includePermit);
-    setMsrpMode(!!snap.msrpMode);
-
-    setSelectedDeckingId(snap.selectedDeckingId || "");
-    setDeckingSqFt(Number(snap.deckingSqFt || 0));
-
-    setSelectedRailingId(snap.selectedRailingId || "");
-    setRailingLf(Number(snap.railingLf || 0));
-
-    setSelectedStairsId(snap.selectedStairsId || "");
-    setStairsCount(Number(snap.stairsCount || 0));
-
-    setSelectedFastenerId(snap.selectedFastenerId || "");
-
-    setSelectedDemoId(snap.selectedDemoId || "");
-    setDemoQty(Number(snap.demoQty || 0));
-
-    setSkirtingCategory((snap.skirtingCategory as any) || "");
-    setSelectedSkirtingId(snap.selectedSkirtingId || "");
-    setSkirtingSf(Number(snap.skirtingSf || 0));
-
-    setMiValue(snap.miValue || "");
-    setAddItems(Array.isArray(snap.addItems) ? snap.addItems : []);
-
-    setIsDirty(false);
-    setShowBreakdown(false);
-  };
-  //
-  // EMAIL PROPOSAL (JOIST STYLE)
-  // 1) Save proposal to Supabase
-  // 2) Call Edge Function to SEND email
-  // 3) Show success toast
-  //
-
-  const renderTemplate = (
-    tpl: string,
-    vars: Record<string, string>
-  ): string => {
-    return (tpl || "").replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_, key) => {
-      return vars[key] ?? "";
-    });
-  };
-  const handleEmailProposal = async () => {
-    const to = (clientEmail || "").trim();
-
-    if (!to) {
-      showToast("Enter the client email first (Estimator → Client Email).");
-      setActiveNav("estimator");
-      return;
-    }
-
-    // if offline, we cannot create a /review link
-    if (!isOnline) {
-      // Queue a placeholder email (no share link yet)
-      setEmailDraft({
-        to,
-        subject: renderTemplate(
-          userSettings?.emailSubjectTemplate ||
-            "Your Proposal – {{clientLastName}}",
-          {
-            clientTitle: (clientTitle || "").trim(),
-            clientLastName: (clientLastName || "").trim(),
-            clientTown: (clientTown || "").trim(),
-            clientEmail: (clientEmail || "").trim(),
-            userName: (userSettings?.userName || "").trim(),
-            userPhone: (userSettings?.userPhone || "").trim(),
-            userEmail: (userSettings?.userEmail || "").trim(),
-            companyName: (userSettings?.companyName || "").trim(),
-          }
-        ),
-        body: "Offline mode: proposal link will be generated and sent automatically when you're back online.\n",
-        link: "",
-        proposalId: "",
-      });
-
-      setEmailModalOpen(true);
-      showToast("Offline: draft opened. Click Send to queue it ✅");
-      return;
-    }
-
-    try {
-      // 1) Save proposal to Supabase
-      const findItem = (id: string) =>
-        pricingItems.find((p: any) => String(p.id) === String(id));
-
-      const deckRow = selectedDeckingId ? findItem(selectedDeckingId) : null;
-      const railRow = selectedRailingId ? findItem(selectedRailingId) : null;
-      const stairRow = selectedStairsId ? findItem(selectedStairsId) : null;
-      const fastRow = selectedFastenerId ? findItem(selectedFastenerId) : null;
-      const demoRow = selectedDemoId ? findItem(selectedDemoId) : null;
-      const skirtRow = selectedSkirtingId ? findItem(selectedSkirtingId) : null;
-
-      const deckingType = (deckRow?.name || "").toString();
-      const railingType = (railRow?.name || "").toString();
-      const stairsType = (stairRow?.name || "").toString();
-      const fastenerType = (fastRow?.name || "").toString();
-      const demoType = (demoRow?.name || "").toString();
-      const skirtingType = (skirtRow?.name || "").toString();
-      const deckingDescription = (deckRow as any)?.proposal_description || null;
-      const railingDescription = (railRow as any)?.proposal_description || null;
-      const stairsDescription = (stairRow as any)?.proposal_description || null;
-      const fastenerDescription =
-        (fastRow as any)?.proposal_description || null;
-      const demoDescription = (demoRow as any)?.proposal_description || null;
-      const skirtingDescription =
-        (skirtRow as any)?.proposal_description || null;
-
-      const deckingQty = Number(deckingSqFt || 0);
-      const deckingUnit = "sf";
-      const railingQty = Number(railingLf || 0);
-      const railingUnit = "lf";
-      const stairsQty = Number(stairsCount || 0);
-      const stairsUnit = "ea";
-      const fastenerQty = Number(fastenerQtyAuto || 0);
-      const fastenerUnit = "ea";
-      const skirtingQty = Number(skirtingSf || 0);
-      const skirtingUnit = "sf";
-
-      const payload = {
-        estimate_name: estimateName || "Untitled Estimate",
-        data: {
-          // ✅ keep snapshot fields (good for timeline/notes keys etc.)
-          ...buildSnapshot(),
-
-          // ✅ REQUIRED by ProposalPage.tsx
-          userSettings,
-
-          estimateName,
-          finalEstimate,
-          constructionType,
-          sowModeSnapshot:
-            (localStorage.getItem(`du_sow_mode::${estimateName}`) as any) ||
-            "auto",
-          sowCustomTextSnapshot:
-            localStorage.getItem(`du_sow_custom::${estimateName}`) || "",
-          startWeeksSnapshot: Number(
-            localStorage.getItem(`du_timeline_start_weeks::${estimateName}`) ||
-              3
-          ),
-          durationDaysSnapshot: Number(
-            localStorage.getItem(
-              `du_timeline_duration_days::${estimateName}`
-            ) || 2
-          ),
-
-          clientTitle,
-          clientLastName,
-          clientTown,
-          clientEmail,
-
-          deckingSubtotal,
-          railingSubtotal,
-          stairsSubtotal,
-          fastenerSubtotal,
-          demoSubtotal,
-          skirtingSubtotal,
-
-          addItemsDetailed,
-          upliftMultiplier,
-          showLineItemPricesSnapshot:
-            localStorage.getItem(`du_show_line_prices::${estimateName}`) ===
-            "1",
-
-          deckingType,
-          railingType,
-          stairsType,
-          fastenerType,
-          demoType,
-          skirtingType,
-          deckingDescription,
-          railingDescription,
-          stairsDescription,
-          fastenerDescription,
-          demoDescription,
-          skirtingDescription,
-
-          deckingQty,
-          deckingUnit,
-          railingQty,
-          railingUnit,
-          stairsQty,
-          stairsUnit,
-          fastenerQty,
-          fastenerUnit,
-          skirtingQty,
-          skirtingUnit,
-        },
-      };
-
-      const { data, error } = await supabase
-        .from("proposals")
-        .insert(payload)
-        .select("id")
-        .single();
-
-      if (error) throw error;
-      const getPublicBaseUrl = () => {
-        const origin = window.location.origin;
-
-        // ✅ If you're inside CodeSandbox editor/preview, never send that to clients.
-        if (origin.includes("codesandbox.io")) {
-          return "https://26gqfx.csb.app"; // <-- your public app URL
+        if (error) {
+          console.error("EDGE FUNCTION ERROR (raw):", error);
+          console.error(
+            "EDGE FUNCTION ERROR (json):",
+            JSON.stringify(error, null, 2)
+          );
+
+          const msg =
+            (error as any)?.message ||
+            (error as any)?.context?.body ||
+            JSON.stringify(error, null, 2);
+
+          alert("Send failed (edge function):\n\n" + msg);
+          return;
         }
 
-        // ✅ Otherwise use whatever domain the app is actually running on
-        return origin.replace(/\/$/, "");
+        console.log("EDGE FUNCTION SUCCESS:", data);
+
+        setEmailModalOpen(false);
+        setEmailDraft(null);
+
+        showToast("Email sent ✅");
+      } catch (err: any) {
+        console.error("SEND EMAIL CRASH:", err);
+        alert(
+          "Send crashed:\n\n" +
+            (err?.message ||
+              err?.error_description ||
+              err?.details ||
+              JSON.stringify(err, null, 2))
+        );
+      }
+    };
+
+    //
+    // OFFLINE / ONLINE STATE
+    //
+    const [isOnline, setIsOnline] = useState<boolean>(
+      typeof navigator !== "undefined" ? navigator.onLine : true
+    );
+
+    useEffect(() => {
+      const on = () => setIsOnline(true);
+      const off = () => setIsOnline(false);
+
+      window.addEventListener("online", on);
+      window.addEventListener("offline", off);
+
+      return () => {
+        window.removeEventListener("online", on);
+        window.removeEventListener("offline", off);
       };
+    }, []);
+    const [toast, setToast] = useState<string | null>(null);
 
-      const proposalId = data?.id;
-      const link = `${getPublicBaseUrl()}/review/${proposalId}`;
+    const showToast = (msg: string) => {
+      setToast(msg);
+      window.setTimeout(() => setToast(null), 3500);
+    };
+    //
+    // EMAIL DRAFT (in-app send window)
+    //
+    const [emailModalOpen, setEmailModalOpen] = useState(false);
+    const [sendMeCopy, setSendMeCopy] = useState(false);
+    const [emailDraft, setEmailDraft] = useState<any>(null);
 
-      // 2) Build subject/body from Settings templates
-      const vars: Record<string, string> = {
-        clientTitle: (clientTitle || "").trim(),
-        clientLastName: (clientLastName || "").trim(),
-        clientTown: (clientTown || "").trim(),
-        clientEmail: (clientEmail || "").trim(),
+    const [recentFiles, setRecentFiles] = useState<RecentFile[]>(() =>
+      getRecents()
+    );
+    const [recentOpen, setRecentOpen] = useState(false);
+    const refreshRecents = () => setRecentFiles(getRecents());
 
-        userName: (userSettings?.userName || "").trim(),
-        userPhone: (userSettings?.userPhone || "").trim(),
-        userEmail: (userSettings?.userEmail || "").trim(),
-        companyName: (userSettings?.companyName || "").trim(),
-      };
+    //
+    // STATE: ESTIMATE + UI
+    //
+    const [activeNav, setActiveNav] = useState<
+      "estimator" | "pricingAdmin" | "proposals" | "analytics" | "settings"
+    >("estimator");
+    const EMAIL_DOMAINS = [
+      "gmail.com",
+      "icloud.com",
+      "yahoo.com",
+      "outlook.com",
+      "hotmail.com",
+    ];
 
-      const subject = renderTemplate(
-        userSettings?.emailSubjectTemplate ||
-          "Your Proposal – {{clientLastName}}",
-        vars
-      );
+    function getEmailSuggestions(input: string) {
+      const v = (input || "").trim();
+      const at = v.indexOf("@");
+      if (at < 0) return [];
+      const name = v.slice(0, at);
+      const partial = v.slice(at + 1).toLowerCase();
+      if (!name) return [];
+      return EMAIL_DOMAINS.filter((d) => d.startsWith(partial))
+        .slice(0, 5)
+        .map((d) => `${name}@${d}`);
+    }
 
-      // Add the link at the bottom (always)
-      const bodyBase = renderTemplate(
-        userSettings?.emailBodyTemplate || "",
-        vars
-      );
+    // ✅ FIX: this state must live at component level (NOT inside render)
+    const [showBreakdown, setShowBreakdown] = useState(false);
 
-      const body =
-        (bodyBase || "").trim() + "\n\nView proposal here:\n" + link + "\n";
-
-      // helpful: copy link to clipboard
+    const [estimateId, setEstimateId] = useState<string>(() => {
       try {
-        await navigator.clipboard.writeText(link);
+        return localStorage.getItem("du_estimate_id") || "";
       } catch {
-        // ignore if browser blocks it
+        return "";
       }
-      // 3) Store draft + open in-app send window
-      setEmailDraft({ to, subject, body, link, proposalId });
+    });
+    useEffect(() => {
+      try {
+        localStorage.setItem("du_estimate_id", estimateId);
+      } catch {}
+    }, [estimateId]);
+    const [emailOpen, setEmailOpen] = useState(false);
+    const [emailTo, setEmailTo] = useState("");
+    const [emailSubject, setEmailSubject] = useState("");
+    const [emailBody, setEmailBody] = useState("");
 
-      setEmailModalOpen(true);
-    } catch (err: any) {
-      console.error("EMAIL PROPOSAL ERROR:", err);
-
-      const msg =
-        err?.message ||
-        err?.error_description ||
-        err?.details ||
-        JSON.stringify(err, null, 2);
-
-      showToast("Email Proposal failed. Check console for details.");
-      console.error("EMAIL PROPOSAL ERROR DETAILS:", msg);
-    }
-  };
-
-  //
-  // FILE → OPEN
-  //
-  const openFileInputRef = useRef<HTMLInputElement | null>(null);
-  const onPickOpenFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const snapshot = JSON.parse(text);
-      if (!snapshot || typeof snapshot !== "object") {
-        alert("Invalid estimate file.");
-        return;
+    const [estimateName, setEstimateName] = useState<string>(() => {
+      try {
+        return localStorage.getItem("du_estimate_name") || "";
+      } catch {
+        return "";
       }
+    });
+    useEffect(() => {
+      try {
+        localStorage.setItem("du_estimate_name", estimateName);
+      } catch {}
+    }, [estimateName]);
+    const [estimateNameLocked, setEstimateNameLocked] = useState<boolean>(
+      () => {
+        try {
+          return localStorage.getItem("du_estimate_name_locked") === "1";
+        } catch {
+          return false;
+        }
+      }
+    );
 
-      applySnapshot(snapshot);
+    useEffect(() => {
+      try {
+        localStorage.setItem(
+          "du_estimate_name_locked",
+          estimateNameLocked ? "1" : "0"
+        );
+      } catch {}
+    }, [estimateNameLocked]);
 
-      const recentName =
-        (snapshot.estimateName || "").trim() ||
-        file.name.replace(/\.json$/i, "").replace(/\.duest$/i, "");
-
-      pushRecent(recentName, snapshot);
-      refreshRecents();
-
-      dirtySuspendedRef.current = false;
-      setActiveNav("estimator");
-    } catch (err: any) {
-      alert("Could not open that file. It may be corrupted.");
-      console.error(err);
-    } finally {
-      e.target.value = "";
-    }
-  };
-
-  const EST_EXT = ".DUest";
-  const defaultFileName = () => {
-    const town = (clientTown || "").trim();
-    const last = (clientLastName || "").trim();
-    const base = [town, last].filter(Boolean).join(" ").trim() || "Estimate";
-    const name = (estimateName || "").trim();
-    const file = `${name || base}${EST_EXT}`;
-    return file.replace(/\s+/g, " ");
-  };
-
-  const normalizeFileName = (name: string) => {
-    const trimmed = (name || "").trim();
-    if (!trimmed) return "";
-    if (trimmed.toLowerCase().endsWith(".json"))
-      return trimmed.slice(0, -5) + EST_EXT;
-    if (!trimmed.toLowerCase().endsWith(EST_EXT.toLowerCase()))
-      return trimmed + EST_EXT;
-    return trimmed;
-  };
-
-  const downloadTextFile = (filename: string, text: string) => {
-    const blob = new Blob([text], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleFileSave = () => {
-    if (!estimateName) {
+    const [clientTitle, setClientTitle] = useState("");
+    const [clientLastName, setClientLastName] = useState("");
+    const [clientTown, setClientTown] = useState("");
+    const [clientEmail, setClientEmail] = useState("");
+    useEffect(() => {
       const town = (clientTown || "").trim();
       const last = (clientLastName || "").trim();
-      if (!town || !last) {
-        alert("Please enter Location and Last Name before saving.");
+
+      // need both fields filled out
+      if (!town || !last) return;
+
+      // if user saved/renamed, do not overwrite
+      if (estimateNameLocked) return;
+
+      // ✅ choose your format here:
+      // const auto = `${town} ${last}`;     // space version
+      const auto = `${town}_${last}`; // underscore version
+
+      // only set if it changed
+      if ((estimateName || "").trim() !== auto) {
+        setEstimateName(auto);
+        try {
+          localStorage.setItem("du_estimate_name", auto);
+        } catch {}
+      }
+    }, [clientTown, clientLastName, estimateNameLocked]);
+
+    const [constructionType, setConstructionType] = useState<string>("");
+    const [includePermit, setIncludePermit] = useState(false);
+    const [msrpMode, setMsrpMode] = useState(false);
+
+    const [selectedDeckingId, setSelectedDeckingId] = useState<string>("");
+    const [deckingSqFt, setDeckingSqFt] = useState<number>(0);
+
+    const [selectedRailingId, setSelectedRailingId] = useState<string>("");
+    const [railingLf, setRailingLf] = useState<number>(0);
+
+    const [selectedStairsId, setSelectedStairsId] = useState<string>("");
+    const [stairsCount, setStairsCount] = useState<number>(0);
+
+    const [selectedFastenerId, setSelectedFastenerId] = useState<string>("");
+
+    const [selectedDemoId, setSelectedDemoId] = useState<string>("");
+    const [demoQty, setDemoQty] = useState<number>(0);
+    const [selectedSkirtingId, setSelectedSkirtingId] = useState<string>("");
+    const [skirtingSf, setSkirtingSf] = useState<number>(0);
+    const [skirtingCategory, setSkirtingCategory] = useState<
+      "" | "Skirting" | "Lattice"
+    >("");
+
+    const [miValue, setMiValue] = useState<string>("");
+    const [emailSugOpen, setEmailSugOpen] = useState(false);
+    const emailSuggestions = useMemo(
+      () => getEmailSuggestions(clientEmail),
+      [clientEmail]
+    );
+    const [skirtingDeckingId, setSkirtingDeckingId] = useState<string>("");
+    const [skirtingDeckingTouched, setSkirtingDeckingTouched] = useState(false);
+    const lastAutoSkirtingDeckingId = useRef<string>("");
+    const [skirtingTypeTouched, setSkirtingTypeTouched] = useState(false);
+
+    // ADD ITEM rows
+    const [addItems, setAddItems] = useState<AddItemRow[]>([]);
+    const addAddItemRow = () => {
+      const newRow: AddItemRow = {
+        rowId:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? (crypto as any).randomUUID()
+            : `${Date.now()}-${Math.random()}`,
+        category: "",
+        itemId: "",
+        qty: 0,
+        constructionType: "",
+
+        deckingId: "",
+        customName: "",
+        customPrice: 0,
+      };
+      setAddItems((prev) => [...prev, newRow]);
+    };
+    const removeAddItemRow = (rowId: string) => {
+      setAddItems((prev) => prev.filter((r) => r.rowId !== rowId));
+    };
+    const updateAddItemRow = (rowId: string, patch: Partial<AddItemRow>) => {
+      setAddItems((prev) =>
+        prev.map((r) => (r.rowId === rowId ? { ...r, ...patch } : r))
+      );
+    };
+
+    //
+    // DIRTY STATE (unsaved changes)
+    //
+    const [isDirty, setIsDirty] = useState(false);
+    const dirtySuspendedRef = useRef(true);
+    const markDirty = () => {
+      if (dirtySuspendedRef.current) return;
+      setIsDirty(true);
+    };
+
+    //
+    // USER SETTINGS (for Proposal PDF)
+    //
+    // NOTE: Keeping your existing shape so SettingsPage / ProposalPage don't break.
+    // We are only removing “email proposal / email preview” UI behavior from App.
+    const [userSettings, setUserSettings] = useState(() => {
+      try {
+        const saved = localStorage.getItem("du_user_settings");
+        return saved
+          ? JSON.parse(saved)
+          : {
+              userName: "Jason Colapinto",
+              userPhone: "",
+              userEmail: "",
+
+              companyName: "Decks Unique",
+              companyPhone: "",
+              companyAddress: "",
+              companyWebsite: "",
+              companySlogan: "",
+              license: "",
+
+              logoDataUrl: "",
+              emailSubjectTemplate:
+                "Your Decks Unique Proposal – {{clientTown}} {{clientLastName}}",
+              emailBodyTemplate:
+                "Hi {{clientTitle}} {{clientLastName}},\n\n" +
+                "Thank you for the opportunity to quote your project.\n" +
+                "Attached is your proposal for review.\n\n" +
+                "If you have any questions, reply here or call/text me at {{userPhone}}.\n\n" +
+                "Thanks,\n" +
+                "{{userName}}\n" +
+                "{{companyName}}",
+            };
+      } catch {
+        return {
+          companyName: "Decks Unique",
+          userName: "Jason Colapinto",
+          userPhone: "",
+          userEmail: "",
+          license: "",
+          logoDataUrl: "",
+        };
+      }
+    });
+
+    useEffect(() => {
+      try {
+        localStorage.setItem("du_user_settings", JSON.stringify(userSettings));
+      } catch {}
+    }, [userSettings]);
+
+    //
+    // FILE OPEN/SAVE helpers
+    //
+    const hasUnsavedEstimateChanges = () => {
+      return (
+        !!clientLastName ||
+        !!clientTown ||
+        !!clientEmail ||
+        !!constructionType ||
+        !!selectedDeckingId ||
+        deckingSqFt > 0 ||
+        !!selectedRailingId ||
+        railingLf > 0 ||
+        !!selectedStairsId ||
+        (stairsCount ?? 0) > 0 ||
+        !!selectedFastenerId ||
+        !!selectedDemoId ||
+        demoQty > 0 ||
+        !!skirtingCategory ||
+        !!selectedSkirtingId ||
+        skirtingSf > 0 ||
+        !!miValue ||
+        includePermit ||
+        msrpMode ||
+        addItems.length > 0
+      );
+    };
+
+    const handleNewProject = () => {
+      setClientTitle("");
+      setClientLastName("");
+      setClientTown("");
+      setClientEmail("");
+
+      setConstructionType("");
+      setIncludePermit(false);
+      setMsrpMode(false);
+
+      setSelectedDeckingId("");
+      setDeckingSqFt(0);
+      setSelectedRailingId("");
+      setRailingLf(0);
+      setSelectedStairsId("");
+      setStairsCount(0);
+      setSelectedFastenerId("");
+
+      setSelectedDemoId("");
+      setDemoQty(0);
+
+      setSkirtingCategory("");
+      setSelectedSkirtingId("");
+      setSkirtingSf(0);
+
+      setMiValue("");
+      setAddItems([]);
+
+      setEstimateName("");
+      setEstimateId("");
+      setEstimateNameLocked(false);
+
+      try {
+        localStorage.removeItem("du_estimate_name");
+        localStorage.removeItem("du_estimate_id");
+        localStorage.removeItem("du_estimate_name_locked");
+      } catch {}
+
+      setActiveNav("estimator");
+      setIsDirty(false);
+      setShowBreakdown(false);
+    };
+
+    const buildSnapshot = () => ({
+      savedAt: new Date().toISOString(),
+      estimateName,
+
+      clientTitle,
+      clientLastName,
+      clientTown,
+      clientEmail,
+
+      constructionType,
+      includePermit,
+      msrpMode,
+
+      selectedDeckingId,
+      deckingSqFt,
+      selectedRailingId,
+      railingLf,
+      selectedStairsId,
+      stairsCount,
+      selectedFastenerId,
+
+      selectedDemoId,
+      demoQty,
+      skirtingCategory,
+      selectedSkirtingId,
+      skirtingSf,
+      miValue,
+
+      addItems,
+    });
+
+    const applySnapshot = (snap: any) => {
+      setEstimateName(snap.estimateName || "");
+
+      setClientTitle(snap.clientTitle || "");
+      setClientLastName(snap.clientLastName || "");
+      setClientTown(snap.clientTown || "");
+      setClientEmail(snap.clientEmail || "");
+
+      setConstructionType(snap.constructionType || "");
+      setIncludePermit(!!snap.includePermit);
+      setMsrpMode(!!snap.msrpMode);
+
+      setSelectedDeckingId(snap.selectedDeckingId || "");
+      setDeckingSqFt(Number(snap.deckingSqFt || 0));
+
+      setSelectedRailingId(snap.selectedRailingId || "");
+      setRailingLf(Number(snap.railingLf || 0));
+
+      setSelectedStairsId(snap.selectedStairsId || "");
+      setStairsCount(Number(snap.stairsCount || 0));
+
+      setSelectedFastenerId(snap.selectedFastenerId || "");
+
+      setSelectedDemoId(snap.selectedDemoId || "");
+      setDemoQty(Number(snap.demoQty || 0));
+
+      setSkirtingCategory((snap.skirtingCategory as any) || "");
+      setSelectedSkirtingId(snap.selectedSkirtingId || "");
+      setSkirtingSf(Number(snap.skirtingSf || 0));
+
+      setMiValue(snap.miValue || "");
+      setAddItems(Array.isArray(snap.addItems) ? snap.addItems : []);
+
+      setIsDirty(false);
+      setShowBreakdown(false);
+    };
+    //
+    // EMAIL PROPOSAL (JOIST STYLE)
+    // 1) Save proposal to Supabase
+    // 2) Call Edge Function to SEND email
+    // 3) Show success toast
+    //
+
+    const renderTemplate = (
+      tpl: string,
+      vars: Record<string, string>
+    ): string => {
+      return (tpl || "").replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_, key) => {
+        return vars[key] ?? "";
+      });
+    };
+    const handleEmailProposal = async () => {
+      const to = (clientEmail || "").trim();
+
+      if (!to) {
+        showToast("Enter the client email first (Estimator → Client Email).");
         setActiveNav("estimator");
         return;
       }
-      const baseName = `${town} ${last}`.trim();
-      const counterKey = `du_estimate_counter::${baseName.toLowerCase()}`;
-      const current = Number(localStorage.getItem(counterKey) || "0");
-      const next = current + 1;
-      localStorage.setItem(counterKey, String(next));
-      const name = `${baseName} Est${next}`;
-      setEstimateName(name);
+
+      // if offline, we cannot create a /review link
+      if (!isOnline) {
+        // Queue a placeholder email (no share link yet)
+        setEmailDraft({
+          to,
+          subject: renderTemplate(
+            userSettings?.emailSubjectTemplate ||
+              "Your Proposal – {{clientLastName}}",
+            {
+              clientTitle: (clientTitle || "").trim(),
+              clientLastName: (clientLastName || "").trim(),
+              clientTown: (clientTown || "").trim(),
+              clientEmail: (clientEmail || "").trim(),
+              userName: (userSettings?.userName || "").trim(),
+              userPhone: (userSettings?.userPhone || "").trim(),
+              userEmail: (userSettings?.userEmail || "").trim(),
+              companyName: (userSettings?.companyName || "").trim(),
+            }
+          ),
+          body: "Offline mode: proposal link will be generated and sent automatically when you're back online.\n",
+          link: "",
+          proposalId: "",
+        });
+
+        setEmailModalOpen(true);
+        showToast("Offline: draft opened. Click Send to queue it ✅");
+        return;
+      }
+
+      try {
+        // 1) Save proposal to Supabase
+        const findItem = (id: string) =>
+          pricingItems.find((p: any) => String(p.id) === String(id));
+
+        const deckRow = selectedDeckingId ? findItem(selectedDeckingId) : null;
+        const railRow = selectedRailingId ? findItem(selectedRailingId) : null;
+        const stairRow = selectedStairsId ? findItem(selectedStairsId) : null;
+        const fastRow = selectedFastenerId
+          ? findItem(selectedFastenerId)
+          : null;
+        const demoRow = selectedDemoId ? findItem(selectedDemoId) : null;
+        const skirtRow = selectedSkirtingId
+          ? findItem(selectedSkirtingId)
+          : null;
+
+        const deckingType = (deckRow?.name || "").toString();
+        const railingType = (railRow?.name || "").toString();
+        const stairsType = (stairRow?.name || "").toString();
+        const fastenerType = (fastRow?.name || "").toString();
+        const demoType = (demoRow?.name || "").toString();
+        const skirtingType = (skirtRow?.name || "").toString();
+        const deckingDescription =
+          (deckRow as any)?.proposal_description || null;
+        const railingDescription =
+          (railRow as any)?.proposal_description || null;
+        const stairsDescription =
+          (stairRow as any)?.proposal_description || null;
+        const fastenerDescription =
+          (fastRow as any)?.proposal_description || null;
+        const demoDescription = (demoRow as any)?.proposal_description || null;
+        const skirtingDescription =
+          (skirtRow as any)?.proposal_description || null;
+
+        const deckingQty = Number(deckingSqFt || 0);
+        const deckingUnit = "sf";
+        const railingQty = Number(railingLf || 0);
+        const railingUnit = "lf";
+        const stairsQty = Number(stairsCount || 0);
+        const stairsUnit = "ea";
+        const fastenerQty = Number(fastenerQtyAuto || 0);
+        const fastenerUnit = "ea";
+        const skirtingQty = Number(skirtingSf || 0);
+        const skirtingUnit = "sf";
+
+        const payload = {
+          estimate_name: estimateName || "Untitled Estimate",
+          data: {
+            // ✅ keep snapshot fields (good for timeline/notes keys etc.)
+            ...buildSnapshot(),
+
+            // ✅ REQUIRED by ProposalPage.tsx
+            userSettings,
+
+            estimateName,
+            finalEstimate,
+            constructionType,
+            sowModeSnapshot:
+              (localStorage.getItem(`du_sow_mode::${estimateName}`) as any) ||
+              "auto",
+            sowCustomTextSnapshot:
+              localStorage.getItem(`du_sow_custom::${estimateName}`) || "",
+            startWeeksSnapshot: Number(
+              localStorage.getItem(
+                `du_timeline_start_weeks::${estimateName}`
+              ) || 3
+            ),
+            durationDaysSnapshot: Number(
+              localStorage.getItem(
+                `du_timeline_duration_days::${estimateName}`
+              ) || 2
+            ),
+
+            clientTitle,
+            clientLastName,
+            clientTown,
+            clientEmail,
+
+            deckingSubtotal,
+            railingSubtotal,
+            stairsSubtotal,
+            fastenerSubtotal,
+            demoSubtotal,
+            skirtingSubtotal,
+
+            addItemsDetailed,
+            upliftMultiplier,
+            showLineItemPricesSnapshot:
+              localStorage.getItem(`du_show_line_prices::${estimateName}`) ===
+              "1",
+
+            deckingType,
+            railingType,
+            stairsType,
+            fastenerType,
+            demoType,
+            skirtingType,
+            deckingDescription,
+            railingDescription,
+            stairsDescription,
+            fastenerDescription,
+            demoDescription,
+            skirtingDescription,
+
+            deckingQty,
+            deckingUnit,
+            railingQty,
+            railingUnit,
+            stairsQty,
+            stairsUnit,
+            fastenerQty,
+            fastenerUnit,
+            skirtingQty,
+            skirtingUnit,
+          },
+        };
+
+        const { data, error } = await supabase
+          .from("proposals")
+          .insert(payload)
+          .select("id")
+          .single();
+
+        if (error) throw error;
+        const getPublicBaseUrl = () => {
+          const origin = window.location.origin;
+
+          // ✅ If you're inside CodeSandbox editor/preview, never send that to clients.
+          if (origin.includes("codesandbox.io")) {
+            return "https://26gqfx.csb.app"; // <-- your public app URL
+          }
+
+          // ✅ Otherwise use whatever domain the app is actually running on
+          return origin.replace(/\/$/, "");
+        };
+
+        const proposalId = data?.id;
+        const link = `${getPublicBaseUrl()}/review/${proposalId}`;
+
+        // 2) Build subject/body from Settings templates
+        const vars: Record<string, string> = {
+          clientTitle: (clientTitle || "").trim(),
+          clientLastName: (clientLastName || "").trim(),
+          clientTown: (clientTown || "").trim(),
+          clientEmail: (clientEmail || "").trim(),
+
+          userName: (userSettings?.userName || "").trim(),
+          userPhone: (userSettings?.userPhone || "").trim(),
+          userEmail: (userSettings?.userEmail || "").trim(),
+          companyName: (userSettings?.companyName || "").trim(),
+        };
+
+        const subject = renderTemplate(
+          userSettings?.emailSubjectTemplate ||
+            "Your Proposal – {{clientLastName}}",
+          vars
+        );
+
+        // Add the link at the bottom (always)
+        const bodyBase = renderTemplate(
+          userSettings?.emailBodyTemplate || "",
+          vars
+        );
+
+        const body =
+          (bodyBase || "").trim() + "\n\nView proposal here:\n" + link + "\n";
+
+        // helpful: copy link to clipboard
+        try {
+          await navigator.clipboard.writeText(link);
+        } catch {
+          // ignore if browser blocks it
+        }
+        // 3) Store draft + open in-app send window
+        setEmailDraft({ to, subject, body, link, proposalId });
+
+        setEmailModalOpen(true);
+      } catch (err: any) {
+        console.error("EMAIL PROPOSAL ERROR:", err);
+
+        const msg =
+          err?.message ||
+          err?.error_description ||
+          err?.details ||
+          JSON.stringify(err, null, 2);
+
+        showToast("Email Proposal failed. Check console for details.");
+        console.error("EMAIL PROPOSAL ERROR DETAILS:", msg);
+      }
+    };
+
+    //
+    // FILE → OPEN
+    //
+    const openFileInputRef = useRef<HTMLInputElement | null>(null);
+    const onPickOpenFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const snapshot = JSON.parse(text);
+        if (!snapshot || typeof snapshot !== "object") {
+          alert("Invalid estimate file.");
+          return;
+        }
+
+        applySnapshot(snapshot);
+
+        const recentName =
+          (snapshot.estimateName || "").trim() ||
+          file.name.replace(/\.json$/i, "").replace(/\.duest$/i, "");
+
+        pushRecent(recentName, snapshot);
+        refreshRecents();
+
+        dirtySuspendedRef.current = false;
+        setActiveNav("estimator");
+      } catch (err: any) {
+        alert("Could not open that file. It may be corrupted.");
+        console.error(err);
+      } finally {
+        e.target.value = "";
+      }
+    };
+
+    const EST_EXT = ".DUest";
+    const defaultFileName = () => {
+      const town = (clientTown || "").trim();
+      const last = (clientLastName || "").trim();
+      const base = [town, last].filter(Boolean).join(" ").trim() || "Estimate";
+      const name = (estimateName || "").trim();
+      const file = `${name || base}${EST_EXT}`;
+      return file.replace(/\s+/g, " ");
+    };
+
+    const normalizeFileName = (name: string) => {
+      const trimmed = (name || "").trim();
+      if (!trimmed) return "";
+      if (trimmed.toLowerCase().endsWith(".json"))
+        return trimmed.slice(0, -5) + EST_EXT;
+      if (!trimmed.toLowerCase().endsWith(EST_EXT.toLowerCase()))
+        return trimmed + EST_EXT;
+      return trimmed;
+    };
+
+    const downloadTextFile = (filename: string, text: string) => {
+      const blob = new Blob([text], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    };
+
+    const handleFileSave = () => {
+      if (!estimateName) {
+        const town = (clientTown || "").trim();
+        const last = (clientLastName || "").trim();
+        if (!town || !last) {
+          alert("Please enter Location and Last Name before saving.");
+          setActiveNav("estimator");
+          return;
+        }
+        const baseName = `${town} ${last}`.trim();
+        const counterKey = `du_estimate_counter::${baseName.toLowerCase()}`;
+        const current = Number(localStorage.getItem(counterKey) || "0");
+        const next = current + 1;
+        localStorage.setItem(counterKey, String(next));
+        const name = `${baseName} Est${next}`;
+        setEstimateName(name);
+        setEstimateNameLocked(true);
+        showToast("Name created. Click Save again to download the file.");
+        return;
+      }
       setEstimateNameLocked(true);
-      showToast("Name created. Click Save again to download the file.");
-      return;
-    }
-    setEstimateNameLocked(true);
 
-    const snap = buildSnapshot();
-    pushRecent(estimateName, snap);
-    refreshRecents();
-
-    downloadTextFile(defaultFileName(), JSON.stringify(snap, null, 2));
-    setIsDirty(false);
-  };
-
-  const handleFileSaveAs = () => {
-    const input = prompt("Save As file name:", defaultFileName());
-    if (!input) return;
-
-    const filename = normalizeFileName(input);
-    if (!filename) return;
-
-    const snap = buildSnapshot();
-
-    const recentLabel = filename.replace(new RegExp(`${EST_EXT}$`, "i"), "");
-    pushRecent(recentLabel, snap);
-    refreshRecents();
-
-    downloadTextFile(filename, JSON.stringify(snap, null, 2));
-    setIsDirty(false);
-  };
-
-  const handleFileOpen = () => openFileInputRef.current?.click();
-
-  const openRecent = (rf: RecentFile) => {
-    try {
-      applySnapshot(rf.json);
-      pushRecent(rf.name, rf.json);
+      const snap = buildSnapshot();
+      pushRecent(estimateName, snap);
       refreshRecents();
-      setRecentOpen(false);
-      setFileOpen(false);
-      setActiveNav("estimator");
-    } catch (e) {
-      console.error("Failed to open recent:", e);
-      alert("Could not open that recent file.");
-    }
-  };
+
+      downloadTextFile(defaultFileName(), JSON.stringify(snap, null, 2));
+      setIsDirty(false);
+    };
+
+    const handleFileSaveAs = () => {
+      const input = prompt("Save As file name:", defaultFileName());
+      if (!input) return;
+
+      const filename = normalizeFileName(input);
+      if (!filename) return;
+
+      const snap = buildSnapshot();
+
+      const recentLabel = filename.replace(new RegExp(`${EST_EXT}$`, "i"), "");
+      pushRecent(recentLabel, snap);
+      refreshRecents();
+
+      downloadTextFile(filename, JSON.stringify(snap, null, 2));
+      setIsDirty(false);
+    };
+
+    const handleFileOpen = () => openFileInputRef.current?.click();
+  }
   const buildDefaultEstimateName = () => {
     const town = (clientTown || "").trim();
     const last = (clientLastName || "").trim();
