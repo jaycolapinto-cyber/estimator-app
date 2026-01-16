@@ -359,7 +359,7 @@ export default function App() {
       for (let i = 0; i < bytes.length; i += chunkSize) {
         binary += String.fromCharCode(
           ...Array.from(bytes.subarray(i, i + chunkSize))
-        );
+      
       }
 
       return btoa(binary);
@@ -3946,3 +3946,4 @@ function ConfirmNewProjectModal({
     document.body
   );
 }
+
