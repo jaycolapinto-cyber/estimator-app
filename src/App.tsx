@@ -474,6 +474,7 @@ export default function App() {
   //
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [sendMeCopy, setSendMeCopy] = useState(false);
+  const [emailDraft, setEmailDraft] = useState<any>(null);
 
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>(() =>
     getRecents()
