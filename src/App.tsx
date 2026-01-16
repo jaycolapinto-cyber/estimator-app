@@ -2394,7 +2394,7 @@ export default function App() {
     pricingItems: PricingItemRow[],
     size: "12" | "18",
     kind: "back" | "storage"
-  ) {
+  ) => {
     const wantCat = size === "18" ? "bench_18in" : "bench";
     const wantNeedle = kind === "back" ? "w back" : "w storage";
 
