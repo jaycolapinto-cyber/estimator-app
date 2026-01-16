@@ -304,12 +304,14 @@ async function saveProposal(proposalData: any) {
 // ------------------------------
 // ✅ TEMPORARY: NO LOGIN. EVERYONE IS ADMIN.
 // ------------------------------
-export default function App() {
+export default function App(): JSX.Element {
   const path = window.location.pathname;
 
   if (path.startsWith("/review/")) {
     return <ReviewProposalPage />;
   }
+
+  return <AppShell isAdmin={true} />;
 
   function AppShell({ isAdmin }: { isAdmin: boolean }) {
     //
