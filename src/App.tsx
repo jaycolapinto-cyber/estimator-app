@@ -309,7 +309,7 @@ export default function App() {
 
     const [fileOpen, setFileOpen] = useState(false);
     const [confirmNewOpen, setConfirmNewOpen] = useState(false);
-    const [toast, setToast] = useState<string | null>(null);
+
     type EmailDraft = {
       to: string;
       subject: string;
