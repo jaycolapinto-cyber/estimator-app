@@ -301,7 +301,6 @@ async function saveProposal(proposalData: any) {
     throw new Error("No data returned from Supabase");
   }
   return (data as any).id;
-  a.id;
 }
 
 // ------------------------------
