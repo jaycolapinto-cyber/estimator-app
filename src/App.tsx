@@ -307,10 +307,8 @@ export default function App() {
     // FILE MENU + CONFIRM MODALS
     //
   
-      } catch (e) {
-        console.error("Failed to open recent:", e);
-        alert("Could not open that recent file.");
-      }
+     
+    
       const [fileOpen, setFileOpen] = useState(false);
       const [confirmNewOpen, setConfirmNewOpen] = useState(false);
       const [toast, setToast] = useState<string | null>(null);
@@ -333,6 +331,11 @@ export default function App() {
           setRecentOpen(false);
           setFileOpen(false);
           setActiveNav("estimator");
+        } catch (e) {
+          console.error("Failed to open recent:", e);
+          alert("Could not open that recent file.");
+        }
+      };
       const cancelNew = () => setConfirmNewOpen(false);
 
       const discardAndNew = () => {
