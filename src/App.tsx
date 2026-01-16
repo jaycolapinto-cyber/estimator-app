@@ -3869,7 +3869,9 @@ export default function App() {
               <textarea
                 value={emailDraft?.body || ""}
                 onChange={(e) =>
-                  setEmailDraft((d) => (d ? { ...d, body: e.target.value } : d))
+                  setEmailDraft((d: typeof emailDraft) =>
+                    d ? { ...d, body: e.target.value } : d
+                  )
                 }
                 style={{
                   fontFamily:
