@@ -306,71 +306,69 @@ export default function App() {
     //
     // FILE MENU + CONFIRM MODALS
     //
-  
-     
-    
-      const [fileOpen, setFileOpen] = useState(false);
-      const [confirmNewOpen, setConfirmNewOpen] = useState(false);
-      const [toast, setToast] = useState<string | null>(null);
-      type EmailDraft = {
-        to: string;
-        subject: string;
-        body: string;
-        link?: string;
-        sendMeCopy?: boolean;
-      };
-      const requestNewProject = () => {
-        if (hasUnsavedEstimateChanges()) setConfirmNewOpen(true);
-        else handleNewProject();
-      };
-      const openRecent = (rf: RecentFile) => {
-        try {
-          applySnapshot(rf.json);
-          pushRecent(rf.name, rf.json);
-          refreshRecents();
-          setRecentOpen(false);
-          setFileOpen(false);
-          setActiveNav("estimator");
-        } catch (e) {
-          console.error("Failed to open recent:", e);
-          alert("Could not open that recent file.");
-        }
-      };
-      const cancelNew = () => setConfirmNewOpen(false);
 
-      const discardAndNew = () => {
-        setConfirmNewOpen(false);
-        handleNewProject();
-      };
-
-      const saveAndNew = () => {
-        setConfirmNewOpen(false);
-        // whatever save logic already exists here
-      };
-
-      //
-      // STEP 3: SEND FROM EMAIL MODAL
-      // - Always enqueue first (offline safe)
-      // - If online: flush queue (sends now)
-      // - Close modal + clear draft
-      //
-      // HELPER: Convert Blob → base64 (no data: prefix)
-      //
-      async function blobToBase64NoPrefix(blob: Blob): Promise<string> {
-        const arrayBuffer = await blob.arrayBuffer();
-        let binary = "";
-        const bytes = new Uint8Array(arrayBuffer);
-        const chunkSize = 0x8000;
-
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          binary += String.fromCharCode(
-            ...Array.from(bytes.subarray(i, i + chunkSize))
-          );
-        }
-
-        return btoa(binary);
+    const [fileOpen, setFileOpen] = useState(false);
+    const [confirmNewOpen, setConfirmNewOpen] = useState(false);
+    const [toast, setToast] = useState<string | null>(null);
+    type EmailDraft = {
+      to: string;
+      subject: string;
+      body: string;
+      link?: string;
+      sendMeCopy?: boolean;
+    };
+    const requestNewProject = () => {
+      if (hasUnsavedEstimateChanges()) setConfirmNewOpen(true);
+      else handleNewProject();
+    };
+    const openRecent = (rf: RecentFile) => {
+      try {
+        applySnapshot(rf.json);
+        pushRecent(rf.name, rf.json);
+        refreshRecents();
+        setRecentOpen(false);
+        setFileOpen(false);
+        setActiveNav("estimator");
+      } catch (e) {
+        console.error("Failed to open recent:", e);
+        alert("Could not open that recent file.");
       }
     };
+    const cancelNew = () => setConfirmNewOpen(false);
+
+    const discardAndNew = () => {
+      setConfirmNewOpen(false);
+      handleNewProject();
+    };
+
+    const saveAndNew = () => {
+      setConfirmNewOpen(false);
+      // whatever save logic already exists here
+    };
+
+    //
+    // STEP 3: SEND FROM EMAIL MODAL
+    // - Always enqueue first (offline safe)
+    // - If online: flush queue (sends now)
+    // - Close modal + clear draft
+    //
+    // HELPER: Convert Blob → base64 (no data: prefix)
+    //
+    async function blobToBase64NoPrefix(blob: Blob): Promise<string> {
+      const arrayBuffer = await blob.arrayBuffer();
+      let binary = "";
+      const bytes = new Uint8Array(arrayBuffer);
+      const chunkSize = 0x8000;
+
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(
+          ...Array.from(bytes.subarray(i, i + chunkSize))
+        );
+      }
+
+      return btoa(binary);
+    }
+
     const handleSendEmailFromModal = async () => {
       await sendEmailNow();
     };
