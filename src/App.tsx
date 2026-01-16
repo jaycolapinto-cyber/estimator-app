@@ -342,7 +342,6 @@ export default function App() {
     }
   }
   const handleSendEmailFromModal = async () => {
-    if (!emailDraft) return;
     await sendEmailNow();
   };
 
