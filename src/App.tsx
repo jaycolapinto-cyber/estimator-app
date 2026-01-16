@@ -3935,4 +3935,3 @@ function ConfirmNewProjectModal({
     document.body
   );
 }
-export default App;
