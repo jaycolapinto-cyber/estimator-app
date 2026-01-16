@@ -30,12 +30,19 @@ function writeQueue(items: QueuedEmail[]) {
 
 export function enqueueEmail(item: Omit<QueuedEmail, "id" | "createdAt">) {
   const q = readQueue();
+
   q.push({
-    id: crypto.randomUUID(),
+    id:
+      typeof globalThis.crypto !== "undefined" &&
+      "randomUUID" in globalThis.crypto
+        ? (globalThis.crypto as any).randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+
     createdAt: Date.now(),
     attemptCount: 0,
     ...item,
   });
+
   writeQueue(q);
 }
 

@@ -70,9 +70,9 @@ type SettingsPageProps = {
 // ------------------------------
 
 const uid = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random()}`;
+  typeof globalThis.crypto !== "undefined" && "randomUUID" in globalThis.crypto
+    ? (globalThis.crypto as any).randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const DEFAULT_SECTIONS: Omit<ProposalSection, "id">[] = [
   {

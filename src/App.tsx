@@ -3821,12 +3821,6 @@ export default function App() {
                 ) : null}
               </div>
 
-              {sendMeCopy && (userSettings?.userEmail || "").trim() ? (
-                <div>
-                  <b>CC:</b> {(userSettings?.userEmail || "").trim()}
-                </div>
-              ) : null}
-
               <div
                 style={{
                   display: "flex",

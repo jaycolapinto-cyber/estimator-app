@@ -335,9 +335,10 @@ const PricingAdmin: React.FC = () => {
     const cat = categories.find((c) => c.id === selectedCategoryId);
 
     const tempId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `tmp-${Date.now()}-${Math.random()}`;
+      typeof globalThis.crypto !== "undefined" &&
+      "randomUUID" in globalThis.crypto
+        ? (globalThis.crypto as any).randomUUID()
+        : `tmp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
     const maxSort =
       items
