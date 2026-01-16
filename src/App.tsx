@@ -320,7 +320,19 @@ export default function App() {
       if (hasUnsavedEstimateChanges()) setConfirmNewOpen(true);
       else handleNewProject();
     };
-    const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null);
+
+    const cancelNew = () => setConfirmNewOpen(false);
+
+    const discardAndNew = () => {
+      setConfirmNewOpen(false);
+      handleNewProject();
+    };
+
+    const saveAndNew = () => {
+      setConfirmNewOpen(false);
+      // whatever save logic already exists here
+    };
+
     //
     // STEP 3: SEND FROM EMAIL MODAL
     // - Always enqueue first (offline safe)
@@ -781,12 +793,6 @@ export default function App() {
     setActiveNav("estimator");
     setIsDirty(false);
     setShowBreakdown(false);
-  };
-
-  const cancelNew = () => setConfirmNewOpen(false);
-  const discardAndNew = () => {
-    setConfirmNewOpen(false);
-    handleNewProject();
   };
 
   const buildSnapshot = () => ({
