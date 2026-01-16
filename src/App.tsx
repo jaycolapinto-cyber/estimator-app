@@ -349,19 +349,28 @@ export default function App() {
     //
     // HELPER: Convert Blob → base64 (no data: prefix)
     //
+    // Safe helper: convert a Blob to a base64 string (no prefix)
     async function blobToBase64NoPrefix(blob: Blob): Promise<string> {
-      const arrayBuffer = await blob.arrayBuffer();
-      let binary = "";
-      const bytes = new Uint8Array(arrayBuffer);
-      const chunkSize = 0x8000;
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
 
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode(
-          ...Array.from(bytes.subarray(i, i + chunkSize))
-        );
-      }
+        reader.onloadend = () => {
+          const result = reader.result;
+          if (typeof result !== "string") {
+            reject(new Error("Failed to read blob as base64"));
+            return;
+          }
 
-      return btoa(binary);
+          // result looks like: data:application/pdf;base64,XXXX
+          const base64 = result.split(",")[1] || "";
+          resolve(base64);
+        };
+
+        reader.onerror = () =>
+          reject(reader.error ?? new Error("FileReader error"));
+
+        reader.readAsDataURL(blob);
+      });
     }
 
     const handleSendEmailFromModal = async () => {
