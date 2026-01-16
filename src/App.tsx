@@ -316,7 +316,10 @@ export default function App() {
       link?: string;
       sendMeCopy?: boolean;
     };
-
+    const requestNewProject = () => {
+      if (hasUnsavedEstimateChanges()) setConfirmNewOpen(true);
+      else handleNewProject();
+    };
     const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null);
     //
     // STEP 3: SEND FROM EMAIL MODAL
@@ -778,11 +781,6 @@ export default function App() {
     setActiveNav("estimator");
     setIsDirty(false);
     setShowBreakdown(false);
-  };
-
-  const requestNewProject = () => {
-    if (hasUnsavedEstimateChanges()) setConfirmNewOpen(true);
-    else handleNewProject();
   };
 
   const cancelNew = () => setConfirmNewOpen(false);
