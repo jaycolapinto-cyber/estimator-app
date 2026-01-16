@@ -297,8 +297,11 @@ async function saveProposal(proposalData: any) {
     alert("Failed to save proposal");
     return null;
   }
-
-  return data.id;
+  if (!data) {
+    throw new Error("No data returned from Supabase");
+  }
+  return (data as any).id;
+  a.id;
 }
 
 // ------------------------------
