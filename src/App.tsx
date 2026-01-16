@@ -1236,7 +1236,6 @@ export default function App() {
     };
 
     const handleFileOpen = () => openFileInputRef.current?.click();
-  }
   const buildDefaultEstimateName = () => {
     const town = (clientTown || "").trim();
     const last = (clientLastName || "").trim();
