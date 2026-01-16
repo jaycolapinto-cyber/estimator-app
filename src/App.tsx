@@ -2390,7 +2390,7 @@ export default function App() {
   const finalEstimate = projectTotalWithUplift + addItemsSubtotalFixed;
   const prettyCat = (cat: string) =>
     (cat || "").replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
-  function getBenchAddonPct(
+  const getBenchAddonPct = (
     pricingItems: PricingItemRow[],
     size: "12" | "18",
     kind: "back" | "storage"
@@ -2414,7 +2414,7 @@ export default function App() {
 
     const pct = Number(row?.cost || 0);
     return Number.isFinite(pct) ? pct : 0;
-  }
+  };
 
   const catItemLabel = (cat: string, item: string) => {
     const c = prettyCat(cat);
