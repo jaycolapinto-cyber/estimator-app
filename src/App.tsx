@@ -464,6 +464,7 @@ export default function App() {
       window.removeEventListener("offline", off);
     };
   }, []);
+  const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
