@@ -36,18 +36,18 @@
 /* =========================
    HEADER (Prepared | Logo | Meta)
    ========================= */
-   .proposal-head {
-    display: grid;
-    grid-template-columns: 1fr 360px 1fr;
-    column-gap: 18px;
-    align-items: start;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(15, 23, 42, 0.12);
-  
-    position: relative;      /* ⬅ ADD THIS */
-    min-height: 120px;       /* ⬅ ADD THIS */
-  }
-  
+.proposal-head {
+  display: grid;
+  grid-template-columns: 1fr 360px 1fr;
+  column-gap: 18px;
+  align-items: start;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+
+  position: relative; /* ⬅ ADD THIS */
+  min-height: 120px; /* ⬅ ADD THIS */
+}
+
 .proposal-headSlot {
   min-width: 0;
 }
@@ -102,27 +102,26 @@
 
 /* Logo block (in-flow, centered) */
 .proposal-logoBlock {
-  position: absolute;      /* ⬅ KEY */
+  position: absolute; /* ⬅ KEY */
   top: 0;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   justify-content: center;
   align-items: center;
-  pointer-events: none;    /* print + UX safe */
+  pointer-events: none; /* print + UX safe */
 }
 .proposal-logoBlock {
   top: -10px;
 }
 
 .proposal-logoImg {
-  max-width: 420px;    /* BIG */
-  max-height: 160px;   /* BIG */
+  max-width: 420px; /* BIG */
+  max-height: 160px; /* BIG */
   width: auto;
   height: auto;
   object-fit: contain;
 }
-
 
 .proposal-logoFallback {
   width: 220px;
@@ -167,7 +166,6 @@
   font-weight: 600;
 }
 
-
 /* Titles / text */
 .proposal-title {
   margin: 18px 0 10px;
@@ -182,7 +180,7 @@
   opacity: 0.85;
 }
 .proposal-text {
-  font-size: 11px;              /* ⬅ was 14px */
+  font-size: 11px; /* ⬅ was 14px */
   line-height: 1.6;
 }
 
@@ -196,8 +194,6 @@
   line-height: 1.6;
 }
 
-}
-
 /* Table */
 .proposal-table {
   width: 100%;
@@ -206,14 +202,13 @@
 }
 
 .proposal-table th {
-  font-size: 11px;              /* headers */
+  font-size: 11px; /* headers */
   letter-spacing: 0.12em;
 }
 
 .proposal-table td {
-  font-size: 11px;              /* row text */
+  font-size: 11px; /* row text */
 }
-
 
 /* Total */
 .proposal-totalRow {
@@ -294,16 +289,15 @@
   body {
     background: #fff !important;
   }
-  
+
   .proposal-page {
     padding: 34px 40px !important;
 
     /* PRINT: make logo larger */
-.proposal-logoImg {
-  max-height: 110px !important;
-  max-width: 320px !important;
-}
-
+    .proposal-logoImg {
+      max-height: 110px !important;
+      max-width: 320px !important;
+    }
   }
 
   /* Let @page control margins; keep padding on doc for consistent print */
@@ -331,23 +325,22 @@
    TOP SCROLLBAR (SPREADSHEET)
    ============================ */
 
-   .paTopScroll {
-    overflow-x: auto;
-    overflow-y: hidden;
-    height: 14px;
-    margin-bottom: 6px;
-  }
-  
-  .paTopScrollInner {
-    height: 1px;
-  }
-  
-  /* Hide bottom scrollbar visually (still works) */
-  .paSimpleTableWrap {
-    scrollbar-width: thin;
-  }
-  
-  .paSimpleTableWrap::-webkit-scrollbar {
-    height: 0;
-  }
-  
+.paTopScroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 14px;
+  margin-bottom: 6px;
+}
+
+.paTopScrollInner {
+  height: 1px;
+}
+
+/* Hide bottom scrollbar visually (still works) */
+.paSimpleTableWrap {
+  scrollbar-width: thin;
+}
+
+.paSimpleTableWrap::-webkit-scrollbar {
+  height: 0;
+}
