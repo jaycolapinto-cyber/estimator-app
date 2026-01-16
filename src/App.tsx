@@ -1357,7 +1357,7 @@ export default function App(): JSX.Element {
         // 1) Try Supabase first
         try {
           const [itemsRes, catsRes] = await Promise.all([
-            supabase
+            (supabase as any)
               .from("pricing_items2")
               .select("*")
               .order("sort_order", { ascending: true })
