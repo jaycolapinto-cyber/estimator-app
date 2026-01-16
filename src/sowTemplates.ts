@@ -18,7 +18,7 @@ export type SowTemplateFullRow = {
 export async function fetchSowTemplatesRows(): Promise<SowTemplateFullRow[]> {
   try {
     // 1) Try network (Supabase)
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("sow_templates")
       .select("construction_key,label,body")
       .order("label", { ascending: true });

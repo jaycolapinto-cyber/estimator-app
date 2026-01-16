@@ -62,7 +62,7 @@ export async function flushEmailQueue() {
 
     try {
       // Call your Edge Function. Adjust name if different.
-      const { data, error } = await supabase.functions.invoke(
+      const { data, error } = await (supabase as any).functions.invoke(
         "send-proposal-email",
         {
           body: {

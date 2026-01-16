@@ -286,7 +286,7 @@ function pushRecent(name: string, json: any) {
   saveRecents([{ name, json, ts: now }, ...filtered]);
 }
 async function saveProposal(proposalData: any) {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("proposals")
     .insert([{ data: proposalData }])
     .select("id")
@@ -439,8 +439,7 @@ export default function App(): JSX.Element {
           bodyLen: bodyText.length,
           htmlLen: html.length,
         });
-
-        const { data, error } = await supabase.functions.invoke(
+        const { data, error } = await (supabase as any).functions.invoke(
           "send-proposal-email",
           {
             body: {
@@ -1061,7 +1060,7 @@ export default function App(): JSX.Element {
           },
         };
 
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from("proposals")
           .insert(payload)
           .select("id")
