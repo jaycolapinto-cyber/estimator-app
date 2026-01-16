@@ -16,7 +16,7 @@ export default function ReviewProposalPage() {
       .select("data")
       .eq("id", id)
       .single()
-      .then(({ data, error }) => {
+      .then(({ data, error }: { data: any; error: any }) => {
         if (error) {
           console.error("Failed to load proposal:", error);
         } else {
