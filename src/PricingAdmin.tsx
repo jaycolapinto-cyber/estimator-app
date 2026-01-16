@@ -181,11 +181,11 @@ const PricingAdmin: React.FC = () => {
     setSuccess(null);
 
     const [catRes, itemRes] = await Promise.all([
-      supabase
+      (supabase as any)
         .from("pricing_categories")
         .select("id, name, sort_order, is_active, created_at")
         .order("name", { ascending: true }),
-      supabase
+      (supabase as any)
         .from("pricing_items2")
         .select(
           "id, name, cost, unit, active, sort_order, category, category_id, proposal_description, deleted_at"
