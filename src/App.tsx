@@ -15,7 +15,7 @@ import { supabase } from "./supabaseClient";
 import AnalyticsPage from "./AnalyticsPage";
 import ReviewProposalPage from "./ReviewProposalPage";
 
-// 
+//
 // ADD ITEM – CATEGORY MASTER LIST
 type AddItemRow = {
   rowId: string;
@@ -243,7 +243,7 @@ function SidebarNavItem({ label, isActive, onClick }: SidebarNavItemProps) {
   );
 }
 
-// 
+//
 // RECENT FILES (localStorage)
 //
 type RecentFile = { name: string; json: any; ts: number };
@@ -302,48 +302,44 @@ export default function App() {
     return <ReviewProposalPage />;
   }
 
-  return <AppShell isAdmin={true} />;
-}
+  function AppShell({ isAdmin }: { isAdmin: boolean }) {
+    //
+    // FILE MENU + CONFIRM MODALS
+    //
+    const [fileOpen, setFileOpen] = useState(false);
+    const [confirmNewOpen, setConfirmNewOpen] = useState(false);
+    const [toast, setToast] = useState<string | null>(null);
+    type EmailDraft = {
+      to: string;
+      subject: string;
+      body: string;
+      link?: string;
+      sendMeCopy?: boolean;
+    };
 
-function AppShell({ isAdmin }: { isAdmin: boolean }) {
-  // 
-  // FILE MENU + CONFIRM MODALS
-  // 
-  const [fileOpen, setFileOpen] = useState(false);
-  const [confirmNewOpen, setConfirmNewOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  type EmailDraft = {
-    to: string;
-    subject: string;
-    body: string;
-    link?: string;
-    sendMeCopy?: boolean;
-  };
+    const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null);
+    //
+    // STEP 3: SEND FROM EMAIL MODAL
+    // - Always enqueue first (offline safe)
+    // - If online: flush queue (sends now)
+    // - Close modal + clear draft
+    //
+    // HELPER: Convert Blob → base64 (no data: prefix)
+    //
+    async function blobToBase64NoPrefix(blob: Blob): Promise<string> {
+      const arrayBuffer = await blob.arrayBuffer();
+      let binary = "";
+      const bytes = new Uint8Array(arrayBuffer);
+      const chunkSize = 0x8000;
 
-  const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null);
-  // 
-  // STEP 3: SEND FROM EMAIL MODAL
-  // - Always enqueue first (offline safe)
-  // - If online: flush queue (sends now)
-  // - Close modal + clear draft
-  // 
-  // HELPER: Convert Blob → base64 (no data: prefix)
-  // 
-  async function blobToBase64NoPrefix(blob: Blob): Promise<string> {
-    const arrayBuffer = await blob.arrayBuffer();
-    let binary = "";
-    const bytes = new Uint8Array(arrayBuffer);
-    const chunkSize = 0x8000;
-  
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(
-        ...Array.from(bytes.subarray(i, i + chunkSize))
-      );
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(
+          ...Array.from(bytes.subarray(i, i + chunkSize))
+        );
+      }
+
+      return btoa(binary);
     }
-  
-    return btoa(binary);
-  }
-  
   }
   const handleSendEmailFromModal = async () => {
     if (!emailDraft) return;
@@ -450,9 +446,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  // 
+  //
   // OFFLINE / ONLINE STATE
-  // 
+  //
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== "undefined" ? navigator.onLine : true
   );
@@ -474,9 +470,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     setToast(msg);
     window.setTimeout(() => setToast(null), 3500);
   };
-  // 
+  //
   // EMAIL DRAFT (in-app send window)
-  // 
+  //
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [sendMeCopy, setSendMeCopy] = useState(false);
 
@@ -486,9 +482,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
   const [recentOpen, setRecentOpen] = useState(false);
   const refreshRecents = () => setRecentFiles(getRecents());
 
-  // 
+  //
   // STATE: ESTIMATE + UI
-  // 
+  //
   const [activeNav, setActiveNav] = useState<
     "estimator" | "pricingAdmin" | "proposals" | "analytics" | "settings"
   >("estimator");
@@ -649,9 +645,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     );
   };
 
-  // 
+  //
   // DIRTY STATE (unsaved changes)
-  // 
+  //
   const [isDirty, setIsDirty] = useState(false);
   const dirtySuspendedRef = useRef(true);
   const markDirty = () => {
@@ -659,9 +655,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     setIsDirty(true);
   };
 
-  // 
+  //
   // USER SETTINGS (for Proposal PDF)
-  // 
+  //
   // NOTE: Keeping your existing shape so SettingsPage / ProposalPage don't break.
   // We are only removing “email proposal / email preview” UI behavior from App.
   const [userSettings, setUserSettings] = useState(() => {
@@ -711,9 +707,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     } catch {}
   }, [userSettings]);
 
-  // 
+  //
   // FILE OPEN/SAVE helpers
-  // 
+  //
   const hasUnsavedEstimateChanges = () => {
     return (
       !!clientLastName ||
@@ -860,12 +856,12 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     setIsDirty(false);
     setShowBreakdown(false);
   };
-  // 
+  //
   // EMAIL PROPOSAL (JOIST STYLE)
   // 1) Save proposal to Supabase
   // 2) Call Edge Function to SEND email
   // 3) Show success toast
-  // 
+  //
 
   const renderTemplate = (
     tpl: string,
@@ -1096,9 +1092,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  // 
+  //
   // FILE → OPEN
-  // 
+  //
   const openFileInputRef = useRef<HTMLInputElement | null>(null);
   const onPickOpenFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1247,7 +1243,7 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
   };
 
   // ✅ PRICING STATE (FIXED)
-  
+
   const [pricingItems, setPricingItems] = useState<PricingItemRow[]>([]);
   useEffect(() => {
     // Only do this when user selected "Skirting"
@@ -1383,9 +1379,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     loadPricing();
   }, []);
 
-  // 
+  //
   // ESTIMATOR DERIVED DATA
-  // 
+  //
   const constructionTypeRef = useRef<HTMLSelectElement | null>(null);
   const skirtingCategoryRef = useRef<HTMLSelectElement | null>(null);
 
@@ -1567,10 +1563,10 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
 
   const baseRailingUnit = selectedRailing?.cost ?? 0;
   const railingSubtotal = baseRailingUnit * railingLf;
-  // 
+  //
   // STAIRS — shared pricing helper
   // (used by Main Stairs + Add Item stairs)
-  // 
+  //
   function computeEffectiveStairsRate(params: {
     pricingItems: PricingItemRow[];
     selectedDecking: PricingItemRow | undefined;
@@ -1688,9 +1684,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
   const baseSkirtingUnit = selectedSkirting?.cost ?? 0;
   const skirtingSubtotal = baseSkirtingUnit * skirtingSf;
 
-  // 
+  //
   // ADD ITEMS — categories + pricing
-  // 
+  //
   const addItemCategories = useMemo(() => {
     const BLOCKED = new Set(
       [
@@ -2303,9 +2299,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     JSON.stringify(addItems),
   ]);
 
-  // 
+  //
   // UPLIFTS
-  // 
+  //
   const baseProjectTotal =
     deckingSubtotal +
     railingSubtotal +
@@ -2410,9 +2406,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     return `${c} — ${i}`;
   };
 
-  // 
+  //
   // RENDER
-  // 
+  //
   return (
     <div className="app-shell">
       {/* hidden open input */}
@@ -3882,9 +3878,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-// 
+//
 // CONFIRM MODAL
-// 
+//
 function ConfirmNewProjectModal({
   open,
   onCancel,
@@ -3939,3 +3935,4 @@ function ConfirmNewProjectModal({
     document.body
   );
 }
+export default App;
