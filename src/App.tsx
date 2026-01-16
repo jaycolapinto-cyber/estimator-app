@@ -1031,7 +1031,7 @@ export default function App() {
         .single();
 
       if (error) throw error;
-      function getPublicBaseUrl() {
+      const getPublicBaseUrl = () => {
         const origin = window.location.origin;
 
         // ✅ If you're inside CodeSandbox editor/preview, never send that to clients.
@@ -1041,7 +1041,7 @@ export default function App() {
 
         // ✅ Otherwise use whatever domain the app is actually running on
         return origin.replace(/\/$/, "");
-      }
+      };
 
       const proposalId = data?.id;
       const link = `${getPublicBaseUrl()}/review/${proposalId}`;
