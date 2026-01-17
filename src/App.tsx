@@ -309,7 +309,12 @@ async function saveProposal(proposalData: any) {
 export default function App(): JSX.Element {
   const path = window.location.pathname;
 
-  if (path.startsWith("/review/")) {
+  // ✅ Handle /review (no trailing slash) AND /review/<id>
+  if (
+    path === "/review" ||
+    path === "/review/" ||
+    path.startsWith("/review/")
+  ) {
     return <ReviewProposalPage />;
   }
 
