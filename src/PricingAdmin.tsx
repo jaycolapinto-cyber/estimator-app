@@ -172,7 +172,7 @@ const PricingAdmin: React.FC = () => {
     return () => document.removeEventListener("mousedown", onDocDown);
   }, [colsOpen]);
 
-  // =========================
+  // =========================//
   // Data loading
   // =========================
   const loadAll = async () => {
