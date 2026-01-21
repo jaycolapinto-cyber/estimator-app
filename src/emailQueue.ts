@@ -15,6 +15,13 @@ export type QueuedEmail = {
 };
 
 const KEY = "du_email_queue_v1";
+const uuid = () => {
+  const c: any = typeof crypto !== "undefined" ? crypto : null;
+  return typeof c?.randomUUID === "function"
+    ? c.randomUUID()
+    : `${Date.now()}-${Math.random()}`;
+};
+
 
 function readQueue(): QueuedEmail[] {
   try {
@@ -31,7 +38,8 @@ function writeQueue(items: QueuedEmail[]) {
 export function enqueueEmail(item: Omit<QueuedEmail, "id" | "createdAt">) {
   const q = readQueue();
   q.push({
-    id: crypto.randomUUID(),
+   id: uuid(),
+
     createdAt: Date.now(),
     attemptCount: 0,
     ...item,

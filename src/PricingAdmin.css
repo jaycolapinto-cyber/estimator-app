@@ -661,3 +661,19 @@ body.pa-wide .main-grid {
   border-color: rgba(185, 28, 28, 0.45);
   background: rgba(185, 28, 28, 0.06);
 }
+/* ===============================
+   READ-ONLY / DISABLED STATES
+   =============================== */
+
+.paBtn:disabled,
+.paBtn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.paBtn.primary:disabled {
+  background: #94a3b8; /* slate */
+  border-color: #94a3b8;
+  color: #fff;
+}

@@ -1,0 +1,10 @@
+{
+  "short_name": "Decks Unique",
+  "name": "Deck Estimator – Decks Unique",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#4f46e5",
+  "icons": []
+}

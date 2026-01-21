@@ -23,7 +23,10 @@ type PricingItem = {
   deleted_at: string | null;
 };
 
-const PricingAdmin: React.FC = () => {
+const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
+  readOnly = false,
+}) => {
+  console.log("PricingAdmin readOnly =", readOnly);
   const [categories, setCategories] = useState<PricingCategory[]>([]);
   const [items, setItems] = useState<PricingItem[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
@@ -43,6 +46,12 @@ const PricingAdmin: React.FC = () => {
   const topScrollRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
+  // ✅ Read-only helper (ONLY DECLARED ONCE)
+  const denyIfReadOnly = () => {
+    setError("Read-only access. Ask an admin to make changes.");
+    setSuccess(null);
+  };
+
   // =========================
   // Column resizing + visibility
   // =========================
@@ -59,7 +68,6 @@ const PricingAdmin: React.FC = () => {
     { key: "name", label: "Name", min: 180 },
     { key: "unit", label: "Unit", min: 40 },
     { key: "cost", label: "Cost", min: 60 },
-
     { key: "sort", label: "Sort", min: 70 },
     { key: "desc", label: "Proposal Description", min: 260 },
     { key: "active", label: "Active", min: 70 },
@@ -110,6 +118,7 @@ const PricingAdmin: React.FC = () => {
       COLS.find((c) => c.key === key)?.min != null
         ? COLS.find((c) => c.key === key)!.min
         : 60;
+
     const onMove = (ev: MouseEvent) => {
       const ref = resizeRef.current;
       if (!ref) return;
@@ -118,7 +127,6 @@ const PricingAdmin: React.FC = () => {
       const next = Math.max(minW, ref.startW + dx);
 
       setColW((prev) => {
-        // 🔒 extra guard
         if (!ref.key) return prev;
         return { ...prev, [ref.key]: next };
       });
@@ -137,6 +145,7 @@ const PricingAdmin: React.FC = () => {
   const visibleColCount = useMemo(() => {
     return (Object.keys(colVis) as ColKey[]).filter((k) => colVis[k]).length;
   }, [colVis]);
+
   const hiddenCols = useMemo(() => {
     return (Object.keys(colVis) as ColKey[]).filter((k) => !colVis[k]);
   }, [colVis]);
@@ -144,11 +153,8 @@ const PricingAdmin: React.FC = () => {
   const toggleCol = (key: ColKey) => {
     setColVis((prev) => {
       const next = { ...prev, [key]: !prev[key] };
-
-      // prevent hiding ALL columns (at least 1 must remain visible)
       const stillVisible = (Object.keys(next) as ColKey[]).some((k) => next[k]);
       if (!stillVisible) return prev;
-
       return next;
     });
   };
@@ -238,7 +244,6 @@ const PricingAdmin: React.FC = () => {
   };
 
   useEffect(() => {
-    // ✅ ONLY Pricing Admin becomes wide (your existing behavior)
     document.body.classList.add("pa-wide");
     loadAll();
 
@@ -282,13 +287,11 @@ const PricingAdmin: React.FC = () => {
     if (!top || !table) return;
 
     const syncTopToTable = () => {
-      if (table.scrollLeft !== top.scrollLeft)
-        table.scrollLeft = top.scrollLeft;
+      if (table.scrollLeft !== top.scrollLeft) table.scrollLeft = top.scrollLeft;
     };
 
     const syncTableToTop = () => {
-      if (top.scrollLeft !== table.scrollLeft)
-        top.scrollLeft = table.scrollLeft;
+      if (top.scrollLeft !== table.scrollLeft) top.scrollLeft = table.scrollLeft;
     };
 
     const updateWidth = () => {
@@ -321,12 +324,22 @@ const PricingAdmin: React.FC = () => {
   ]);
 
   const updateItem = (id: string, field: keyof PricingItem, value: any) => {
+    if (readOnly) {
+      denyIfReadOnly();
+      return;
+    }
+
     setItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, [field]: value } : it))
     );
   };
 
   const handleAddItem = () => {
+    if (readOnly) {
+      denyIfReadOnly();
+      return;
+    }
+
     if (!selectedCategoryId) {
       setError("Select a category first.");
       return;
@@ -334,10 +347,12 @@ const PricingAdmin: React.FC = () => {
 
     const cat = categories.find((c) => c.id === selectedCategoryId);
 
-    const tempId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
+    const tempId = (() => {
+      const c: any = typeof crypto !== "undefined" ? crypto : null;
+      return typeof c?.randomUUID === "function"
+        ? c.randomUUID()
         : `tmp-${Date.now()}-${Math.random()}`;
+    })();
 
     const maxSort =
       items
@@ -364,6 +379,11 @@ const PricingAdmin: React.FC = () => {
   };
 
   const handleSaveCategories = async () => {
+    if (readOnly) {
+      denyIfReadOnly();
+      return;
+    }
+
     try {
       setSavingCats(true);
       setError(null);
@@ -394,6 +414,11 @@ const PricingAdmin: React.FC = () => {
   };
 
   const handleSaveItems = async () => {
+    if (readOnly) {
+      denyIfReadOnly();
+      return;
+    }
+
     try {
       setSavingItems(true);
       setError(null);
@@ -428,6 +453,11 @@ const PricingAdmin: React.FC = () => {
   };
 
   const softDeleteItem = (id: string) => {
+    if (readOnly) {
+      denyIfReadOnly();
+      return;
+    }
+
     const ok = window.confirm("Move this item to Trash?");
     if (!ok) return;
 
@@ -442,9 +472,33 @@ const PricingAdmin: React.FC = () => {
 
   return (
     <div className="paPage">
+    {readOnly && (
+  <div
+    style={{
+      margin: "8px 0 12px",
+      padding: "6px 10px",
+      borderRadius: 10,
+      background: "rgba(245, 158, 11, 0.18)",
+      border: "1px solid rgba(245, 158, 11, 0.45)",
+      color: "#92400e",
+      fontWeight: 700,
+      fontSize: 13,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+    }}
+  >
+    🔒 READ-ONLY MODE
+  </div>
+)}
+
+
       <div className="paHeader">
         <div>
-          <div className="paSub">Spreadsheet view. Edit → Save.</div>
+          <div className="paSub">
+  Spreadsheet view. {readOnly ? "READ ONLY ✅" : "EDIT MODE ✍️"}
+</div>
+
         </div>
 
         <div className="paHeaderActions">
@@ -469,7 +523,6 @@ const PricingAdmin: React.FC = () => {
               <div ref={colsPopRef} className="paColsPop">
                 <div className="paColsTitle">Column Show / Hide</div>
 
-                {/* Show all shortcut */}
                 <button
                   type="button"
                   className="paColsShowAll"
@@ -495,9 +548,7 @@ const PricingAdmin: React.FC = () => {
                   </label>
                 ))}
 
-                <div className="paColsHint">
-                  Tip: drag header edges to resize.
-                </div>
+                <div className="paColsHint">Tip: drag header edges to resize.</div>
               </div>
             )}
           </div>
@@ -505,18 +556,21 @@ const PricingAdmin: React.FC = () => {
           <button
             className="paBtn"
             onClick={handleSaveCategories}
-            disabled={savingCats || loading}
+            disabled={savingCats || loading || readOnly}
+            title={readOnly ? "Read-only" : ""}
           >
             {savingCats ? "Saving…" : "Save Categories"}
           </button>
+<button
+  className="paBtn primary"
+  onClick={handleAddItem}
+  disabled={readOnly || !selectedCategoryId}
+>
+  + Add Item
+</button>
 
-          <button
-            className="paBtn primary"
-            onClick={handleSaveItems}
-            disabled={savingItems || loading}
-          >
-            {savingItems ? "Saving…" : "Save Items"}
-          </button>
+
+
         </div>
       </div>
 
@@ -578,7 +632,8 @@ const PricingAdmin: React.FC = () => {
             <button
               className="paBtn primary"
               onClick={handleAddItem}
-              disabled={!selectedCategoryId}
+              disabled={!selectedCategoryId || readOnly}
+              title={readOnly ? "Read-only" : ""}
             >
               + Add Item
             </button>
@@ -696,9 +751,8 @@ const PricingAdmin: React.FC = () => {
                     <input
                       className="paCellInput"
                       value={it.name ?? ""}
-                      onChange={(e) =>
-                        updateItem(it.id, "name", e.target.value)
-                      }
+                      disabled={readOnly}
+                      onChange={(e) => updateItem(it.id, "name", e.target.value)}
                     />
                   </td>
                 )}
@@ -708,9 +762,8 @@ const PricingAdmin: React.FC = () => {
                     <input
                       className="paCellInput"
                       value={it.unit ?? ""}
-                      onChange={(e) =>
-                        updateItem(it.id, "unit", e.target.value)
-                      }
+                      disabled={readOnly}
+                      onChange={(e) => updateItem(it.id, "unit", e.target.value)}
                     />
                   </td>
                 )}
@@ -721,6 +774,7 @@ const PricingAdmin: React.FC = () => {
                       className="paCellInput"
                       type="number"
                       value={it.cost ?? ""}
+                      disabled={readOnly}
                       onChange={(e) =>
                         updateItem(
                           it.id,
@@ -738,6 +792,7 @@ const PricingAdmin: React.FC = () => {
                       className="paCellInput"
                       type="number"
                       value={it.sort_order ?? 0}
+                      disabled={readOnly}
                       onChange={(e) =>
                         updateItem(
                           it.id,
@@ -755,12 +810,9 @@ const PricingAdmin: React.FC = () => {
                       className="paCellArea"
                       rows={2}
                       value={it.proposal_description ?? ""}
+                      disabled={readOnly}
                       onChange={(e) =>
-                        updateItem(
-                          it.id,
-                          "proposal_description",
-                          e.target.value
-                        )
+                        updateItem(it.id, "proposal_description", e.target.value)
                       }
                     />
                   </td>
@@ -771,6 +823,7 @@ const PricingAdmin: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={!!it.active}
+                      disabled={readOnly}
                       onChange={(e) =>
                         updateItem(it.id, "active", e.target.checked)
                       }
@@ -782,6 +835,8 @@ const PricingAdmin: React.FC = () => {
                   <td style={{ width: colW.actions, textAlign: "right" }}>
                     <button
                       className="paBtn danger"
+                      disabled={readOnly}
+                      title={readOnly ? "Read-only" : ""}
                       onClick={() => softDeleteItem(it.id)}
                     >
                       Trash

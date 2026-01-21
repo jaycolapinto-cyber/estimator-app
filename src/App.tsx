@@ -4,6 +4,7 @@
 // ✅ Estimator works (fixes invalid hook usage in Estimate Summary + removes email suggestion dropdown)
 // ✅ Everything else remains as-is
 
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 
@@ -14,6 +15,8 @@ import "./styles.css";
 import { supabase } from "./supabaseClient";
 import AnalyticsPage from "./AnalyticsPage";
 import ReviewProposalPage from "./ReviewProposalPage";
+import { uid } from "./utils/uid";
+import UsersLicensesPage from "./UsersLicensesPage";
 
 // ================================
 // ADD ITEM – CATEGORY MASTER LIST
@@ -303,22 +306,56 @@ export default function App() {
   }
 
   return <AppShell isAdmin={true} />;
+
 }
 
+
+
 function AppShell({ isAdmin }: { isAdmin: boolean }) {
+ // ✅ TEMP ROLE TOGGLE (persists in browser)
+const [roleIsAdmin, setRoleIsAdmin] = useState(() => {
+  return localStorage.getItem("du_role") === "admin";
+});
+useEffect(() => {
+  localStorage.setItem("du_role", roleIsAdmin ? "admin" : "user");
+}, [roleIsAdmin]);
+// ===============================
+// ROLE GATES (prep for Supabase auth)
+// ===============================
+type UserRole = "admin" | "user";
+
+// TEMP role source (later: replace with Supabase role)
+const currentRole: UserRole = isAdmin && roleIsAdmin ? "admin" : "user";
+
+// Real permissions (what the app is allowed to do)
+const canEditPricing = isAdmin && currentRole === "admin";
+
+// UI visibility (what controls are allowed to be seen)
+const canSeeRoleToggle = isAdmin;
+const requireAdmin = (node: React.ReactNode) => {
+  if (!isAdmin) return null;
+  return <>{node}</>;
+};
+
+
+
+
   // ===============================
   // FILE MENU + CONFIRM MODALS
   // ===============================
   const [fileOpen, setFileOpen] = useState(false);
   const [confirmNewOpen, setConfirmNewOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  type EmailDraft = {
-    to: string;
-    subject: string;
-    body: string;
-    link?: string;
-    sendMeCopy?: boolean;
-  };
+ type EmailDraft = {
+  to: string;
+  subject: string;
+  body: string;
+  link: string;
+  proposalId?: string;
+  sendMeCopy?: boolean;
+};
+
+
 
   const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null);
   // ===============================
@@ -485,8 +522,9 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
   // STATE: ESTIMATE + UI
   // ===============================
   const [activeNav, setActiveNav] = useState<
-    "estimator" | "pricingAdmin" | "proposals" | "analytics" | "settings"
-  >("estimator");
+  "proposals" | "estimator" | "pricingAdmin" | "analytics" | "settings" | "users"
+>("estimator");
+
   const EMAIL_DOMAINS = [
     "gmail.com",
     "icloud.com",
@@ -623,7 +661,8 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
     const newRow: AddItemRow = {
       rowId:
         typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
+          ? uid()
+
           : `${Date.now()}-${Math.random()}`,
       category: "",
       itemId: "",
@@ -2569,13 +2608,13 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
             isActive={activeNav === "proposals"}
             onClick={() => setActiveNav("proposals")}
           />
-          {isAdmin && (
-            <SidebarNavItem
-              label="Pricing Admin"
-              isActive={activeNav === "pricingAdmin"}
-              onClick={() => setActiveNav("pricingAdmin")}
-            />
-          )}
+      
+  <SidebarNavItem
+    label="Pricing Admin"
+    isActive={activeNav === "pricingAdmin"}
+    onClick={() => setActiveNav("pricingAdmin")}
+  />
+
           <SidebarNavItem
             label="Analytics"
             isActive={activeNav === "analytics"}
@@ -2586,7 +2625,19 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
             isActive={activeNav === "settings"}
             onClick={() => setActiveNav("settings")}
           />
+          {isAdmin && (
+  <SidebarNavItem
+    label="Users / Licenses"
+    isActive={activeNav === "users"}
+    onClick={() => setActiveNav("users")}
+  />
+)}
+
         </nav>
+       
+    
+
+
         {/* Offline indicator (sidebar) */}
         {(!isOnline ||
           (pricingError || "").toLowerCase().includes("offline mode")) && (
@@ -2614,7 +2665,8 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
             <div className="page-header__title">
               {activeNav === "estimator" && "Deck Estimate"}
               {activeNav === "proposals" && "Proposals"}
-              {activeNav === "pricingAdmin" && "Pricing Admin"}
+          
+
               {activeNav === "analytics" && "Analytics"}
               {activeNav === "settings" && "Settings"}
             </div>
@@ -2645,6 +2697,14 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
               <AnalyticsPage />
             </section>
           )}
+{/* ====== USERS / LICENSES (ADMIN ONLY) ====== */}
+{isAdmin && activeNav === "users" && (
+  <section className="users-licenses-page">
+    <UsersLicensesPage />
+  </section>
+)}
+
+
 
           {/* ====== ESTIMATOR ====== */}
           {activeNav === "estimator" && (
@@ -3509,14 +3569,14 @@ function AppShell({ isAdmin }: { isAdmin: boolean }) {
             </section>
           )}
 
-          {activeNav === "pricingAdmin" &&
-            (isAdmin ? (
-              <PricingAdmin />
-            ) : (
-              <div style={{ padding: 24, fontWeight: 700 }}>
-                Admin access required.
-              </div>
-            ))}
+      {activeNav === "pricingAdmin" && (
+ <PricingAdmin readOnly={!canEditPricing} />
+
+)}
+
+
+
+
 
           {activeNav === "settings" && (
             <SettingsPage
@@ -3964,27 +4024,29 @@ type AnalyticsDashboardProps = {
 function AnalyticsDashboard(props: AnalyticsDashboardProps) {
   return (
     <>
-      {upliftCards.map((c) => (
-        <div key={c.label} className="tesla-card">
-          <div className="tesla-kicker">{c.label}</div>
-          <div className="tesla-big">{money0(c.value)}</div>
-        </div>
-      ))}
+      {/*
+{upliftCards.map((c) => (
+  <div key={c.label} className="tesla-card">
+    <div className="tesla-kicker">{c.label}</div>
+    <div className="tesla-big">{money0(c.value)}</div>
+  </div>
+))}
 
-      <div className="tesla-card tesla-card--hero">
-        <div className="tesla-kicker">Final Estimate</div>
-        <div className="tesla-big">{money0(finalTotal)}</div>
+<div className="tesla-card tesla-card--hero">
+  <div className="tesla-kicker">Final Estimate</div>
+  <div className="tesla-big">{money0(finalTotal)}</div>
 
-        <div className="tesla-sub">
-          Total Uplift{" "}
-          <span className="tesla-mono">{money0(totalUpliftDollars)}</span>
-        </div>
+  <div className="tesla-sub">
+    Total Uplift{" "}
+    <span className="tesla-mono">{money0(totalUpliftDollars)}</span>
+  </div>
 
-        <div className="tesla-sub" style={{ opacity: 0.7 }}>
-          Category total check:{" "}
-          <span className="tesla-mono">{money0(totalAfter)}</span>
-        </div>
-      </div>
-    </>
-  );
+  <div className="tesla-sub" style={{ opacity: 0.7 }}>
+    Category total check:{" "}
+    <span className="tesla-mono">{money0(totalAfter)}</span>
+  </div>
+</div>
+*/}
+</>
+);
 }

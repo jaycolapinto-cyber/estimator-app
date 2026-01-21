@@ -69,10 +69,13 @@ type SettingsPageProps = {
 // Helpers
 // ------------------------------
 
-const uid = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
+const uid = () => {
+  const c: any = typeof crypto !== "undefined" ? crypto : null;
+  return typeof c?.randomUUID === "function"
+    ? c.randomUUID()
     : `${Date.now()}-${Math.random()}`;
+};
+
 
 const DEFAULT_SECTIONS: Omit<ProposalSection, "id">[] = [
   {
