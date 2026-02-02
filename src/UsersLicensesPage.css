@@ -1,0 +1,598 @@
+/* src/UsersLicensesPage.css
+   =========================================================
+   USERS / LICENSES (UL) — CLEAN + FULL WIDTH
+   ✅ paste this file EXACTLY (replace your entire CSS with this)
+   ========================================================= */
+
+/* ---------------------------
+   0) UL-WIDE: full app width
+   --------------------------- */
+body.ul-wide .main-content,
+body.ul-wide .main-grid,
+body.ul-wide .page-header {
+  max-width: none !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+/* make the nav page wrapper stretch */
+body.ul-wide .users-licenses-page {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+/* if the shell wraps content in a "container", kill it */
+body.ul-wide .container,
+body.ul-wide .content,
+body.ul-wide .content-inner,
+body.ul-wide .page,
+body.ul-wide .page-content {
+  max-width: none !important;
+  width: 100% !important;
+}
+
+/* ---------------------------
+   1) Design tokens
+   --------------------------- */
+:root {
+  --ul-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial,
+    "Inter", "Helvetica Neue", sans-serif;
+
+  --ul-text: #111827;
+  --ul-muted: #6b7280;
+
+  --ul-bg: #e5e7eb;
+  --ul-card: #ffffff;
+
+  --ul-border: rgba(15, 23, 42, 0.14);
+  --ul-border-soft: rgba(15, 23, 42, 0.10);
+
+  --ul-shadow: 0 10px 24px rgba(2, 6, 23, 0.08);
+  --ul-radius: 14px;
+
+  --ul-green-bg: rgba(34, 197, 94, 0.18);
+  --ul-gold-bg: rgba(234, 179, 8, 0.20);
+  --ul-slate-bg: rgba(15, 23, 42, 0.06);
+}
+
+/* ---------------------------
+   2) Root page wrapper
+   --------------------------- */
+.ul-page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 18px;
+  font-family: var(--ul-font);
+  color: var(--ul-text);
+}
+
+/* shown when orgId missing */
+.ul-emptyOrg {
+  padding: 16px;
+  font-family: var(--ul-font);
+  color: var(--ul-text);
+}
+
+/* ---------------------------
+   3) Toast
+   --------------------------- */
+.ul-toast {
+  position: fixed;
+  right: 18px;
+  top: 16px;
+  background: #111;
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 650;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  z-index: 99999;
+}
+
+/* ---------------------------
+   4) Header
+   --------------------------- */
+.ul-headerBar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.ul-headerLeft {
+  min-width: 0;
+}
+
+.ul-headerRight {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ul-kicker {
+  font-size: 12px;
+  color: var(--ul-muted);
+  margin-bottom: 6px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.ul-dot {
+  opacity: 0.6;
+  margin: 0 4px;
+}
+
+.ul-orgName {
+  font-weight: 750;
+  color: var(--ul-text);
+}
+
+.ul-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.ul-subtitle {
+  margin-top: 8px;
+  color: var(--ul-muted);
+  max-width: 900px;
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 450;
+}
+
+.ul-pills {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+/* ---------------------------
+   5) Pills
+   --------------------------- */
+.ul-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--ul-border-soft);
+  background: var(--ul-slate-bg);
+}
+
+.ul-pill--green {
+  background: var(--ul-green-bg);
+}
+.ul-pill--gold {
+  background: var(--ul-gold-bg);
+}
+.ul-pill--slate {
+  background: var(--ul-slate-bg);
+}
+
+/* ---------------------------
+   6) Buttons
+   --------------------------- */
+.ul-btn {
+  font-family: var(--ul-font);
+  border-radius: 12px;
+  border: 1px solid var(--ul-border-soft);
+  padding: 10px 14px;
+  font-weight: 750;
+  cursor: pointer;
+  line-height: 1;
+  background: #fff;
+}
+
+.ul-btn:hover {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.ul-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ul-btn--light {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.ul-btn--primary {
+  background: #111;
+  color: #fff;
+}
+
+.ul-addUserWrap {
+  position: relative;
+}
+
+.ul-btn--addUser {
+  background: #22c55e;
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.10);
+  border-color: rgba(34, 197, 94, 0.55);
+}
+
+.ul-btn--addUser:hover {
+  filter: brightness(0.98);
+}
+
+.ul-caret {
+  opacity: 0.9;
+  margin-left: 6px;
+}
+
+/* ---------------------------
+   7) Dropdown
+   --------------------------- */
+.ul-dropdownMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 220px;
+  background: #fff;
+  border: 1px solid var(--ul-border);
+  border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  z-index: 9999;
+}
+
+.ul-dropdownItem {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #fff;
+  border: none;
+  text-align: left;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.ul-dropdownItem:hover {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.ul-dropdownItem--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ul-dropdownIcon {
+  width: 18px;
+  display: inline-flex;
+  justify-content: center;
+}
+
+/* ---------------------------
+   8) Alerts
+   --------------------------- */
+.ul-alert {
+  margin-top: 10px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 750;
+  border: 1px solid var(--ul-border-soft);
+  background: #fff;
+}
+
+.ul-alert--danger {
+  border-color: rgba(255, 80, 80, 0.35);
+  background: rgba(255, 80, 80, 0.08);
+  color: #7a1b1b;
+}
+
+/* ---------------------------
+   9) Panel (this is the “card”)
+   IMPORTANT: full width + larger max
+   --------------------------- */
+.ul-panel {
+  width: 100%;
+  max-width: none;
+  background: var(--ul-card);
+  border: 1px solid var(--ul-border-soft);
+  border-radius: var(--ul-radius);
+  box-shadow: var(--ul-shadow);
+  overflow: hidden;
+}
+
+/* top bar inside panel */
+.ul-panelTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.02),
+    rgba(0, 0, 0, 0.00)
+  );
+}
+
+.ul-panelFooter {
+  padding: 10px 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 12px;
+  color: var(--ul-muted);
+  font-weight: 500;
+}
+
+/* ---------------------------
+   10) Tabs
+   --------------------------- */
+.ul-tabs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ul-tabBtn {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  background: rgba(255, 255, 255, 0.95);
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.ul-tabBtn.is-active {
+  border-color: rgba(0, 0, 0, 0.20);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* ---------------------------
+   11) Search
+   --------------------------- */
+.ul-searchWrap {
+  min-width: 260px;
+  width: min(520px, 55vw);
+}
+
+.ul-searchInput {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  background: rgba(0, 0, 0, 0.03);
+  font-weight: 600;
+}
+
+/* ---------------------------
+   12) Table
+   --------------------------- */
+.ul-tableWrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.ul-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 900px;
+}
+
+.ul-th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(15, 23, 42, 0.7);
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.10);
+  background: #fafafa;
+  white-space: nowrap;
+}
+
+.ul-th--right {
+  text-align: right;
+}
+
+.ul-td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  vertical-align: middle;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.ul-td--right {
+  text-align: right;
+}
+
+.ul-tr.is-zebra {
+  background: rgba(0, 0, 0, 0.015);
+}
+
+.ul-name {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.ul-emailMono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  color: rgba(17, 24, 39, 0.85);
+}
+
+.ul-manageBtn {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ul-manageBtn:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+/* Loading/Empty rows */
+.ul-loadingTitle {
+  opacity: 0.85;
+  font-weight: 800;
+}
+
+.ul-loadingSub {
+  opacity: 0.65;
+  font-size: 12px;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.ul-emptyRow {
+  font-weight: 800;
+}
+
+/* ---------------------------
+   13) Modals
+   --------------------------- */
+.ul-modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 9999;
+}
+
+.ul-modalCard {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  padding: 16px;
+}
+
+.ul-modalHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ul-modalTitle {
+  font-weight: 900;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.ul-modalSubtitle {
+  font-size: 12px;
+  color: var(--ul-muted);
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.ul-modalCloseBtn {
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.ul-modalBody {
+  margin-top: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.ul-modalSection {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.015);
+}
+
+.ul-fieldLabel {
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(15, 23, 42, 0.65);
+  margin-bottom: 6px;
+}
+
+.ul-textInput,
+.ul-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  font-weight: 700;
+  font-family: var(--ul-font);
+}
+
+.ul-select.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ul-warnText {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #a33;
+  font-weight: 800;
+}
+
+.ul-modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* Role pills */
+.ul-roleRow {
+  display: flex;
+  gap: 10px;
+}
+
+.ul-rolePill {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  background: rgba(0, 0, 0, 0.02);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ul-rolePill.is-active {
+  border-color: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* ---------------------------
+   14) Responsive
+   --------------------------- */
+@media (max-width: 980px) {
+  .ul-page {
+    padding: 12px 10px 18px;
+  }
+  .ul-searchWrap {
+    width: min(420px, 65vw);
+  }
+}

@@ -3,9 +3,11 @@
 // ✅ Logo upload (stored in localStorage via App's userSettings persistence)
 // ✅ Proposal Sections builder (add / rename / reorder / enable / remove)
 // ✅ Scope of Work text by Construction Type (optional)
+// ✅ Organization name (orgs.name) — admin can edit, users read-only
 
 import React, { useEffect, useMemo, useState } from "react";
 import "./SettingsPage.css";
+import { supabase } from "./supabaseClient";
 import {
   fetchSowTemplatesRows,
   upsertSowTemplate,
@@ -63,6 +65,10 @@ export type UserSettings = {
 type SettingsPageProps = {
   userSettings: UserSettings;
   setUserSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
+
+  // ✅ NEW (safe + optional): pass from App.tsx later
+  orgId?: string | null;
+  isAdmin?: boolean;
 };
 
 // ------------------------------
@@ -75,7 +81,6 @@ const uid = () => {
     ? c.randomUUID()
     : `${Date.now()}-${Math.random()}`;
 };
-
 
 const DEFAULT_SECTIONS: Omit<ProposalSection, "id">[] = [
   {
@@ -101,10 +106,7 @@ const DEFAULT_SECTIONS: Omit<ProposalSection, "id">[] = [
 function ensureDefaults(prev: UserSettings): UserSettings {
   const next: UserSettings = { ...(prev || {}) };
 
-  if (
-    !Array.isArray(next.proposalSections) ||
-    next.proposalSections.length === 0
-  ) {
+  if (!Array.isArray(next.proposalSections) || next.proposalSections.length === 0) {
     next.proposalSections = DEFAULT_SECTIONS.map((s) => ({ ...s, id: uid() }));
   }
 
@@ -112,8 +114,7 @@ function ensureDefaults(prev: UserSettings): UserSettings {
     next.scopeOfWorkByConstructionType = {};
   }
   if (!next.emailSubjectTemplate) {
-    next.emailSubjectTemplate =
-      "Your Decks Unique Proposal – {{clientLastName}}";
+    next.emailSubjectTemplate = "Your Decks Unique Proposal – {{clientLastName}}";
   }
 
   if (!next.emailBodyTemplate) {
@@ -133,15 +134,84 @@ function ensureDefaults(prev: UserSettings): UserSettings {
 export default function SettingsPage({
   userSettings,
   setUserSettings,
+  orgId = null,
+  isAdmin = true, // ✅ TEMP default so this won't break until you wire real admin logic from App.tsx
 }: SettingsPageProps) {
+  // =========================================================
+  // ORGANIZATION NAME (orgs table)
+  // =========================================================
+  const [orgName, setOrgName] = useState<string>("");
+  const [orgNameDraft, setOrgNameDraft] = useState<string>("");
+  const [orgNameLoading, setOrgNameLoading] = useState(false);
+  const [orgNameSaving, setOrgNameSaving] = useState(false);
+  const [orgNameError, setOrgNameError] = useState<string | null>(null);
+  const [orgNameSavedMsg, setOrgNameSavedMsg] = useState<string | null>(null);
+
+  async function loadOrgName() {
+    if (!orgId) {
+      setOrgName("");
+      setOrgNameDraft("");
+      return;
+    }
+    setOrgNameLoading(true);
+    setOrgNameError(null);
+    try {
+      const { data, error } = await supabase
+        .from("orgs")
+        .select("name")
+        .eq("id", orgId)
+        .single();
+
+      if (error) throw error;
+
+      const name = (data?.name || "").toString();
+      setOrgName(name);
+      setOrgNameDraft(name);
+    } catch (e: any) {
+      setOrgNameError(String(e?.message || e || "Failed to load organization name."));
+      setOrgName("");
+      setOrgNameDraft("");
+    } finally {
+      setOrgNameLoading(false);
+    }
+  }
+
+  async function saveOrgName() {
+    if (!orgId) return;
+    setOrgNameSaving(true);
+    setOrgNameError(null);
+    setOrgNameSavedMsg(null);
+
+    try {
+      const next = (orgNameDraft || "").trim();
+      if (!next) throw new Error("Organization name cannot be blank.");
+
+      const { error } = await supabase
+        .from("orgs")
+        .update({ name: next })
+        .eq("id", orgId);
+
+      if (error) throw error;
+
+      setOrgName(next);
+      setOrgNameDraft(next);
+      setOrgNameSavedMsg("Saved.");
+      window.setTimeout(() => setOrgNameSavedMsg(null), 2500);
+    } catch (e: any) {
+      setOrgNameError(String(e?.message || e || "Failed to save organization name."));
+    } finally {
+      setOrgNameSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    loadOrgName();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId]);
+
   // =========================================================
   // SOW TEMPLATES (shared in Supabase)
   // =========================================================
-
-  // ✅ TEMP: set this to true for now so you can edit
-  // Later we will wire it to real admin logic
-  const isAdmin = true;
-
   const [sowRows, setSowRows] = useState<SowTemplateFullRow[]>([]);
   const [sowLoading, setSowLoading] = useState(false);
   const [sowError, setSowError] = useState<string | null>(null);
@@ -167,10 +237,7 @@ export default function SettingsPage({
         setSelectedSowKey(rows[0].construction_key);
       }
       // if selected key no longer exists, fallback to first
-      if (
-        selectedSowKey &&
-        !rows.some((r) => r.construction_key === selectedSowKey)
-      ) {
+      if (selectedSowKey && !rows.some((r) => r.construction_key === selectedSowKey)) {
         setSelectedSowKey(rows[0]?.construction_key || "");
       }
     } catch (e: any) {
@@ -214,8 +281,7 @@ export default function SettingsPage({
     const key = normalizeKey(raw || "");
     if (!key) return;
 
-    const label =
-      window.prompt("Enter a label (example: New Construction)") || key;
+    const label = window.prompt("Enter a label (example: New Construction)") || key;
 
     try {
       await upsertSowTemplate({ construction_key: key, label, body: "" });
@@ -245,9 +311,7 @@ export default function SettingsPage({
   async function onDeleteSowTemplate() {
     if (!isAdmin || !selectedSowKey) return;
 
-    const ok = window.confirm(
-      `Delete template "${selectedSowKey}"? This cannot be undone.`
-    );
+    const ok = window.confirm(`Delete template "${selectedSowKey}"? This cannot be undone.`);
     if (!ok) return;
 
     try {
@@ -266,10 +330,7 @@ export default function SettingsPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const settings = useMemo(
-    () => ensureDefaults(userSettings || {}),
-    [userSettings]
-  );
+  const settings = useMemo(() => ensureDefaults(userSettings || {}), [userSettings]);
 
   const update = (patch: Partial<UserSettings>) => {
     setUserSettings((prev) => ({ ...(prev || {}), ...patch }));
@@ -279,9 +340,7 @@ export default function SettingsPage({
 
   const updateSection = (id: string, patch: Partial<ProposalSection>) => {
     update({
-      proposalSections: sections.map((s) =>
-        s.id === id ? { ...s, ...patch } : s
-      ),
+      proposalSections: sections.map((s) => (s.id === id ? { ...s, ...patch } : s)),
     });
   };
 
@@ -323,18 +382,68 @@ export default function SettingsPage({
     <div className="settings-shell">
       <div className="settings-top">
         <div className="settings-kicker">SYSTEM</div>
-        <div className="settings-h1">Settings</div>
-        <div className="settings-sub">
-          Proposal branding + section builder + scope templates.
-        </div>
+  
+        <div className="settings-sub">Proposal branding + section builder + scope templates.</div>
       </div>
 
       <div className="settings-content">
-        {/* Prepared By */}
+        {/* ✅ NEW: Organization */}
         <SectionCard
-          title="Prepared By"
-          subtitle="These fields appear on your proposal header."
+          title="Organization"
+          subtitle="Your company name shown across the app. Admins can edit."
+          right={
+            isAdmin ? (
+              <button
+                type="button"
+                className="ui-btn"
+                onClick={saveOrgName}
+                disabled={orgNameSaving || orgNameLoading || !orgId}
+                title={!orgId ? "No orgId provided to SettingsPage yet." : "Save organization name"}
+              >
+                {orgNameSaving ? "Saving..." : "Save"}
+              </button>
+            ) : null
+          }
         >
+          {!orgId ? (
+            <div className="micro">
+              OrgId not provided to SettingsPage yet. (We will wire it from App.tsx next.)
+            </div>
+          ) : orgNameLoading ? (
+            <div className="micro">Loading organization...</div>
+          ) : (
+            <>
+              <Field label="Organization Name" spanAll>
+                <input
+                  className="ui-input"
+                  value={isAdmin ? orgNameDraft : orgName}
+                  onChange={(e) => setOrgNameDraft(e.target.value)}
+                  disabled={!isAdmin || orgNameSaving}
+                  placeholder="Decks Unique"
+                />
+              </Field>
+
+              {orgNameError ? (
+                <div className="micro" style={{ color: "#b00020", fontWeight: 700, marginTop: 8 }}>
+                  {orgNameError}
+                </div>
+              ) : orgNameSavedMsg ? (
+                <div className="micro" style={{ color: "#0b6b2f", fontWeight: 800, marginTop: 8 }}>
+                  {orgNameSavedMsg}
+                </div>
+              ) : null}
+
+              {!isAdmin ? (
+                <div className="micro" style={{ marginTop: 8 }}>
+                  You have read-only access. Ask an admin to edit the organization name.
+                </div>
+              ) : null}
+            </>
+          )}
+        </SectionCard>
+
+        {/* Prepared By */}
+        <SectionCard title="Prepared By" subtitle="These fields appear on your proposal header.">
           <div className="grid-3">
             <Field label="Name">
               <input
@@ -364,6 +473,7 @@ export default function SettingsPage({
             </Field>
           </div>
         </SectionCard>
+
         {/* Email Proposal Templates */}
         <SectionCard
           title="Email Proposal"
@@ -374,9 +484,7 @@ export default function SettingsPage({
               <input
                 className="ui-input"
                 value={settings.emailSubjectTemplate || ""}
-                onChange={(e) =>
-                  update({ emailSubjectTemplate: e.target.value })
-                }
+                onChange={(e) => update({ emailSubjectTemplate: e.target.value })}
                 placeholder="Your Decks Unique Proposal – {{clientLastName}}"
               />
             </Field>
@@ -397,9 +505,8 @@ export default function SettingsPage({
           </div>
 
           <div className="micro" style={{ marginTop: 8 }}>
-            Available placeholders: {"{{clientTitle}}"} {"{{clientFirstName}}"}{" "}
-            {"{{clientLastName}}"} {"{{clientEmail}}"} {"{{userName}}"}{" "}
-            {"{{userPhone}}"} {"{{companyName}}"}
+            Available placeholders: {"{{clientTitle}}"} {"{{clientFirstName}}"} {"{{clientLastName}}"}{" "}
+            {"{{clientEmail}}"} {"{{userName}}"} {"{{userPhone}}"} {"{{companyName}}"}
           </div>
         </SectionCard>
 
@@ -422,11 +529,7 @@ export default function SettingsPage({
           <div className="logo-row">
             <div className="logo-preview">
               {settings.logoDataUrl ? (
-                <img
-                  src={settings.logoDataUrl}
-                  alt="Logo"
-                  className="logo-img"
-                />
+                <img src={settings.logoDataUrl} alt="Logo" className="logo-img" />
               ) : (
                 <div className="logo-empty">No logo</div>
               )}
@@ -441,9 +544,7 @@ export default function SettingsPage({
                 />
                 Upload Logo
               </label>
-              <div className="micro">
-                Tip: keep it wide, not tall. Transparent background looks best.
-              </div>
+              <div className="micro">Tip: keep it wide, not tall. Transparent background looks best.</div>
             </div>
           </div>
         </SectionCard>
@@ -467,9 +568,7 @@ export default function SettingsPage({
                       <input
                         type="checkbox"
                         checked={!!sec.enabled}
-                        onChange={(e) =>
-                          updateSection(sec.id, { enabled: e.target.checked })
-                        }
+                        onChange={(e) => updateSection(sec.id, { enabled: e.target.checked })}
                       />
                       <span className="toggle-ui" />
                     </label>
@@ -477,9 +576,7 @@ export default function SettingsPage({
                     <input
                       className="ui-input section-title"
                       value={sec.title || ""}
-                      onChange={(e) =>
-                        updateSection(sec.id, { title: e.target.value })
-                      }
+                      onChange={(e) => updateSection(sec.id, { title: e.target.value })}
                       placeholder="Section title"
                     />
 
@@ -487,9 +584,7 @@ export default function SettingsPage({
                       className="ui-select"
                       value={sec.type}
                       onChange={(e) =>
-                        updateSection(sec.id, {
-                          type: e.target.value as ProposalSectionType,
-                        })
+                        updateSection(sec.id, { type: e.target.value as ProposalSectionType })
                       }
                     >
                       <option value="bullets">Bullets</option>
@@ -536,10 +631,7 @@ export default function SettingsPage({
                         value={sec.reviews?.company || ""}
                         onChange={(e) =>
                           updateSection(sec.id, {
-                            reviews: {
-                              ...(sec.reviews || {}),
-                              company: e.target.value,
-                            },
+                            reviews: { ...(sec.reviews || {}), company: e.target.value },
                           })
                         }
                         placeholder="Decks Unique, Inc."
@@ -552,10 +644,7 @@ export default function SettingsPage({
                         value={sec.reviews?.rating || ""}
                         onChange={(e) =>
                           updateSection(sec.id, {
-                            reviews: {
-                              ...(sec.reviews || {}),
-                              rating: e.target.value,
-                            },
+                            reviews: { ...(sec.reviews || {}), rating: e.target.value },
                           })
                         }
                         placeholder="5.0"
@@ -568,10 +657,7 @@ export default function SettingsPage({
                         value={sec.reviews?.count || ""}
                         onChange={(e) =>
                           updateSection(sec.id, {
-                            reviews: {
-                              ...(sec.reviews || {}),
-                              count: e.target.value,
-                            },
+                            reviews: { ...(sec.reviews || {}), count: e.target.value },
                           })
                         }
                         placeholder="(222)"
@@ -584,10 +670,7 @@ export default function SettingsPage({
                         value={sec.reviews?.subtitle || ""}
                         onChange={(e) =>
                           updateSection(sec.id, {
-                            reviews: {
-                              ...(sec.reviews || {}),
-                              subtitle: e.target.value,
-                            },
+                            reviews: { ...(sec.reviews || {}), subtitle: e.target.value },
                           })
                         }
                         placeholder="Rated 5.0 on Google with 200+ Reviews"
@@ -600,10 +683,7 @@ export default function SettingsPage({
                         value={sec.reviews?.location || ""}
                         onChange={(e) =>
                           updateSection(sec.id, {
-                            reviews: {
-                              ...(sec.reviews || {}),
-                              location: e.target.value,
-                            },
+                            reviews: { ...(sec.reviews || {}), location: e.target.value },
                           })
                         }
                         placeholder="Deck builder in Commack"
@@ -614,15 +694,9 @@ export default function SettingsPage({
                   <textarea
                     className="ui-textarea mt12"
                     value={sec.text || ""}
-                    onChange={(e) =>
-                      updateSection(sec.id, { text: e.target.value })
-                    }
+                    onChange={(e) => updateSection(sec.id, { text: e.target.value })}
                     rows={sec.type === "bullets" ? 5 : 6}
-                    placeholder={
-                      sec.type === "bullets"
-                        ? "One bullet per line"
-                        : "Write a paragraph..."
-                    }
+                    placeholder={sec.type === "bullets" ? "One bullet per line" : "Write a paragraph..."}
                   />
                 )}
               </div>
@@ -631,32 +705,17 @@ export default function SettingsPage({
         </SectionCard>
 
         {/* Scope of Work */}
-        {/* ===========================
-    SCOPE TEMPLATES (SOW)
-   =========================== */}
         <section className="settings-card">
           <div className="settings-card-title">SCOPE TEMPLATES</div>
           <div className="settings-card-subtitle">
-            Shared Scope of Work templates stored in Supabase. Admin can edit.
-            Users are read-only.
+            Shared Scope of Work templates stored in Supabase. Admin can edit. Users are read-only.
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 14,
-              marginTop: 12,
-              alignItems: "flex-start",
-            }}
-          >
+          <div style={{ display: "flex", gap: 14, marginTop: 12, alignItems: "flex-start" }}>
             {/* LEFT: Add + Dropdown */}
             <div style={{ width: 320, flex: "0 0 320px" }}>
               {isAdmin ? (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={onAddSowTemplate}
-                >
+                <button type="button" className="btn btn-secondary" onClick={onAddSowTemplate}>
                   + Add Construction Type
                 </button>
               ) : null}
@@ -675,10 +734,7 @@ export default function SettingsPage({
                     style={{ width: "100%", padding: 10, borderRadius: 10 }}
                   >
                     {sowRows.map((r) => (
-                      <option
-                        key={r.construction_key}
-                        value={r.construction_key}
-                      >
+                      <option key={r.construction_key} value={r.construction_key}>
                         {r.label} ({r.construction_key})
                       </option>
                     ))}
@@ -690,9 +746,7 @@ export default function SettingsPage({
             {/* RIGHT: Editor */}
             <div style={{ flex: 1, minWidth: 0 }}>
               {!selectedSowRow ? (
-                <div style={{ opacity: 0.7, marginTop: 6 }}>
-                  Pick a type from the dropdown to edit.
-                </div>
+                <div style={{ opacity: 0.7, marginTop: 6 }}>Pick a type from the dropdown to edit.</div>
               ) : (
                 <>
                   <div style={{ display: "grid", gap: 8, marginBottom: 10 }}>
@@ -723,25 +777,16 @@ export default function SettingsPage({
                   <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                     {isAdmin ? (
                       <>
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          onClick={onSaveSowTemplate}
-                        >
+                        <button type="button" className="btn btn-primary" onClick={onSaveSowTemplate}>
                           Save
                         </button>
-                        <button
-                          type="button"
-                          className="btn btn-outline"
-                          onClick={onDeleteSowTemplate}
-                        >
+                        <button type="button" className="btn btn-outline" onClick={onDeleteSowTemplate}>
                           Delete
                         </button>
                       </>
                     ) : (
                       <div style={{ opacity: 0.7 }}>
-                        You have read-only access. Ask an admin to update
-                        template language.
+                        You have read-only access. Ask an admin to update template language.
                       </div>
                     )}
                   </div>
@@ -802,6 +847,7 @@ function Field({
   );
 }
 
+/* NOTE: ScopeEditor kept below (unused right now), leaving as-is because it was in your file */
 function ScopeEditor({
   scopeMap,
   onChange,
@@ -811,9 +857,7 @@ function ScopeEditor({
 }) {
   const keys = Object.keys(scopeMap || {}).sort();
 
-  const [selectedKey, setSelectedKey] = React.useState<string>(
-    () => keys[0] || ""
-  );
+  const [selectedKey, setSelectedKey] = React.useState<string>(() => keys[0] || "");
 
   // If keys change (add/remove), keep selection valid
   React.useEffect(() => {
@@ -838,16 +882,13 @@ function ScopeEditor({
   };
 
   const addKey = () => {
-    const k = prompt(
-      "Construction Type key (example: new, resurface, repair):",
-      "new"
-    );
+    const k = prompt("Construction Type key (example: new, resurface, repair):", "new");
     if (!k) return;
 
     const key = k.trim();
     if (!key) return;
 
-    // prevent duplicates (case-sensitive; you can change if you want)
+    // prevent duplicates
     if ((scopeMap || {})[key] !== undefined) {
       setSelectedKey(key);
       return;
@@ -905,9 +946,7 @@ function ScopeEditor({
           <textarea
             className="ui-textarea"
             value={selectedKey ? scopeMap[selectedKey] || "" : ""}
-            onChange={(e) =>
-              selectedKey && setKeyText(selectedKey, e.target.value)
-            }
+            onChange={(e) => selectedKey && setKeyText(selectedKey, e.target.value)}
             rows={7}
             placeholder="Paste scope of work text for this construction type..."
             disabled={!selectedKey}

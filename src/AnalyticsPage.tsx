@@ -6,7 +6,7 @@ export default function AnalyticsPage() {
     <div className="an-wrap">
       <div className="an-header">
         <div>
-          <div className="an-title">Analytics</div>
+        
           <div className="an-subtitle">
             Quick stats for estimates and pricing usage (admin view)
           </div>

@@ -1,9 +1,4 @@
 // App.tsx
-// ✅ NO LOGIN (everyone is admin)
-// ✅ NO “email proposal / email preview” features
-// ✅ Estimator works (fixes invalid hook usage in Estimate Summary + removes email suggestion dropdown)
-// ✅ Everything else remains as-is
-
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
@@ -17,6 +12,76 @@ import AnalyticsPage from "./AnalyticsPage";
 import ReviewProposalPage from "./ReviewProposalPage";
 import { uid } from "./utils/uid";
 import UsersLicensesPage from "./UsersLicensesPage";
+import AuthPage from "./AuthPage";
+import CreateOrgPage from "./CreateOrgPage";
+function BootScreen({ label = "Loading…" }: { label?: string }) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(180deg, #f3f4f6 0%, #eef2ff 100%)",
+        fontFamily: "system-ui",
+      }}
+    >
+      <div
+        style={{
+          width: 420,
+          maxWidth: "92vw",
+          padding: 22,
+          borderRadius: 16,
+          background: "white",
+          border: "1px solid rgba(0,0,0,0.10)",
+          boxShadow: "0 18px 45px rgba(0,0,0,0.12)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: "#111",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 900,
+              letterSpacing: 0.5,
+            }}
+          >
+            DU
+          </div>
+
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 900 }}>Deck Estimator</div>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>Decks Unique</div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: 999,
+              border: "3px solid rgba(0,0,0,0.12)",
+              borderTopColor: "rgba(0,0,0,0.65)",
+              animation: "duSpin 0.9s linear infinite",
+            }}
+          />
+          <div style={{ fontWeight: 800, opacity: 0.8 }}>{label}</div>
+        </div>
+
+        <style>
+          {`@keyframes duSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
+        </style>
+      </div>
+    </div>
+  );
+}
 
 // ================================
 // ADD ITEM – CATEGORY MASTER LIST
@@ -295,48 +360,345 @@ async function saveProposal(proposalData: any) {
   return data.id;
 }
 
-// ------------------------------
-// ✅ TEMPORARY: NO LOGIN. EVERYONE IS ADMIN.
-// ------------------------------
-export default function App() {
+
+
+function App() {
   const path = window.location.pathname;
 
+  // Public route: proposal review (NO hooks here)
   if (path.startsWith("/review/")) {
     return <ReviewProposalPage />;
   }
 
-  return <AppShell isAdmin={true} />;
+  // Everything else uses auth
+  return <AuthedApp />;
+}
+function AuthedApp() {
+  const [session, setSession] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [orgLoading, setOrgLoading] = useState(true);
+const [orgResolved, setOrgResolved] = useState(false);
+
+  const email = (session?.user?.email || "").toLowerCase();
+// ✅ Accept invite automatically once orgId is known
+const acceptedInviteRef = useRef<string>("");
+
+useEffect(() => {
+  // only attempt once we have orgId and a signed-in user
+  if (!orgId) return;
+  if (!session?.user?.id) return;
+
+  // Prevent calling repeatedly for the same org in a single session
+  if (acceptedInviteRef.current === orgId) return;
+  acceptedInviteRef.current = orgId;
+
+  (async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("accept-invite", {
+        body: { account_id: orgId },
+      });
+
+      // Not an error if they weren't invited
+      if (error) {
+        console.warn("accept-invite error:", error);
+        return;
+      }
+      if ((data as any)?.error) {
+        console.warn("accept-invite function error:", (data as any).error);
+        return;
+      }
+
+      console.log("accept-invite result:", data);
+    } catch (e) {
+      console.warn("accept-invite exception:", e);
+    }
+  })();
+}, [orgId, session?.user?.id]);
+// 0) ✅ Finalize Supabase auth after invite/magic links (prevents blank spinning page)
+useEffect(() => {
+  // Trigger Supabase to parse auth params from the URL (hash/query)
+  supabase.auth.getSession().catch(() => {});
+
+  const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+      // Clean up the URL after auth completes
+      if (window.location.hash || window.location.search) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  });
+
+  return () => {
+    sub.subscription.unsubscribe();
+  };
+}, []);
+
+  // 1) Auth session bootstrap
+  useEffect(() => {
+    let cancelled = false;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      setSession(data.session ?? null);
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (cancelled) return;
+      setSession(newSession ?? null);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+      listener?.subscription.unsubscribe();
+    };
+  }, []);
+
+ useEffect(() => {
+  let cancelled = false;
+
+  async function loadOrgForUser() {
+    // If not logged in yet, don’t resolve anything.
+    if (!session?.user?.id) return;
+
+    setOrgLoading(true);
+    setOrgResolved(false);
+
+    try {
+      const userId = session.user.id;
+
+      // 1) Try org_members.org_id first
+      const q1 = await supabase
+        .from("org_members")
+        .select("org_id, role")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      // If that worked and we have an org_id, use it
+      if (!q1.error && q1.data?.org_id) {
+        if (cancelled) return;
+        setOrgId(q1.data.org_id);
+        setIsAdmin(String(q1.data.role || "").toLowerCase() === "admin");
+        return;
+      }
+
+      // 2) If org_id column doesn’t exist, fallback to account_id
+      const msg = (q1.error?.message || "").toLowerCase();
+      const missingOrgId =
+        msg.includes("column") &&
+        msg.includes("org_id") &&
+        (msg.includes("does not exist") || msg.includes("not found"));
+
+      if (!missingOrgId) {
+        // If it’s some other error, treat as “no org” but don’t crash
+        console.warn("org lookup error:", q1.error);
+      }
+
+      const q2 = await supabase
+        .from("org_members")
+        .select("account_id, role")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!q2.error && q2.data?.account_id) {
+        if (cancelled) return;
+        setOrgId(q2.data.account_id);
+        setIsAdmin(String(q2.data.role || "").toLowerCase() === "admin");
+        return;
+      }
+
+      // No org membership found -> IMPORTANT:
+      // They are NOT an admin and should NOT see CreateOrgPage.
+      if (cancelled) return;
+      setOrgId(null);
+      setIsAdmin(false);
+    } finally {
+      if (cancelled) return;
+      setOrgLoading(false);
+      setOrgResolved(true); // ✅ this is the key fix
+    }
+  }
+
+  loadOrgForUser();
+
+  return () => {
+    cancelled = true;
+  };
+}, [session?.user?.id]);
+
+
+  // 3) Render gates (IMPORTANT ORDER)
+  if (authLoading) return <BootScreen label="Checking sign-in…" />;
+
+  if (!session) return <AuthPage />;
+
+  if (orgLoading) return <BootScreen label="Loading your organization…" />;
+// ✅ Guard: user has no org
+if (orgResolved && !orgId) {
+  // Only admins are allowed to create an org
+  if (isAdmin) {
+    return (
+      <CreateOrgPage
+        onCreated={(newOrgId) => {
+          setOrgId(newOrgId);
+          setIsAdmin(true);
+        }}
+      />
+    );
+  }
+  
+
+  // Non-admins should NEVER see CreateOrgPage
+  return (
+    <div style={{ padding: 32 }}>
+      <h1 style={{ marginBottom: 8 }}>No organization access</h1>
+      <p style={{ maxWidth: 640 }}>
+        Your account is not linked to an organization yet.
+        Ask an admin to invite you, then log out and log back in.
+      </p>
+    </div>
+  );
 }
 
+  
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  // ✅ Guard: only admins can create an org
+  if (orgResolved && !orgId) {
+    if (isAdmin) {
+      return (
+        <CreateOrgPage
+          onCreated={(newOrgId) => {
+            setOrgId(newOrgId);
+            setIsAdmin(true);
+          }}
+        />
+      );
+    }
+
+    return (
+      <div style={{ padding: 32 }}>
+        <h1 style={{ marginBottom: 8 }}>No organization access</h1>
+        <p style={{ maxWidth: 640 }}>
+          Your account is not linked to an organization yet. Ask an admin to invite you,
+          then log out and log back in.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <AppShell isAdmin={isAdmin} orgId={orgId} onLogout={handleLogout} userEmail={email} />
+  );
+}
+
+export default App;
 
 
-function AppShell({ isAdmin }: { isAdmin: boolean }) {
- // ✅ TEMP ROLE TOGGLE (persists in browser)
-const [roleIsAdmin, setRoleIsAdmin] = useState(() => {
-  return localStorage.getItem("du_role") === "admin";
-});
-useEffect(() => {
-  localStorage.setItem("du_role", roleIsAdmin ? "admin" : "user");
-}, [roleIsAdmin]);
+
+
+
+
+
+
+
+
+
+
+function AppShell({
+  isAdmin,
+  orgId,
+  onLogout,
+  userEmail,
+}: {
+  isAdmin: boolean;
+  orgId: string | null;
+  onLogout: () => void;
+  userEmail: string;
+}) {
+
 // ===============================
-// ROLE GATES (prep for Supabase auth)
+// ROLE GATES (email-based for now)
 // ===============================
-type UserRole = "admin" | "user";
+const canEditPricing = isAdmin;
+const canSeeUsersLicenses = isAdmin;
 
-// TEMP role source (later: replace with Supabase role)
-const currentRole: UserRole = isAdmin && roleIsAdmin ? "admin" : "user";
 
-// Real permissions (what the app is allowed to do)
-const canEditPricing = isAdmin && currentRole === "admin";
+function BootScreen({ label = "Loading…" }: { label?: string }) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(180deg, #f3f4f6 0%, #eef2ff 100%)",
+        fontFamily: "system-ui",
+      }}
+    >
+      <div
+        style={{
+          width: 420,
+          maxWidth: "92vw",
+          padding: 22,
+          borderRadius: 16,
+          background: "white",
+          border: "1px solid rgba(0,0,0,0.10)",
+          boxShadow: "0 18px 45px rgba(0,0,0,0.12)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: "#111",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 900,
+              letterSpacing: 0.5,
+            }}
+          >
+            DU
+          </div>
 
-// UI visibility (what controls are allowed to be seen)
-const canSeeRoleToggle = isAdmin;
-const requireAdmin = (node: React.ReactNode) => {
-  if (!isAdmin) return null;
-  return <>{node}</>;
-};
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 900 }}>Deck Estimator</div>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>Decks Unique</div>
+          </div>
+        </div>
 
+        <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: 999,
+              border: "3px solid rgba(0,0,0,0.12)",
+              borderTopColor: "rgba(0,0,0,0.65)",
+              animation: "duSpin 0.9s linear infinite",
+            }}
+          />
+          <div style={{ fontWeight: 800, opacity: 0.8 }}>{label}</div>
+        </div>
+
+        <style>
+          {`@keyframes duSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
+        </style>
+      </div>
+    </div>
+  );
+}
 
 
 
@@ -521,9 +883,32 @@ const requireAdmin = (node: React.ReactNode) => {
   // ===============================
   // STATE: ESTIMATE + UI
   // ===============================
-  const [activeNav, setActiveNav] = useState<
-  "proposals" | "estimator" | "pricingAdmin" | "analytics" | "settings" | "users"
->("estimator");
+ // ===============================
+// STATE: ESTIMATE + UI
+// ===============================
+type NavKey =
+  | "proposals"
+  | "estimator"
+  | "pricingAdmin"
+  | "analytics"
+  | "settings"
+  | "users";
+
+const [activeNav, setActiveNav] = useState<NavKey>("estimator");
+
+// UL-WIDE body class (full width on Users/Licenses)
+useEffect(() => {
+  document.body.classList.toggle("ul-wide", activeNav === "users");
+  return () => document.body.classList.remove("ul-wide");
+}, [activeNav]);
+
+// keep users locked out if not authorized
+useEffect(() => {
+  if (activeNav === "users" && !canSeeUsersLicenses) {
+    setActiveNav("estimator");
+  }
+}, [activeNav, canSeeUsersLicenses]);
+
 
   const EMAIL_DOMAINS = [
     "gmail.com",
@@ -584,6 +969,18 @@ const requireAdmin = (node: React.ReactNode) => {
       return false;
     }
   });
+useEffect(() => {
+  const on = activeNav === "users";
+  document.body.classList.toggle("ul-wide", on);
+
+  // TEMP debug:
+  console.log("[UL-WIDE]", { activeNav, on, bodyClass: document.body.className });
+
+  return () => {
+    // cleanup so it doesn't stick if component unmounts
+    document.body.classList.remove("ul-wide");
+  };
+}, [activeNav]);
 
   useEffect(() => {
     try {
@@ -2570,31 +2967,53 @@ const requireAdmin = (node: React.ReactNode) => {
                 Save As…
               </button>
 
-              <div className="sidebar-file-sep" />
-              <button
-                type="button"
-                className="sidebar-file-item"
-                onClick={() => {
-                  setFileOpen(false);
-                  setActiveNav("proposals");
-                  setTimeout(() => {
-                    const originalTitle = document.title;
-                    const safeLast = (clientLastName || "Client")
-                      .trim()
-                      .replace(/[^a-z0-9]+/gi, " ")
-                      .trim();
-                    document.title = `${safeLast} Proposal`;
-                    window.print();
-                    setTimeout(() => {
-                      document.title = originalTitle;
-                    }, 800);
-                  }, 200);
-                }}
-              >
-                Print
-              </button>
+             <div className="sidebar-file-sep" />
+
+<button
+  type="button"
+  className="sidebar-file-item"
+  onClick={() => {
+    setFileOpen(false);
+    setActiveNav("proposals");
+    setTimeout(() => {
+      const originalTitle = document.title;
+      const safeLast = (clientLastName || "Client")
+        .trim()
+        .replace(/[^a-z0-9]+/gi, " ")
+        .trim();
+      document.title = `${safeLast} Proposal`;
+      window.print();
+      setTimeout(() => {
+        document.title = originalTitle;
+      }, 800);
+    }, 200);
+  }}
+>
+  Print
+</button>
+
+<div className="sidebar-file-sep" />
+
+<button
+  type="button"
+  className="sidebar-file-item"
+  onClick={() => {
+    setFileOpen(false);
+    onLogout();
+  }}
+>
+  Log out
+</button>
+
+
             </div>
           )}
+          <div className="sidebar-footer">
+  <div className="sidebar-footer-title">Estimator2.0</div>
+  <div className="sidebar-footer-subtitle">{userEmail}</div>
+</div>
+
+
         </div>
 
         <nav className="sidebar-nav">
@@ -2609,11 +3028,14 @@ const requireAdmin = (node: React.ReactNode) => {
             onClick={() => setActiveNav("proposals")}
           />
       
+  {canEditPricing && (
   <SidebarNavItem
     label="Pricing Admin"
     isActive={activeNav === "pricingAdmin"}
     onClick={() => setActiveNav("pricingAdmin")}
   />
+)}
+
 
           <SidebarNavItem
             label="Analytics"
@@ -2625,7 +3047,8 @@ const requireAdmin = (node: React.ReactNode) => {
             isActive={activeNav === "settings"}
             onClick={() => setActiveNav("settings")}
           />
-          {isAdmin && (
+  
+{canSeeUsersLicenses && (
   <SidebarNavItem
     label="Users / Licenses"
     isActive={activeNav === "users"}
@@ -2633,10 +3056,12 @@ const requireAdmin = (node: React.ReactNode) => {
   />
 )}
 
+
+
+
         </nav>
        
-    
-
+  
 
         {/* Offline indicator (sidebar) */}
         {(!isOnline ||
@@ -2651,6 +3076,24 @@ const requireAdmin = (node: React.ReactNode) => {
           <div className="sidebar-footer-title">Estimator2.0</div>
           <div className="sidebar-footer-subtitle">Jason Colapinto</div>
         </div>
+        {/* ROLE LABEL (bottom of sidebar) */}
+<div
+  style={{
+    marginTop: 16,
+    padding: "12px 12px",
+    fontSize: 12,
+    opacity: 0.8,
+    borderTop: "1px solid rgba(255,255,255,0.10)",
+  }}
+>
+  <div style={{ fontWeight: 800 }}>
+    {isAdmin ? "Admin" : "User"}
+  </div>
+  <div style={{ fontSize: 11, opacity: 0.85 }}>
+    {userEmail}
+  </div>
+</div>
+
       </aside>
 
       <main
@@ -2665,10 +3108,12 @@ const requireAdmin = (node: React.ReactNode) => {
             <div className="page-header__title">
               {activeNav === "estimator" && "Deck Estimate"}
               {activeNav === "proposals" && "Proposals"}
-          
+          {activeNav === "pricingAdmin" && "Pricing Administration"}
 
               {activeNav === "analytics" && "Analytics"}
               {activeNav === "settings" && "Settings"}
+              {activeNav === "users" && "Users / Licenses"}
+
             </div>
 
             <div className="page-header__subtitle">
@@ -2698,11 +3143,24 @@ const requireAdmin = (node: React.ReactNode) => {
             </section>
           )}
 {/* ====== USERS / LICENSES (ADMIN ONLY) ====== */}
-{isAdmin && activeNav === "users" && (
-  <section className="users-licenses-page">
-    <UsersLicensesPage />
-  </section>
+{activeNav === "users" && (
+  canSeeUsersLicenses ? (
+    <section className="users-licenses-page">
+    <UsersLicensesPage orgId={orgId} />
+
+
+
+    </section>
+  ) : (
+    <section style={{ padding: 16 }}>
+      <div style={{ fontWeight: 800, fontSize: 16 }}>Not authorized</div>
+      <div style={{ opacity: 0.75, marginTop: 6 }}>
+        You don’t have permission to view Users / Licenses.
+      </div>
+    </section>
+  )
 )}
+
 
 
 
@@ -3568,22 +4026,31 @@ const requireAdmin = (node: React.ReactNode) => {
               </div>
             </section>
           )}
-
-      {activeNav === "pricingAdmin" && (
- <PricingAdmin readOnly={!canEditPricing} />
-
+{activeNav === "pricingAdmin" && (
+  canEditPricing ? (
+    <PricingAdmin readOnly={false} />
+  ) : (
+    <section style={{ padding: 16 }}>
+      <div style={{ fontWeight: 800, fontSize: 16 }}>Not authorized</div>
+      <div style={{ opacity: 0.75, marginTop: 6 }}>
+        You don’t have permission to view Pricing Admin.
+      </div>
+    </section>
+  )
 )}
 
 
 
 
+{activeNav === "settings" && (
+  <SettingsPage
+    userSettings={userSettings}
+    setUserSettings={setUserSettings}
+    orgId={orgId}
+    isAdmin={isAdmin}
+  />
+)}
 
-          {activeNav === "settings" && (
-            <SettingsPage
-              userSettings={userSettings}
-              setUserSettings={setUserSettings}
-            />
-          )}
 
           {activeNav === "proposals" && (
             <ProposalPage
@@ -3780,160 +4247,157 @@ const requireAdmin = (node: React.ReactNode) => {
           )}
         </div>
       </main>
-      {/* =============================== */}
-      {/* EMAIL MODAL (TEMP TEST) */}
-      {/* =============================== */}
-      {emailModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
-          onClick={() => setEmailModalOpen(false)}
-        >
-          <div
-            style={{
-              width: "min(720px, 95vw)",
-              background: "#fff",
-              borderRadius: 12,
-              padding: 16,
-              boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>
-              Send Estimate
-            </div>
-            <div style={{ fontSize: 13, marginBottom: 8 }}>
-              <div>
-                <b>To:</b>{" "}
-                {(emailDraft?.to || clientEmail || "").trim() || "(empty)"}
-              </div>
+     
+   <ConfirmNewProjectModal
+  open={confirmNewOpen}
+  onCancel={cancelNew}
+  onDiscard={discardAndNew}
+  onSave={saveAndNew}
+/>
 
-              <div>
-                <b>Subject:</b> {emailDraft?.subject || "(empty)"}
-              </div>
+{/* =============================== */}
+{/* EMAIL MODAL (TEMP TEST) */}
+{/* =============================== */}
+{emailModalOpen && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.45)",
+      zIndex: 9999,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 16,
+    }}
 
-              {/* ✅ STEP 2C: Show CC only when toggle is ON */}
-              {emailDraft?.sendMeCopy &&
-              (userSettings?.userEmail || "").trim() ? (
-                <div>
-                  <b>CC:</b> {(userSettings?.userEmail || "").trim()}
-                </div>
-              ) : null}
-            </div>
+    onClick={() => setEmailModalOpen(false)}
+  >
+    <div
+      style={{
+        width: "min(720px, 95vw)",
+        background: "#fff",
+        borderRadius: 12,
+        padding: 16,
+        boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>
+        Send Estimate
+      </div>
 
-            {sendMeCopy && (userSettings?.userEmail || "").trim() ? (
-              <div>
-                <b>CC:</b> {(userSettings?.userEmail || "").trim()}
-              </div>
-            ) : null}
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                margin: "10px 0 12px",
-              }}
-            >
-              <span style={{ fontSize: 13, fontWeight: 600 }}>
-                Send me a copy
-              </span>
-
-              <label
-                style={{
-                  position: "relative",
-                  display: "inline-block",
-                  width: 34,
-                  height: 18,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={sendMeCopy}
-                  onChange={(e) => setSendMeCopy(e.target.checked)}
-                  style={{ opacity: 0, width: 0, height: 0 }}
-                />
-
-                {/* Track */}
-                <span
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    backgroundColor: sendMeCopy ? "#16a34a" : "#d1d5db",
-                    borderRadius: 999,
-                    transition: "0.2s",
-                  }}
-                />
-
-                {/* Knob */}
-                <span
-                  style={{
-                    position: "absolute",
-                    height: 14,
-                    width: 14,
-                    left: sendMeCopy ? 18 : 2,
-                    top: 2,
-                    backgroundColor: "#fff",
-                    borderRadius: "50%",
-                    transition: "0.2s",
-                  }}
-                />
-              </label>
-            </div>
-
-            <textarea
-              value={emailDraft?.body || ""}
-              onChange={(e) =>
-                setEmailDraft((d) => (d ? { ...d, body: e.target.value } : d))
-              }
-              style={{
-                fontFamily:
-                  'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
-                fontSize: "14px",
-                lineHeight: "1.5",
-                padding: "10px",
-                resize: "none",
-                height: "180px",
-                width: "100%",
-              }}
-            />
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 10,
-                marginTop: 12,
-              }}
-            >
-              <button onClick={() => setEmailModalOpen(false)}>Cancel</button>
-
-              <button
-                onClick={handleSendEmailFromModal}
-                style={{ fontWeight: 700 }}
-                disabled={!emailDraft}
-              >
-                Send
-              </button>
-            </div>
-          </div>
+      <div style={{ fontSize: 13, marginBottom: 8 }}>
+        <div>
+          <b>To:</b>{" "}
+          {(emailDraft?.to || clientEmail || "").trim() || "(empty)"}
         </div>
-      )}
 
-      <ConfirmNewProjectModal
-        open={confirmNewOpen}
-        onCancel={cancelNew}
-        onDiscard={discardAndNew}
-        onSave={saveAndNew}
+        <div>
+          <b>Subject:</b> {emailDraft?.subject || "(empty)"}
+        </div>
+
+        {/* ✅ STEP 2C: Show CC only when toggle is ON */}
+        {emailDraft?.sendMeCopy && (userSettings?.userEmail || "").trim() ? (
+          <div>
+            <b>CC:</b> {(userSettings?.userEmail || "").trim()}
+          </div>
+        ) : null}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          margin: "10px 0 12px",
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600 }}>Send me a copy</span>
+
+        <label
+          style={{
+            position: "relative",
+            display: "inline-block",
+            width: 34,
+            height: 18,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={sendMeCopy}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setSendMeCopy(checked);
+              setEmailDraft((d) => (d ? { ...d, sendMeCopy: checked } : d));
+            }}
+          />
+
+          <span
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundColor: sendMeCopy ? "#16a34a" : "#d1d5db",
+              borderRadius: 999,
+              transition: "0.2s",
+            }}
+          />
+
+          {/* Knob */}
+          <span
+            style={{
+              position: "absolute",
+              height: 14,
+              width: 14,
+              left: sendMeCopy ? 18 : 2,
+              top: 2,
+              backgroundColor: "#fff",
+              borderRadius: "50%",
+              transition: "0.2s",
+            }}
+          />
+        </label>
+      </div>
+
+      <textarea
+        value={emailDraft?.body || ""}
+        onChange={(e) =>
+          setEmailDraft((d) => (d ? { ...d, body: e.target.value } : d))
+        }
+        style={{
+          fontFamily:
+            'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
+          fontSize: "14px",
+          lineHeight: "1.5",
+          padding: "10px",
+          resize: "none",
+          height: "180px",
+          width: "100%",
+        }}
       />
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 10,
+          marginTop: 12,
+        }}
+      >
+        <button onClick={() => setEmailModalOpen(false)}>Cancel</button>
+
+        <button
+          onClick={handleSendEmailFromModal}
+          style={{ fontWeight: 700 }}
+          disabled={!emailDraft}
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }

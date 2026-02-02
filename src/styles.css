@@ -2115,3 +2115,10 @@ body.pa-wide .main-grid.main-grid--pricing {
   border-radius: 999px;
   background: #fbbf24; /* amber dot */
 }
+/* 
+  Users / Licenses page uses a single-column layout.
+  Overrides the default 2-column estimator grid.
+/* Users / Licenses should be full width (no 2-column layout) */
+body.ul-wide .main-grid {
+  grid-template-columns: 1fr !important;
+}
