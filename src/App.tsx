@@ -381,6 +381,10 @@ function AuthedApp() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [orgLoading, setOrgLoading] = useState(true);
 const [orgResolved, setOrgResolved] = useState(false);
+useEffect(() => {
+  if (orgId) console.log("APP_ORG_ID", orgId);
+}, [orgId]);
+
 
   const email = (session?.user?.email || "").toLowerCase();
 // ✅ Accept invite automatically once orgId is known
