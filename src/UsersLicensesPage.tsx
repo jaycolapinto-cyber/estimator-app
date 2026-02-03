@@ -12,6 +12,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
 import "./UsersLicensesPage.css";
+const ENABLE_INVITES = false;
 
 async function invokeFn<T>(
   name: string,
@@ -49,6 +50,8 @@ export default function UsersLicensesPage({ orgId }: { orgId: string | null }) {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [myEmail, setMyEmail] = useState("");
+  const [myRole, setMyRole] = useState<"admin" | "user">("user");
+
   const [orgName, setOrgName] = useState("");
 
   // Manage modal
@@ -78,6 +81,16 @@ export default function UsersLicensesPage({ orgId }: { orgId: string | null }) {
   const [toast, setToast] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("all");
   const [q, setQ] = useState("");
+ 
+// ===============================
+// INLINE NAME EDITING (admin only)
+// ===============================
+const [editingUserId, setEditingUserId] = useState<string | null>(null);
+const [editingName, setEditingName] = useState<string>("");
+const [savingUserId, setSavingUserId] = useState<string | null>(null);
+const [nameEditError, setNameEditError] = useState<string | null>(null);
+const [editingEmail, setEditingEmail] = useState<string>("");
+const [editingAnchorRect, setEditingAnchorRect] = useState<DOMRect | null>(null);
 
   // Add user dropdown
   const [addUserMenuOpen, setAddUserMenuOpen] = useState(false);
@@ -92,22 +105,83 @@ export default function UsersLicensesPage({ orgId }: { orgId: string | null }) {
     const v = s.trim();
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
   }
-
   async function loadOrgName(localOrgId: string) {
-    try {
-      const { data, error } = await supabase.from("orgs").select("name").eq("id", localOrgId).single();
-      if (error) throw error;
-      setOrgName(data?.name || "");
-    } catch {
-      setOrgName("");
-    }
+  try {
+    const { data, error } = await supabase
+      .from("orgs")
+      .select("name")
+      .eq("id", localOrgId)
+      .single();
+
+    if (error) throw error;
+    setOrgName(data?.name || "");
+  } catch {
+    setOrgName("");
   }
+}
+async function updateUserInline(userId: string) {
+  const nextName = editingName.trim();
+  const nextEmail = editingEmail.trim().toLowerCase();
+
+  if (!nextName) {
+    setNameEditError("Name cannot be empty");
+    return;
+  }
+  if (!nextEmail) {
+    setNameEditError("Email cannot be empty");
+    return;
+  }
+  if (!isValidEmail(nextEmail)) {
+    setNameEditError("Enter a valid email address");
+    return;
+  }
+
+  try {
+    setNameEditError(null);
+    setSavingUserId(userId);
+
+    const { error } = await supabase
+      .from("app_users")
+      .update({ name: nextName, email: nextEmail })
+      .eq("id", userId);
+
+    if (error) throw error;
+
+    // instant UI update
+    setRows((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, name: nextName, email: nextEmail } : u))
+    );
+
+    // exit edit mode
+    setEditingUserId(null);
+    setEditingName("");
+    setEditingEmail("");
+  } catch (e: any) {
+    setNameEditError(e?.message ?? "Failed to save");
+  } finally {
+    setSavingUserId(null);
+  }
+}
+
+  
+function startEditInline(u: DbUser) {
+  setNameEditError(null);
+  setEditingUserId(u.id);
+  setEditingName((u.name || "").trim());
+  setEditingEmail((u.email || "").trim());
+}
+
+
 
   async function loadMeEmail() {
-    const { data } = await supabase.auth.getSession();
-    const email = (data?.session?.user?.email || "").toLowerCase();
-    setMyEmail(email);
-  }
+  const { data } = await supabase.auth.getSession();
+  const email = (data?.session?.user?.email || "").toLowerCase();
+  setMyEmail(email);
+
+  // derive my role from current rows (after load) OR keep default until list loads
+  // (we'll set it properly right after users load)
+}
+
 
   async function loadUsers(localOrgId: string) {
     setLoading(true);
@@ -115,6 +189,8 @@ export default function UsersLicensesPage({ orgId }: { orgId: string | null }) {
 
     try {
       await loadMeEmail();
+const { data: sess } = await supabase.auth.getSession();
+const email = (sess?.session?.user?.email || "").toLowerCase();
 
       const { data, error } = await invokeFn<AdminUsersListResponse>("admin-users", {
         action: "list",
@@ -124,7 +200,20 @@ export default function UsersLicensesPage({ orgId }: { orgId: string | null }) {
       if (error) throw new Error(error.message || "Edge function failed");
       if ((data as any)?.error) throw new Error((data as any).error);
 
-      setRows(data?.users || []);
+      const users = data?.users || [];
+      console.log("[admin-users/list] users:", users.map(u => ({
+  id: u.id,
+  email: u.email,
+  role: u.role,
+  status: u.status,
+})));
+
+setRows(users);
+
+// Set myRole by matching my email to a row
+const me = users.find((u) => (u.email || "").toLowerCase() === email);
+setMyRole(me?.role ?? "user");
+
     } catch (e: any) {
       setLoadError(e?.message || "Failed to load users.");
       setRows([]);
@@ -225,8 +314,15 @@ const nonAdmins = useMemo(() => activePool.filter((r) => r.role !== "admin"), [a
         patch: { role: editRole },
       });
 
-      if (error) throw new Error(error.message || "Update failed");
-      if ((data as any)?.error) throw new Error((data as any).error);
+      console.log("[admin-users/update] data:", data);
+console.log("[admin-users/update] error:", error);
+
+if (error) {
+  const msg = await edgeErrorToMessage(error);
+  throw new Error(msg);
+}
+if ((data as any)?.error) throw new Error((data as any).error);
+
 
       showToast("Saved.");
       setSelectedUser(null);
@@ -252,14 +348,21 @@ const nonAdmins = useMemo(() => activePool.filter((r) => r.role !== "admin"), [a
     setSaveError(null);
 
     try {
-      const { data, error } = await invokeFn("admin-users", {
-        action: "deactivate",
-        account_id: orgId,
-        id: selectedUser.id,
-      });
+     const { data, error } = await invokeFn("admin-users", {
+  action: "deactivate",
+  account_id: orgId,
+  id: selectedUser.id,
+});
 
-      if (error) throw new Error(error.message || "Deactivate failed");
-      if ((data as any)?.error) throw new Error((data as any).error);
+console.log("[admin-users/deactivate] data:", data);
+console.log("[admin-users/deactivate] error:", error);
+
+if (error) {
+  const msg = await edgeErrorToMessage(error);
+  throw new Error(msg);
+}
+if ((data as any)?.error) throw new Error((data as any).error);
+
 
       showToast("User made inactive.");
       setSelectedUser(null);
@@ -450,18 +553,21 @@ const nonAdmins = useMemo(() => activePool.filter((r) => r.role !== "admin"), [a
 
             {addUserMenuOpen ? (
               <div className="ul-dropdownMenu" role="menu" aria-label="Add user menu">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddUserMenuOpen(false);
-                    openInviteModal();
-                  }}
-                  className="ul-dropdownItem"
-                  role="menuitem"
-                >
-                  <span className="ul-dropdownIcon">✉️</span>
-                  <span>Send invitation</span>
-                </button>
+             {ENABLE_INVITES ? (
+  <button
+    type="button"
+    onClick={() => {
+      setAddUserMenuOpen(false);
+      openInviteModal();
+    }}
+    className="ul-dropdownItem"
+    role="menuitem"
+  >
+    <span className="ul-dropdownIcon">✉️</span>
+    <span>Send invitation</span>
+  </button>
+) : null}
+
 
                 <button
                   type="button"
@@ -521,6 +627,8 @@ const nonAdmins = useMemo(() => activePool.filter((r) => r.role !== "admin"), [a
                 <th className="ul-th">Name</th>
                 <th className="ul-th">Email</th>
                 <th className="ul-th">Role</th>
+                <th className="ul-th ul-th--icon"></th>
+
                 <th className="ul-th">License</th>
                 <th className="ul-th">Status</th>
                 <th className="ul-th ul-th--right">Actions</th>
@@ -535,19 +643,44 @@ const nonAdmins = useMemo(() => activePool.filter((r) => r.role !== "admin"), [a
               ) : (
                 filtered.map((u, idx) => (
                   <Row
-                    key={u.id}
-                    user={u}
-                    zebra={idx % 2 === 1}
-                    onManage={() => {
-                      if (u.status === "Inactive") {
-                        showToast("Inactive users are read-only.");
-                        return;
-                      }
-                      setSelectedUser(u);
-                      setEditRole(u.role);
-                      setSaveError(null);
-                    }}
-                  />
+  key={u.id}
+  user={u}
+  zebra={idx % 2 === 1}
+  onManage={() => {
+    if (u.status === "Inactive") {
+      showToast("Inactive users are read-only.");
+      return;
+    }
+    setSelectedUser(u);
+    setEditRole(u.role);
+    setSaveError(null);
+  }}
+
+  editingUserId={editingUserId}
+  editingAnchorRect={editingAnchorRect}
+
+  editingName={editingName}
+  editingEmail={editingEmail}
+  setEditingName={setEditingName}
+  setEditingEmail={setEditingEmail}
+  savingUserId={savingUserId}
+  canInlineEdit={myRole === "admin"}
+
+  nameEditError={nameEditError}
+onStartEdit={(rect) => {
+  setEditingAnchorRect(rect);
+  startEditInline(u);
+}}
+  onSaveEdit={() => updateUserInline(u.id)}
+ onCancelEdit={() => {
+  setEditingUserId(null);
+  setEditingName("");
+  setEditingEmail("");
+  setNameEditError(null);
+  setEditingAnchorRect(null);
+}}
+
+/>
                 ))
               )}
             </tbody>
@@ -820,15 +953,57 @@ function Row({
   user,
   zebra,
   onManage,
+canInlineEdit,
+
+  // inline edit props
+ editingUserId,
+editingAnchorRect,
+editingName,
+
+  editingEmail,
+  setEditingName,
+  setEditingEmail,
+  savingUserId,
+  nameEditError,
+  onStartEdit,
+  onSaveEdit,
+  onCancelEdit,
 }: {
   user: DbUser;
   zebra: boolean;
   onManage: () => void;
+canInlineEdit: boolean;
+
+  editingUserId: string | null;
+  editingAnchorRect: DOMRect | null;
+
+  editingName: string;
+  editingEmail: string;
+  setEditingName: (v: string) => void;
+  setEditingEmail: (v: string) => void;
+  savingUserId: string | null;
+  nameEditError: string | null;
+ onStartEdit: (rect: DOMRect) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
 }) {
+  const isEditing = editingUserId === user.id;
+
   return (
+  <>
     <tr className={`ul-tr ${zebra ? "is-zebra" : ""}`}>
+
       <td className="ul-td">
-        <div className="ul-name">{displayName(user)}</div>
+        <div className="ul-name">
+         
+            <div className="ul-inlineView">
+              <span>{displayName(user)}</span>
+
+             
+
+            </div>
+        
+        </div>
       </td>
 
       <td className="ul-td">
@@ -840,6 +1015,22 @@ function Row({
           {user.role}
         </span>
       </td>
+<td className="ul-td ul-td--icon">
+  {canInlineEdit && user.status !== "Inactive" ? (
+    <button
+      className="ul-pencilBtn"
+     onClick={(e) => {
+  const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+  onStartEdit(rect);
+}}
+
+      title="Edit name/email"
+      aria-label="Edit user"
+    >
+      <span className="ul-pencilIcon" />
+    </button>
+  ) : null}
+</td>
 
       <td className="ul-td">{user.license || "—"}</td>
 
@@ -854,6 +1045,77 @@ function Row({
           Manage
         </button>
       </td>
-    </tr>
-  );
+       </tr>
+
+    {isEditing ? (
+      <div className="ul-editPopoverBackdrop" onClick={onCancelEdit}>
+        <div
+  className="ul-editPopover"
+ style={{
+  top: (() => {
+    const r = editingAnchorRect;
+    if (!r) return 0;
+
+    const popH = 260; // approx popover height
+    const below = r.bottom + 8;
+    const above = r.top - 8 - popH;
+
+    // if not enough room below, flip above
+    return below + popH > window.innerHeight ? Math.max(8, above) : below;
+  })(),
+  left: (() => {
+    const r = editingAnchorRect;
+    if (!r) return 0;
+
+    const popW = 360;
+    return Math.max(8, Math.min(r.left, window.innerWidth - popW - 8));
+  })(),
+}}
+
+  onClick={(e) => e.stopPropagation()}
+>
+
+          <div className="ul-editHeader">Edit user</div>
+
+          <div className="ul-editField">
+            <label>Name</label>
+            <input
+              value={editingName}
+              onChange={(e) => setEditingName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div className="ul-editField">
+            <label>Email</label>
+            <input
+              value={editingEmail}
+              onChange={(e) => setEditingEmail(e.target.value)}
+            />
+          </div>
+
+          {nameEditError ? <div className="ul-editError">{nameEditError}</div> : null}
+
+          <div className="ul-editActions">
+            <button
+              className="ul-btn ul-btn--light"
+              onClick={onCancelEdit}
+              disabled={savingUserId === user.id}
+            >
+              Cancel
+            </button>
+
+            <button
+              className="ul-btn ul-btn--primary"
+              onClick={onSaveEdit}
+              disabled={savingUserId === user.id}
+            >
+              {savingUserId === user.id ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+  </>
+);
 }

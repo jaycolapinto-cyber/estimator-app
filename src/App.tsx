@@ -599,8 +599,6 @@ if (orgResolved && !orgId) {
   );
 }
 
-export default App;
-
 
 
 
@@ -3009,8 +3007,9 @@ useEffect(() => {
             </div>
           )}
           <div className="sidebar-footer">
-  <div className="sidebar-footer-title">Estimator2.0</div>
-  <div className="sidebar-footer-subtitle">{userEmail}</div>
+  
+
+  
 </div>
 
 
@@ -3074,7 +3073,8 @@ useEffect(() => {
 
         <div className="sidebar-footer">
           <div className="sidebar-footer-title">Estimator2.0</div>
-          <div className="sidebar-footer-subtitle">Jason Colapinto</div>
+          <div className="sidebar-footer-version">v{process.env.REACT_APP_VERSION || "dev"}</div>
+
         </div>
         {/* ROLE LABEL (bottom of sidebar) */}
 <div
@@ -4514,3 +4514,4 @@ function AnalyticsDashboard(props: AnalyticsDashboardProps) {
 </>
 );
 }
+export default App;

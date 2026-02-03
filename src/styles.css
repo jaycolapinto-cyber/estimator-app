@@ -172,6 +172,13 @@ body {
 .sidebar-footer-title {
   font-weight: 600;
 }
+.sidebar-footer-version {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.6;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
 
 .sidebar-footer-subtitle {
   opacity: 0.85;

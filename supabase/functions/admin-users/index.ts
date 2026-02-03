@@ -225,9 +225,10 @@ Deno.serve(async (req) => {
 
       // Pull app_users (includes Inactive + Invited rows even if not in org_members)
       const appUsersRes = await admin
-        .from("app_users")
-        .select("id, user_id, name, email, role, license, status, created_at, account_id")
-        .eq("account_id", acctId);
+  .from("app_users")
+  .select("id, name, email, role, license, status, created_at, account_id")
+  .eq("account_id", acctId);
+
 
       const appUsers = (appUsersRes.error ? [] : appUsersRes.data || []) as any[];
       const appByEmail = new Map<string, any>();
@@ -263,15 +264,16 @@ Deno.serve(async (req) => {
         if (existingEmails.has(email)) continue;
 
         users.push({
-          id: String(au.user_id || au.id || `app:${email}`),
-          user_id: String(au.user_id || ""),
-          name: String(au.name || email.split("@")[0] || "").trim(),
-          email,
-          role: String(au.role || "user").toLowerCase() === "admin" ? "admin" : "user",
-          license: String(au.license || "Seat"),
-          status: String(au.status || "Active"),
-          created_at: au.created_at || null,
-        });
+  id: String(au.id || `app:${email}`),   // ✅ app_users.id
+  user_id: "",                            // ✅ no user_id column anymore
+  name: String(au.name || email.split("@")[0] || "").trim(),
+  email,
+  role: String(au.role || "user").toLowerCase() === "admin" ? "admin" : "user",
+  license: String(au.license || "Seat"),
+  status: String(au.status || "Active"),
+  created_at: au.created_at || null,
+});
+
       }
 
       // newest first (if created_at present)
@@ -284,7 +286,7 @@ Deno.serve(async (req) => {
       return json(200, { ok: true, users });
     }
 
-    // -------------------------
+       // -------------------------
     // ACTION: update (role)
     // -------------------------
     if (action === "update") {
@@ -298,28 +300,18 @@ Deno.serve(async (req) => {
       // Update org_members role
       await updateMemberRole({ admin, acctId, userId, nextRole });
 
-      // Mirror role into app_users (prefer by user_id, fallback to email)
-      const { data: au1, error: auErr } = await admin
-        .from("app_users")
-        .update({ role: nextRole })
-        .eq("account_id", acctId)
-        .eq("user_id", userId)
-        .select("user_id")
-        .maybeSingle();
+      // Mirror role into app_users (match by email, since app_users.id != auth user id)
+      const u = await admin.auth.admin.getUserById(userId);
+      const email = normalizeEmail(u?.data?.user?.email || "");
 
-      if (auErr) return json(500, { error: auErr.message });
+      if (email) {
+        const { error: auErr2 } = await admin
+          .from("app_users")
+          .update({ role: nextRole })
+          .eq("account_id", acctId)
+          .eq("email", email);
 
-      if (!au1) {
-        const u = await admin.auth.admin.getUserById(userId);
-        const email = normalizeEmail(u?.data?.user?.email || "");
-        if (email) {
-          const { error: auErr2 } = await admin
-            .from("app_users")
-            .update({ role: nextRole })
-            .eq("account_id", acctId)
-            .eq("email", email);
-          if (auErr2) return json(500, { error: auErr2.message });
-        }
+        if (auErr2) return json(500, { error: auErr2.message });
       }
 
       return json(200, { ok: true });
@@ -337,28 +329,18 @@ Deno.serve(async (req) => {
       // 1) Revoke access (remove from org_members)
       await removeMemberFromOrg({ admin, acctId, userId });
 
-      // 2) Set app_users.status = "Inactive" (prefer by user_id, fallback to email)
-      const { data, error } = await admin
-        .from("app_users")
-        .update({ status: "Inactive" })
-        .eq("account_id", acctId)
-        .eq("user_id", userId)
-        .select("user_id,status")
-        .maybeSingle();
+      // 2) Set app_users.status = "Inactive" (match by email)
+      const u = await admin.auth.admin.getUserById(userId);
+      const email = normalizeEmail(u?.data?.user?.email || "");
 
-      if (error) return json(500, { error: error.message });
+      if (email) {
+        const { error: e2 } = await admin
+          .from("app_users")
+          .update({ status: "Inactive" })
+          .eq("account_id", acctId)
+          .eq("email", email);
 
-      if (!data) {
-        const u = await admin.auth.admin.getUserById(userId);
-        const email = normalizeEmail(u?.data?.user?.email || "");
-        if (email) {
-          const { error: e2 } = await admin
-            .from("app_users")
-            .update({ status: "Inactive" })
-            .eq("account_id", acctId)
-            .eq("email", email);
-          if (e2) return json(500, { error: e2.message });
-        }
+        if (e2) return json(500, { error: e2.message });
       }
 
       return json(200, { ok: true });

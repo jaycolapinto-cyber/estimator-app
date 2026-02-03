@@ -595,4 +595,127 @@ body.ul-wide .page-content {
   .ul-searchWrap {
     width: min(420px, 65vw);
   }
+}.ul-th--icon {
+  width: 40px;
+}
+
+.ul-td--icon {
+  text-align: center;
+}
+
+.ul-pencilBtn {
+  border: none;
+  background: transparent;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.ul-pencilBtn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.ul-pencilIcon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background-color: #6b7280; /* Cloudflare-style neutral gray */
+  mask-image: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'>\
+<path d='M12 20h9'/>\
+<path d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/>\
+</svg>");
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+/* =========================
+   Inline Edit Popover
+   ========================= */
+
+.ul-editPopoverBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: transparent;
+}
+
+.ul-editPopover {
+  position: fixed;              /* will be anchored via inline style in Step 4 */
+  width: 360px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.14),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 14px 14px 12px;
+}
+
+.ul-editHeader {
+  font-size: 14px;
+  font-weight: 650;
+  color: #0f172a;
+  margin-bottom: 10px;
+}
+
+.ul-editField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.ul-editField label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+.ul-editField input {
+  width: 100%;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  padding: 0 12px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #fff;
+}
+
+.ul-editField input:focus {
+  outline: none;
+  border-color: rgba(59, 130, 246, 0.85);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
+}
+
+.ul-editError {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #991b1b;
+  background: rgba(239, 68, 68, 0.10);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.ul-editActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* small arrow (optional, looks like Cloudflare popover) */
+.ul-editPopover::before {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-left: 1px solid rgba(15, 23, 42, 0.12);
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+  transform: rotate(45deg);
+  left: 18px;
+  top: -6px;
 }
