@@ -1,5 +1,7 @@
 node_modules# secrets
 .env
+.yarn/
+.yarnrc.yml
 .env.local
 .env.*.local
 
