@@ -486,6 +486,7 @@ useEffect(() => {
       if (!q1.error && q1.data?.org_id) {
         if (cancelled) return;
         setOrgId(q1.data.org_id);
+        console.log("APP_ORG_ID", q1.data.org_id);
         setIsAdmin(String(q1.data.role || "").toLowerCase() === "admin");
         return;
       }
@@ -1100,9 +1101,13 @@ useEffect(() => {
   const [userSettings, setUserSettings] = useState(() => {
     try {
       const saved = localStorage.getItem("du_user_settings");
-      return saved
-        ? JSON.parse(saved)
-        : {
+     return saved
+  ? {
+      proposalLayoutOrder: [],
+      ...JSON.parse(saved),
+    }
+  : {
+
             userName: "Jason Colapinto",
             userPhone: "",
             userEmail: "",
@@ -2971,30 +2976,6 @@ useEffect(() => {
 
              <div className="sidebar-file-sep" />
 
-<button
-  type="button"
-  className="sidebar-file-item"
-  onClick={() => {
-    setFileOpen(false);
-    setActiveNav("proposals");
-    setTimeout(() => {
-      const originalTitle = document.title;
-      const safeLast = (clientLastName || "Client")
-        .trim()
-        .replace(/[^a-z0-9]+/gi, " ")
-        .trim();
-      document.title = `${safeLast} Proposal`;
-      window.print();
-      setTimeout(() => {
-        document.title = originalTitle;
-      }, 800);
-    }, 200);
-  }}
->
-  Print
-</button>
-
-<div className="sidebar-file-sep" />
 
 <button
   type="button"
@@ -3012,7 +2993,7 @@ useEffect(() => {
           )}
           <div className="sidebar-footer">
   
-
+<div className="sidebar-file-sep" />
   
 </div>
 
@@ -4058,8 +4039,10 @@ useEffect(() => {
 
           {activeNav === "proposals" && (
             <ProposalPage
+            orgId={orgId}
               constructionType={constructionType}
               userSettings={userSettings}
+            
               estimateName={estimateName}
               finalEstimate={finalEstimate}
               clientTitle={clientTitle}

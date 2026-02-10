@@ -14,6 +14,7 @@
 
 .no-print {
 }
+
 .only-print {
   display: none;
 }
@@ -29,25 +30,25 @@
   box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08);
 
   /* ✅ restore clean, modern font */
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
 }
 
 /* =========================
    HEADER (Prepared | Logo | Meta)
    ========================= */
-   .proposal-head {
-    display: grid;
-    grid-template-columns: 1fr 360px 1fr;
-    column-gap: 18px;
-    align-items: start;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(15, 23, 42, 0.12);
-  
-    position: relative;      /* ⬅ ADD THIS */
-    min-height: 120px;       /* ⬅ ADD THIS */
-  }
-  
+
+.proposal-head {
+  display: grid;
+grid-template-columns: 1fr 460px 1fr;
+  column-gap: 18px;
+  align-items: start;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  position: relative;
+  min-height: 140px;
+}
+
 .proposal-headSlot {
   min-width: 0;
 }
@@ -55,11 +56,14 @@
 .proposal-headSlot-left {
   text-align: left;
 }
+
 .proposal-headSlot-center {
   text-align: center;
 }
+
 .proposal-headSlot-right {
-  text-align: right;
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* blocks inside slots */
@@ -76,6 +80,11 @@
   margin-bottom: 10px;
 }
 
+.proposal-clientInfo {
+  text-align: right;
+  min-width: 260px;
+}
+
 .proposal-headLine {
   font-size: 13px;
   line-height: 1.55;
@@ -84,45 +93,51 @@
 
 /* Meta */
 .proposal-metaRow {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  column-gap: 10px;
+  align-items: baseline;
   font-size: 13px;
   line-height: 1.55;
   margin: 3px 0;
 }
 
 .proposal-metaRow span {
-  opacity: 0.65;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.proposal-metaRow strong {
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .proposal-metaTotal strong {
   font-size: 16px;
 }
 
-/* Logo block (in-flow, centered) */
+/* Logo */
 .proposal-logoBlock {
-  position: absolute;      /* ⬅ KEY */
-  top: 0;
+  position: absolute;
+  top: -10px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   justify-content: center;
   align-items: center;
-  pointer-events: none;    /* print + UX safe */
+  pointer-events: none;
 }
-.proposal-logoBlock {
-  top: -10px;
-}
-
 .proposal-logoImg {
-  max-width: 420px;    /* BIG */
-  max-height: 160px;   /* BIG */
-  width: auto;
+  width: 100%;
+  max-width: 360px;
   height: auto;
+  max-height: 160px;
   object-fit: contain;
-}
+    transform: scale(1.25);
 
+}
 
 .proposal-logoFallback {
   width: 220px;
@@ -138,6 +153,7 @@
 /* =========================
    CLIENT BAR
    ========================= */
+
 .proposal-clientBar {
   margin-top: 16px;
   border: 1px solid rgba(15, 23, 42, 0.12);
@@ -153,36 +169,44 @@
   margin-bottom: 10px;
 }
 
-.proposal-clientBarRow {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-}
-.proposal-clientLabel {
-  font-size: 11px;
-}
-
-.proposal-clientValue {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-
 /* Titles / text */
 .proposal-title {
   margin: 18px 0 10px;
   font-size: 18px;
   letter-spacing: -0.02em;
 }
+
+ 
+
+
+
+
+
 .proposal-secTitle {
   margin: 18px 0 8px;
-  font-size: 14px; /* ⬅ was 16px */
-  letter-spacing: 0.14em; /* slightly increased for elegance */
+  font-size: 14px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   opacity: 0.85;
 }
+/* Keep section titles with their content */
+.proposal-secTitle {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+/* Tables should break cleanly across pages */
+.proposal-table {
+  break-inside: auto;
+  page-break-inside: auto;
+}
+
+.proposal-table tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 .proposal-text {
-  font-size: 11px;              /* ⬅ was 14px */
+  font-size: 11px;
   line-height: 1.6;
 }
 
@@ -191,12 +215,6 @@
   opacity: 0.7;
 }
 
-.proposal-bullets li {
-  font-size: 11px;
-  line-height: 1.6;
-}
-
-
 /* Table */
 .proposal-table {
   width: 100%;
@@ -204,15 +222,10 @@
   margin-top: 10px;
 }
 
-.proposal-table th {
-  font-size: 11px;              /* headers */
-  letter-spacing: 0.12em;
-}
-
+.proposal-table th,
 .proposal-table td {
-  font-size: 11px;              /* row text */
+  font-size: 11px;
 }
-
 
 /* Total */
 .proposal-totalRow {
@@ -236,38 +249,6 @@
   font-weight: 800;
 }
 
-/* Timeline */
-.proposal-timeline {
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.proposal-timeline-field {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.proposal-timeline-select {
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(15, 23, 42, 0.18);
-  background: #fff;
-}
-
-/* Bullets */
-.proposal-bullets {
-  margin: 8px 0 0;
-  padding-left: 18px;
-}
-
-.proposal-bullets li {
-  margin: 6px 0;
-  line-height: 1.55;
-}
-
 /* Notes */
 .proposal-notes-input {
   width: 100%;
@@ -279,74 +260,226 @@
   font-family: inherit;
 }
 
+/* Page numbers (screen hidden) */
+.du-page-num {
+  display: none;
+}
+/* =========================
+   TIMELINE (screen UI)
+   ========================= */
+
+.proposal-timeline {
+  margin-top: 8px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.proposal-timeline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proposal-timeline-field .proposal-text {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.proposal-timeline-select {
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 4px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+}
+/* Header should stay together on page 1 */
+.proposal-head {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 /* =========================
    PRINT
    ========================= */
+
 @media print {
   .no-print {
     display: none !important;
   }
+  /* ✅ PRINT ONLY THE PROPOSAL DOCUMENT (hide the entire app chrome) */
+  body * {
+    visibility: hidden !important;
+  }
+
+  #proposal-doc,
+  #proposal-doc * {
+    visibility: visible !important;
+  }
+/* Subtle page-1 polish */
+.proposal-title {
+  margin-top: 24px;
+  font-size: 19px;
+}
+
+
+.proposal-head {
+  margin-bottom: 10px;
+}
+
+ #proposal-doc {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+
+  padding-bottom: 140px !important; /* reserve space for footer */
+  box-sizing: border-box !important;
+}
+
+
   .only-print {
     display: block !important;
   }
+
   html,
   body {
     background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
-  
-  .proposal-page {
-    padding: 34px 40px !important;
 
-    /* PRINT: make logo larger */
-.proposal-logoImg {
-  max-height: 110px !important;
-  max-width: 320px !important;
+
+.du-footer-left,
+.du-footer-center,
+.du-footer-right {
+  white-space: pre-line; /* supports your multi-line settings text */
 }
 
-  }
+.du-footer-left {
+  flex: 1;
+  text-align: left;
+}
 
-  /* Let @page control margins; keep padding on doc for consistent print */
+.du-footer-center {
+  flex: 1;
+  text-align: center;
+}
+
+
+.du-footer-right {
+  width: 110px;
+  text-align: right;
+}
+/* PRINT PAGE WRAPPER: creates a real page box so footer can sit at bottom */
+.du-print-page {
+  min-height: 10.5in;              /* usable page height (letter minus margins) */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Main content should take available space, footer stays at bottom */
+.du-print-page > header,
+.du-print-page > h1,
+.du-print-page > section,
+.du-print-page > .proposal-totalRow,
+.du-print-page > .proposal-secTitle,
+.du-print-page > .proposal-table,
+.du-print-page > .proposal-scope,
+.du-print-page > .proposal-notes-print,
+.du-print-page > .no-print,
+.du-print-page > .only-print {
+  flex: 0 0 auto;
+}
+
   .proposal-doc {
     max-width: none !important;
     margin: 0 !important;
     box-shadow: none !important;
     border: 0 !important;
-    padding: 0 !important;
+padding: 34px 40px 360px 40px !important;
+
+  }
+.proposal-logoImg {
+  max-height: 160px !important;
+  max-width: 460px !important;
+  width: 100% !important;
+  height: auto !important;
+  object-fit: contain !important;
+}
+
+
+}
+/* Bullet lists should match proposal body font */
+.proposal-bullets {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.proposal-bullets li {
+  margin: 0 0 4px 0;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+}
+/* Timeline edit controls should inherit the same font */
+.proposal-timeline,
+.proposal-timeline select,
+.proposal-timeline option {
+  font-family: inherit;
+  font-size: 11px;
+}
+@page {
+  size: letter;
+  margin: 0.6in 0.55in 0.85in 0.55in;
+}
+/* =========================
+   PRINT WATERMARK (SVG file)
+   ========================= */
+
+/* never show on screen */
+.du-print-watermark {
+  display: none;
+}
+
+@media print {
+  @page {
+  margin: 0.6in 0.55in 1.35in 0.55in; /* extra bottom space for footer */
+}
+
+  .du-print-watermark {
+    display: block !important;
+
+    position: fixed !important;
+    left: 50% !important;
+
+    /* centered toward bottom */
+    bottom: 1.05in !important;
+
+    transform: translateX(-50%) !important; /* 0 degrees */
+
+    width: 7.0in !important;
+    height: auto !important;
+
+    opacity: 0.06 !important; /* adjust 0.06–0.12 */
+    pointer-events: none !important;
+
+    z-index: 2 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  /* avoid awkward splits */
-  header,
-  .proposal-clientBar,
-  table,
-  tr,
-  td,
-  th,
-  section {
-    break-inside: avoid;
-    page-break-inside: avoid;
+  /* content stays above watermark = professional */
+  #proposal-doc > * {
+    position: relative;
+    z-index: 3;
   }
 }
-/* ============================
-   TOP SCROLLBAR (SPREADSHEET)
-   ============================ */
-
-   .paTopScroll {
-    overflow-x: auto;
-    overflow-y: hidden;
-    height: 14px;
-    margin-bottom: 6px;
-  }
-  
-  .paTopScrollInner {
-    height: 1px;
-  }
-  
-  /* Hide bottom scrollbar visually (still works) */
-  .paSimpleTableWrap {
-    scrollbar-width: thin;
-  }
-  
-  .paSimpleTableWrap::-webkit-scrollbar {
-    height: 0;
-  }
-  

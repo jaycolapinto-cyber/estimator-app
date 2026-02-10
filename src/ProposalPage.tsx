@@ -7,6 +7,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./ProposalPage.css";
 import type { UserSettings, ProposalSection } from "./SettingsPage";
 import { fetchSowTemplatesRows } from "./sowTemplates";
+import { fetchProposalSections } from "./proposalSections";
+
 type AddItemRow = {
   rowId: string;
   qty?: number | null;
@@ -52,6 +54,7 @@ type ProposalPageProps = {
   userSettings: UserSettings | null;
   estimateName: string;
   finalEstimate: number;
+  orgId?: string | null;
 
   constructionType: string;
 
@@ -99,8 +102,8 @@ type ProposalPageProps = {
 
   defaultShowLineItemPrices?: boolean;
   onEmailProposal?: () => void;
-  readOnly?: boolean; // ✅ customer view
-  // ✅ Snapshot fields (Review page must match what was sent)
+  readOnly?: boolean;
+
   proposalNotesSnapshot?: string | null;
   sowModeSnapshot?: "auto" | "custom" | null;
   sowCustomTextSnapshot?: string | null;
@@ -108,12 +111,39 @@ type ProposalPageProps = {
   durationDaysSnapshot?: number | null;
   showLineItemPricesSnapshot?: boolean | null;
 };
+function formatStartWeeksRange(weeks: number) {
+  if (weeks <= 1) return "1 week";
+  if (weeks === 2) return "2 weeks";
+  if (weeks === 3) return "3 weeks";
+  if (weeks === 4) return "4 weeks";
+  if (weeks <= 6) return "5–6 weeks";
+  if (weeks <= 8) return "7–8 weeks";
+  return `${weeks} weeks`;
+}
+
+function formatDurationRange(days: number) {
+  if (days <= 2) return "1–2 days";
+  if (days <= 5) return "3–5 days";
+  if (days <= 6) return "4–6 days";
+  if (days <= 10) return "7–10 days";
+  return "10+ days";
+}
+
+
 
 function money0(n: number) {
   return Math.round(n || 0).toLocaleString(undefined, {
     maximumFractionDigits: 0,
   });
 }
+
+// Normalize legacy / system layout ids so ProposalPage matches SettingsPage
+const normalizeLayoutId = (idRaw: any): string => {
+  const id = String(idRaw || "").trim();
+  if (id === "_details_") return "__details__";
+  if (id === "_timeline_") return "__timeline__";
+  return id;
+};
 
 function fmtQty(
   qty?: number | null,
@@ -131,26 +161,21 @@ function fmtQty(
   const u0 = (unit || "").trim().toLowerCase();
   if (!u0) return qStr;
 
-  // ✅ Proposal display override (keep pricing logic elsewhere)
   if (u0 === "multiplier") {
     const n = (name || "").toLowerCase();
     const c = (category || "").toLowerCase();
 
-    // if the item name includes "sf/lf/ea", trust it
     if (n.includes(" sf")) return `${qStr} SF`;
     if (n.includes(" lf")) return `${qStr} LF`;
     if (n.includes(" ea")) return `${qStr} EA`;
 
-    // category-based fallback
     if (c.includes("deck") || c.includes("skirting") || c.includes("lattice"))
       return `${qStr} SF`;
     if (c.includes("rail")) return `${qStr} LF`;
 
-    // otherwise show just the number (better than saying "multiplier")
     return qStr;
   }
 
-  // normal units
   return `${qStr} ${u0}`;
 }
 
@@ -161,33 +186,14 @@ function bulletLines(text?: string | null) {
     .filter(Boolean);
 }
 
-// Grabs CSS from the current page (best effort; ignores cross-origin rules)
-function collectAllCssText(): string {
-  const out: string[] = [];
 
-  document.querySelectorAll("style").forEach((s) => {
-    out.push(s.textContent || "");
-  });
 
-  for (const sheet of Array.from(document.styleSheets)) {
-    try {
-      const rules = (sheet as CSSStyleSheet).cssRules;
-      if (!rules) continue;
-      out.push(
-        Array.from(rules)
-          .map((r) => r.cssText)
-          .join("\n")
-      );
-    } catch {
-      // cross-origin stylesheet - ignore
-    }
-  }
 
-  return out.join("\n");
-}
+
 
 export default function ProposalPage(props: ProposalPageProps) {
   const {
+    orgId,
     userSettings,
     estimateName,
     finalEstimate,
@@ -237,7 +243,6 @@ export default function ProposalPage(props: ProposalPageProps) {
     defaultShowLineItemPrices,
     readOnly,
 
-    // ✅ snapshot props (Review page)
     proposalNotesSnapshot,
     sowModeSnapshot,
     sowCustomTextSnapshot,
@@ -247,6 +252,56 @@ export default function ProposalPage(props: ProposalPageProps) {
   } = props;
 
   const docRef = useRef<HTMLElement | null>(null);
+  // PRINT: set total pages in footer ("Page 1 of Y")
+useEffect(() => {
+  const onBeforePrint = () => {
+    const el = document.getElementById("proposal-doc");
+    if (!el) return;
+
+    // page height in px for Letter at 96dpi minus browser margins is variable,
+    // so we measure based on viewport print layout approximation.
+    // This is a lightweight estimate that's stable enough for proposals.
+    const pagePx = 1056; // ~11in * 96dpi
+    const total = Math.max(1, Math.ceil(el.scrollHeight / pagePx));
+
+    const curEl = document.getElementById("du-page-cur");
+    const totalEl = document.getElementById("du-page-total");
+    if (curEl) curEl.textContent = "1";
+    if (totalEl) totalEl.textContent = String(total);
+  };
+
+  window.addEventListener("beforeprint", onBeforePrint);
+  return () => window.removeEventListener("beforeprint", onBeforePrint);
+}, []);
+
+  const safeOrgId = orgId ?? null;
+
+  const [dbProposalSections, setDbProposalSections] = useState<
+    ProposalSection[]
+  >([]);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      if (!safeOrgId) {
+        setDbProposalSections([]);
+        return;
+      }
+      try {
+        const rows = await fetchProposalSections(safeOrgId);
+        if (!alive) return;
+        setDbProposalSections(Array.isArray(rows) ? rows : []);
+      } catch {
+        if (!alive) return;
+        setDbProposalSections([]);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [safeOrgId]);
 
   const [showLineItemPrices, setShowLineItemPrices] = useState<boolean>(() => {
     if (readOnly && typeof showLineItemPricesSnapshot === "boolean") {
@@ -255,13 +310,12 @@ export default function ProposalPage(props: ProposalPageProps) {
     return !!defaultShowLineItemPrices;
   });
 
-  // Timeline (saved per estimate)
+  // Timeline
   const [startWeeks, setStartWeeks] = useState<number>(() => {
     try {
       if (readOnly && Number.isFinite(Number(startWeeksSnapshot))) {
         return Number(startWeeksSnapshot);
       }
-
       const v = localStorage.getItem(
         `du_timeline_start_weeks::${estimateName}`
       );
@@ -277,7 +331,6 @@ export default function ProposalPage(props: ProposalPageProps) {
       if (readOnly && Number.isFinite(Number(durationDaysSnapshot))) {
         return Number(durationDaysSnapshot);
       }
-
       const v = localStorage.getItem(
         `du_timeline_duration_days::${estimateName}`
       );
@@ -308,7 +361,7 @@ export default function ProposalPage(props: ProposalPageProps) {
     } catch {}
   }, [durationDays, estimateName, readOnly]);
 
-  // Notes (saved per estimate)
+  // Notes
   const NOTES_KEY =
     estimateName && estimateName.trim()
       ? `du_proposal_notes::${estimateName}`
@@ -322,7 +375,7 @@ export default function ProposalPage(props: ProposalPageProps) {
   });
 
   useEffect(() => {
-    if (readOnly) return; // ✅ review page uses snapshot only
+    if (readOnly) return;
     if (!NOTES_KEY) {
       setProposalNotes("");
       return;
@@ -336,29 +389,28 @@ export default function ProposalPage(props: ProposalPageProps) {
   }, [NOTES_KEY, readOnly]);
 
   useEffect(() => {
-    if (readOnly) return; // ✅ don't write localStorage on review page
+    if (readOnly) return;
     if (!NOTES_KEY) return;
     try {
       localStorage.setItem(NOTES_KEY, proposalNotes || "");
     } catch {}
   }, [NOTES_KEY, proposalNotes, readOnly]);
 
-  // Apply uplift only when not fixed price
   const lineTotal = (baseCost: number, isFixedPrice?: boolean) =>
     (baseCost || 0) * (isFixedPrice ? 1 : upliftMultiplier || 1);
 
-  // Scope of work
+  // SOW
   const sowKey = useMemo(() => toSowKey(constructionType), [constructionType]);
-  // Shared SOW templates (Supabase) with local cache fallback
-  const [sowTemplatesMap, setSowTemplatesMap] = useState<
-    Record<string, string>
-  >(() => {
-    try {
-      return JSON.parse(localStorage.getItem("du_sow_templates_v1") || "{}");
-    } catch {
-      return {};
+
+  const [sowTemplatesMap, setSowTemplatesMap] = useState<Record<string, string>>(
+    () => {
+      try {
+        return JSON.parse(localStorage.getItem("du_sow_templates_v1") || "{}");
+      } catch {
+        return {};
+      }
     }
-  });
+  );
 
   useEffect(() => {
     (async () => {
@@ -375,26 +427,18 @@ export default function ProposalPage(props: ProposalPageProps) {
     })();
   }, []);
 
-  // ------------------------------
-  // SOW MODE (AUTO vs CUSTOM)
-  // Saved per estimate in localStorage
-  // ------------------------------
   const SOW_MODE_KEY =
     estimateName && estimateName.trim() ? `du_sow_mode::${estimateName}` : "";
-
   const SOW_CUSTOM_KEY =
-    estimateName && estimateName.trim() ? `du_sow_custom::${estimateName}` : "";
+    estimateName && estimateName.trim()
+      ? `du_sow_custom::${estimateName}`
+      : "";
 
-  // ✅ TEMP admin flag (replace later with real admin logic)
-  // For now: anyone can edit if you set true
-  const isAdmin = !readOnly; // ✅ only admin when NOT in customer view
+  const isAdmin = !readOnly;
+
   const [sowMode, setSowMode] = useState<"auto" | "custom">(() => {
-    if (
-      readOnly &&
-      (sowModeSnapshot === "auto" || sowModeSnapshot === "custom")
-    ) {
+    if (readOnly && (sowModeSnapshot === "auto" || sowModeSnapshot === "custom"))
       return sowModeSnapshot;
-    }
     return "auto";
   });
 
@@ -405,7 +449,6 @@ export default function ProposalPage(props: ProposalPageProps) {
     return "";
   });
 
-  // load saved SOW mode + custom text
   useEffect(() => {
     if (readOnly) return;
     if (!SOW_MODE_KEY) return;
@@ -426,7 +469,6 @@ export default function ProposalPage(props: ProposalPageProps) {
     } catch {}
   }, [SOW_CUSTOM_KEY, readOnly]);
 
-  // persist
   useEffect(() => {
     if (readOnly) return;
     if (!SOW_MODE_KEY) return;
@@ -465,13 +507,7 @@ export default function ProposalPage(props: ProposalPageProps) {
         key: "decking",
         label: "Decking",
         typeText: deckingType || "",
-        qtyText: fmtQty(
-          deckingQty,
-          deckingUnit || "sf",
-          deckingType,
-          "Decking"
-        ),
-
+        qtyText: fmtQty(deckingQty, deckingUnit || "sf", deckingType, "Decking"),
         description:
           (deckingDescription || "").trim() ||
           "Composite decking installed to match selected finish and layout.",
@@ -544,7 +580,6 @@ export default function ProposalPage(props: ProposalPageProps) {
           const customName = (r as any)?.customName?.toString().trim() || "";
           const customDesc =
             (r as any)?.customDescription?.toString().trim() || "";
-
           const isMisc = (r.category || "").toLowerCase().trim() === "misc";
 
           const typeText =
@@ -567,7 +602,6 @@ export default function ProposalPage(props: ProposalPageProps) {
               customName || r.picked?.name || "",
               r.category || ""
             ),
-
             description,
             baseCost: Number(r.lineBase || 0),
             isFixedPrice: (r as any).isFixedPrice ?? isMisc,
@@ -610,148 +644,55 @@ export default function ProposalPage(props: ProposalPageProps) {
   ]);
 
   const enabledSections = useMemo(() => {
-    const raw = (userSettings?.proposalSections || []) as ProposalSection[];
+    const raw = dbProposalSections as ProposalSection[];
     return Array.isArray(raw) ? raw.filter((s) => s?.enabled) : [];
-  }, [userSettings?.proposalSections]);
+  }, [dbProposalSections]);
 
-  // ✅ PRINT (hidden iframe)
-  const printProposal = () => {
-    const node = docRef.current;
-    if (!node) return;
+  // ✅ Order from SettingsPage
+  const layoutOrder = useMemo<string[]>(() => {
+    const arr = (userSettings as any)?.proposalLayoutOrder;
+    return Array.isArray(arr)
+      ? arr
+          .map(normalizeLayoutId)
+          .map((x) => String(x).trim())
+          .filter(Boolean)
+      : [];
+  }, [userSettings]);
 
-    const cssText = collectAllCssText();
+  // ✅ Final order (matches Settings order + appends missing enabled custom ids)
+  const effectiveOrder = useMemo<string[]>(() => {
+    const enabledCustomIds = enabledSections.map((s) => String(s.id).trim());
 
-    const printStyle = `
-    <style>
-      @page { size: letter; margin: 0.5in; }
-      html, body { background: #fff !important; }
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  
-      /* Keep proposal full width and use @page margins */
-      .proposal-page { padding: 0 !important; background: #fff !important; }
-      .proposal-doc {
-        max-width: none !important;
-        width: 100% !important;
-        margin: 0 !important;
-        box-shadow: none !important;
-        border: 0 !important;
-        padding: 34px 40px !important;
-      }
-  
-      .proposal-actions, .no-print { display: none !important; }
-      .only-print { display: block !important; }
-  
-      /* ✅ PRINT: make logo large */
-      .proposal-logoImg {
-        max-height: 160px !important;
-        max-width: 420px !important;
-        width: auto !important;
-        height: auto !important;
-      }
-    </style>
-  `;
+    const raw = layoutOrder.map((x) => String(x).trim()).filter(Boolean);
 
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    iframe.setAttribute("aria-hidden", "true");
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    const win = iframe.contentWindow;
-
-    if (!doc || !win) {
-      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-      return;
-    }
-
-    doc.open();
-    doc.write(`<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>${cssText}</style>
-    ${printStyle}
-    <title>Proposal</title>
-  </head>
-  <body>
-    ${node.outerHTML}
-  </body>
-</html>`);
-    doc.close();
-
-    const cleanup = () => {
-      try {
-        win.onafterprint = null;
-      } catch {}
-      if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
-    };
-
-    let cleaned = false;
-    const safeCleanup = () => {
-      if (cleaned) return;
-      cleaned = true;
-      cleanup();
-    };
-
-    // ✅ cleanup AFTER print closes (best), plus a longer fallback
-    try {
-      win.onafterprint = () => {
-        setTimeout(safeCleanup, 250);
-      };
-    } catch {}
-
-    // Fallback cleanup (if afterprint doesn’t fire)
-    setTimeout(safeCleanup, 10000);
-
-    const doPrint = () => {
-      try {
-        win.focus();
-        // tiny delay helps Chrome register focus before printing
-        setTimeout(() => {
-          try {
-            win.print();
-          } catch (err: any) {
-            const msg = String(err?.message || err || "");
-            // ✅ ignore the known Chrome dev/iframe timing error
-            if (msg.includes("callback is no longer runnable")) {
-              safeCleanup();
-              return;
-            }
-            throw err;
-          }
-        }, 50);
-      } catch {
-        safeCleanup();
-      }
-    };
-
-    // Wait for images (logo)
-    const imgs = Array.from(doc.images || []);
-    if (imgs.length === 0) {
-      setTimeout(doPrint, 200);
-      return;
-    }
-
-    let loaded = 0;
-    const done = () => {
-      loaded++;
-      if (loaded >= imgs.length) setTimeout(doPrint, 200);
-    };
-
-    imgs.forEach((img) => {
-      if ((img as any).complete) return done();
-      img.addEventListener("load", done, { once: true });
-      img.addEventListener("error", done, { once: true });
+    // Keep only ids that are valid (system ids OR enabled custom ids)
+    const valid = raw.filter((id) => {
+      if (id === "__details__" || id === "__timeline__") return true;
+      return enabledCustomIds.includes(id);
     });
 
-    setTimeout(doPrint, 1500);
-  };
+    // Append any enabled custom ids missing from saved order
+    const missingCustomIds = enabledCustomIds.filter((id) => !valid.includes(id));
+
+    // Ensure system ids exist, but DON'T move them to top/bottom — keep user’s order
+    const withMissing = [...valid, ...missingCustomIds];
+    if (!withMissing.includes("__details__")) withMissing.push("__details__");
+    if (!withMissing.includes("__timeline__")) withMissing.push("__timeline__");
+
+    return withMissing;
+  }, [layoutOrder, enabledSections]);
+
+  useEffect(() => {
+    console.log("✅ ProposalPage order check", {
+      proposalLayoutOrder: (userSettings as any)?.proposalLayoutOrder,
+      layoutOrder,
+      enabledIds: enabledSections.map((s) => s.id),
+      enabledTitles: enabledSections.map((s) => s.title),
+      effectiveOrder,
+    });
+  }, [userSettings, layoutOrder, enabledSections, effectiveOrder]);
+
+ 
 
   // Header blocks
   const PreparedBlock = (
@@ -783,25 +724,146 @@ export default function ProposalPage(props: ProposalPageProps) {
       ) : (
         <div className="proposal-logoFallback">LOGO</div>
       )}
+
+      {userSettings?.logoSlogan?.trim() ? (
+        <div className="proposal-logoSlogan">
+          {userSettings.logoSlogan.trim()}
+        </div>
+      ) : null}
     </div>
   );
 
-  const MetaBlock = (
-    <div className="proposal-headBlock proposal-meta">
-      <div className="proposal-metaRow">
-        <span>Date</span>
-        <strong>{new Date().toLocaleDateString()}</strong>
+  const ClientBlock = (
+    <div className="proposal-headBlock proposal-clientInfo">
+      <div className="proposal-headTitle">Client Info:</div>
+
+      <div className="proposal-headLine">
+        <strong>Name:</strong>{" "}
+        {(clientTitle ? clientTitle + " " : "") + (clientLastName || "—")}
       </div>
-      <div className="proposal-metaRow">
-        <span>Estimate</span>
-        <strong>{estimateName || "—"}</strong>
+
+      <div className="proposal-headLine">
+        <strong>Location:</strong> {clientTown || "—"}
       </div>
-      <div className="proposal-metaRow proposal-metaTotal">
-        <span>Total Investment</span>
-        <strong>${money0(finalEstimate || 0)}</strong>
+
+      <div className="proposal-headLine">
+        <strong>Email:</strong> {clientEmail || "—"}
       </div>
     </div>
   );
+
+  const renderDetailsBlock = () => {
+    return (
+      <>
+        <h2 className="proposal-secTitle">Details</h2>
+
+        <table className="proposal-table">
+          <thead>
+            <tr>
+              <th style={{ width: "34%" }}>Item</th>
+              <th style={{ width: "14%" }}>QTY</th>
+              <th>Description</th>
+              {showLineItemPrices && (
+                <th style={{ width: "18%", textAlign: "right" }}>Cost</th>
+              )}
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.map((r) => {
+              const isMiscRow = (r.label || "").toLowerCase().trim() === "misc";
+              const qtyDisplay =
+                isMiscRow && !showLineItemPrices
+                  ? `$${money0(r.baseCost)}`
+                  : r.qtyText || "—";
+
+              return (
+                <tr key={r.key}>
+                  <td>
+                    <div style={{ fontWeight: 700 }}>
+                      {r.typeText || r.label}
+                    </div>
+                    {r.label && r.label.toLowerCase() !== "misc" ? (
+                      <div className="proposal-muted" style={{ marginTop: 2 }}>
+                        {r.label}
+                      </div>
+                    ) : null}
+                  </td>
+
+                  <td className="proposal-muted">{qtyDisplay}</td>
+                  <td className="proposal-muted">{r.description}</td>
+
+                  {showLineItemPrices && (
+                    <td style={{ textAlign: "right" }}>
+                      ${money0(lineTotal(r.baseCost, (r as any).isFixedPrice))}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        <div className="proposal-totalRow">
+          <div className="proposal-totalLabel">Total Investment</div>
+          <div className="proposal-totalNumber">
+            ${money0(finalEstimate || 0)}
+          </div>
+        </div>
+      </>
+    );
+  };
+
+ const renderTimelineBlock = () => {
+  return (
+    <>
+      <h2 className="proposal-secTitle">Timeline</h2>
+
+      {!readOnly && (
+        <div className="proposal-timeline no-print">
+          <div className="proposal-timeline-field">
+            <span className="proposal-text">Est. Start Date:</span>
+            <select
+              className="proposal-timeline-select"
+              value={startWeeks}
+              onChange={(e) => setStartWeeks(Number(e.target.value))}
+            >
+              <option value={1}>1 week</option>
+              <option value={2}>2 weeks</option>
+              <option value={3}>3 weeks</option>
+              <option value={4}>4 weeks</option>
+              <option value={6}>5–6 weeks</option>
+              <option value={8}>7–8 weeks</option>
+            </select>
+          </div>
+
+          <div className="proposal-timeline-field">
+            <span className="proposal-text">Est. Project Duration:</span>
+            <select
+              className="proposal-timeline-select"
+              value={durationDays}
+              onChange={(e) => setDurationDays(Number(e.target.value))}
+            >
+              <option value={2}>1–2 days</option>
+              <option value={5}>3–5 days</option>
+              <option value={6}>4–6 days</option>
+              <option value={10}>7–10 days</option>
+              <option value={14}>10+ days</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+    <p className={readOnly ? "proposal-text" : "proposal-text only-print"} style={{ marginTop: 6 }}>
+  Estimated start timeframe: {formatStartWeeksRange(startWeeks)}. Estimated project duration: {formatDurationRange(durationDays)}.
+</p>
+
+
+    </>
+  );
+};
+
+    
 
   return (
     <section className="proposal-page">
@@ -810,7 +872,8 @@ export default function ProposalPage(props: ProposalPageProps) {
           <button
             type="button"
             className="btn btn-primary"
-            onClick={printProposal}
+           onClick={() => window.print()}
+
           >
             Print / Save PDF
           </button>
@@ -851,9 +914,23 @@ export default function ProposalPage(props: ProposalPageProps) {
           Email Proposal
         </button>
       )}
+<article ref={docRef as any} className="proposal-doc" id="proposal-doc">
+  <div className="du-print-page">
 
-      <article ref={docRef as any} className="proposal-doc" id="proposal-doc">
-        {/* ✅ EXACT HEADER LIKE YOUR EXAMPLE */}
+  
+
+  {userSettings?.logoDataUrl ? (
+    <img
+      className="du-print-watermark"
+      src={userSettings.logoDataUrl}
+      alt=""
+      aria-hidden="true"
+    />
+  ) : null}
+
+  
+
+
         <header className="proposal-head">
           <div className="proposal-headSlot proposal-headSlot-left">
             {PreparedBlock}
@@ -862,33 +939,9 @@ export default function ProposalPage(props: ProposalPageProps) {
             {LogoBlock}
           </div>
           <div className="proposal-headSlot proposal-headSlot-right">
-            {MetaBlock}
+            {ClientBlock}
           </div>
         </header>
-
-        <section className="proposal-clientBar">
-          <div className="proposal-clientBarTitle">Client Information</div>
-
-          <div className="proposal-clientBarRow">
-            <div className="proposal-clientCell">
-              <div className="proposal-clientLabel">Client</div>
-              <div className="proposal-clientValue">
-                {(clientTitle ? clientTitle + " " : "") +
-                  (clientLastName || "—")}
-              </div>
-            </div>
-
-            <div className="proposal-clientCell">
-              <div className="proposal-clientLabel">Location</div>
-              <div className="proposal-clientValue">{clientTown || "—"}</div>
-            </div>
-
-            <div className="proposal-clientCell">
-              <div className="proposal-clientLabel">Email</div>
-              <div className="proposal-clientValue">{clientEmail || "—"}</div>
-            </div>
-          </div>
-        </section>
 
         <h1 className="proposal-title">Project Estimate</h1>
 
@@ -904,7 +957,6 @@ export default function ProposalPage(props: ProposalPageProps) {
           >
             <span>Scope of Work</span>
 
-            {/* ✅ Admin-only toggle */}
             {isAdmin ? (
               <div className="no-print" style={{ display: "flex", gap: 8 }}>
                 <button
@@ -929,7 +981,6 @@ export default function ProposalPage(props: ProposalPageProps) {
             ) : null}
           </div>
 
-          {/* ✅ CUSTOM MODE (Admin can type; Users read-only) */}
           {!readOnly && sowMode === "custom" ? (
             <div className="no-print">
               <textarea
@@ -946,7 +997,6 @@ export default function ProposalPage(props: ProposalPageProps) {
             </div>
           ) : null}
 
-          {/* ✅ SHOW TEXT (Auto or Custom) */}
           <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
             {finalScopeText?.trim()
               ? finalScopeText
@@ -954,133 +1004,44 @@ export default function ProposalPage(props: ProposalPageProps) {
           </p>
         </section>
 
-        <h2 className="proposal-secTitle">Details</h2>
+        {/* ✅ Render in SettingsPage order */}
+        {effectiveOrder.map((idRaw) => {
+          const id = normalizeLayoutId(idRaw);
 
-        <table className="proposal-table">
-          <thead>
-            <tr>
-              <th style={{ width: "34%" }}>Item</th>
-              <th style={{ width: "14%" }}>QTY</th>
-              <th>Description</th>
-              {showLineItemPrices && (
-                <th style={{ width: "18%", textAlign: "right" }}>Cost</th>
+          if (id === "__details__") {
+            return (
+              <React.Fragment key={id}>{renderDetailsBlock()}</React.Fragment>
+            );
+          }
+          if (id === "__timeline__") {
+            return (
+              <React.Fragment key={id}>{renderTimelineBlock()}</React.Fragment>
+            );
+          }
+
+         const sec = enabledSections.find((s) => String(s.id).trim() === String(id).trim());
+
+          if (!sec) return null;
+
+          return (
+            <section key={sec.id}>
+              <h2 className="proposal-secTitle">{sec.title}</h2>
+
+              {sec.type === "bullets" ? (
+                <ul className="proposal-bullets">
+                  {bulletLines(sec.text).map((line, idx) => (
+                    <li key={`${sec.id}_${idx}`}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
+                  {sec.text || ""}
+                </p>
               )}
-            </tr>
-          </thead>
+            </section>
+          );
+        })}
 
-          <tbody>
-            {rows.map((r) => {
-              const isMiscRow = (r.label || "").toLowerCase().trim() === "misc";
-              const qtyDisplay =
-                isMiscRow && !showLineItemPrices
-                  ? `${money0(r.baseCost)}`
-                  : r.qtyText || "—";
-
-              return (
-                <tr key={r.key}>
-                  <td>
-                    <div style={{ fontWeight: 700 }}>
-                      {r.typeText || r.label}
-                    </div>
-                    {r.label && r.label.toLowerCase() !== "misc" ? (
-                      <div className="proposal-muted" style={{ marginTop: 2 }}>
-                        {r.label}
-                      </div>
-                    ) : null}
-                  </td>
-
-                  <td className="proposal-muted">{qtyDisplay}</td>
-                  <td className="proposal-muted">{r.description}</td>
-
-                  {showLineItemPrices && (
-                    <td style={{ textAlign: "right" }}>
-                      ${money0(lineTotal(r.baseCost, (r as any).isFixedPrice))}
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        <div className="proposal-totalRow">
-          <div className="proposal-totalLabel">Total Investment</div>
-          <div className="proposal-totalNumber">
-            ${money0(finalEstimate || 0)}
-          </div>
-        </div>
-
-        <h2 className="proposal-secTitle">Timeline</h2>
-
-        {!readOnly && (
-          <div className="proposal-timeline no-print">
-            <div className="proposal-timeline-field">
-              <span className="proposal-text">Est. Start Date:</span>
-              <select
-                className="proposal-timeline-select"
-                value={startWeeks}
-                onChange={(e) => setStartWeeks(Number(e.target.value))}
-              >
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((w) => (
-                  <option key={w} value={w}>
-                    {w} week{w === 1 ? "" : "s"}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="proposal-timeline-field">
-              <span className="proposal-text">Est. Project Duration:</span>
-              <select
-                className="proposal-timeline-select"
-                value={durationDays}
-                onChange={(e) => setDurationDays(Number(e.target.value))}
-              >
-                {Array.from({ length: 25 }, (_, i) => i + 1).map((d) => (
-                  <option key={d} value={d}>
-                    {d} day{d === 1 ? "" : "s"}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
-        {readOnly ? (
-          <ul className="proposal-bullets" style={{ marginTop: 6 }}>
-            <li>
-              Estimated start time approx. {startWeeks} week
-              {startWeeks === 1 ? "" : "s"} with a {durationDays}-day estimated
-              project duration.
-            </li>
-          </ul>
-        ) : (
-          <ul className="proposal-bullets only-print" style={{ marginTop: 6 }}>
-            <li>
-              Estimated start time approx. {startWeeks} week
-              {startWeeks === 1 ? "" : "s"} with a {durationDays}-day estimated
-              project duration.
-            </li>
-          </ul>
-        )}
-
-        {enabledSections.map((sec) => (
-          <section key={sec.id}>
-            <h2 className="proposal-secTitle">{sec.title}</h2>
-
-            {sec.type === "bullets" ? (
-              <ul className="proposal-bullets">
-                {bulletLines(sec.text).map((line, idx) => (
-                  <li key={`${sec.id}_${idx}`}>{line}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
-                {sec.text || ""}
-              </p>
-            )}
-          </section>
-        ))}
         <h2 className="proposal-secTitle">Notes</h2>
 
         {!readOnly && (
@@ -1098,7 +1059,6 @@ export default function ProposalPage(props: ProposalPageProps) {
           </div>
         )}
 
-        {/* ✅ Show notes as normal text for customers + print */}
         {proposalNotes?.trim() ? (
           <p
             className="proposal-text proposal-notes-print"
@@ -1107,6 +1067,12 @@ export default function ProposalPage(props: ProposalPageProps) {
             {proposalNotes}
           </p>
         ) : null}
+        
+
+
+
+  </div>
+
       </article>
     </section>
   );
