@@ -1153,7 +1153,7 @@ await upsertProposalSections(orgId, orderedSections);
       </div>
     </div>
   );
-
+}
 // ------------------------------
 // Small UI helpers (same file)
 // ------------------------------
@@ -1308,4 +1308,4 @@ function ScopeEditor({
     </div>
   );
 
-}}
+}
