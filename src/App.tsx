@@ -960,6 +960,8 @@ useEffect(() => {
       return "";
     }
   });
+  const [currentFileName, setCurrentFileName] = useState<string | null>(null);
+
   useEffect(() => {
     try {
       localStorage.setItem("du_estimate_name", estimateName);
@@ -1092,6 +1094,7 @@ useEffect(() => {
     if (dirtySuspendedRef.current) return;
     setIsDirty(true);
   };
+  const [lastSavedFileName, setLastSavedFileName] = useState<string | null>(null);
 
   // ===============================
   // USER SETTINGS (for Proposal PDF)
@@ -1551,6 +1554,7 @@ useEffect(() => {
       }
 
       applySnapshot(snapshot);
+      setLastSavedFileName(file.name);
 
       const recentName =
         (snapshot.estimateName || "").trim() ||
@@ -1569,7 +1573,8 @@ useEffect(() => {
     }
   };
 
-  const EST_EXT = ".DUest";
+  const EST_EXT = ".json";
+
   const defaultFileName = () => {
     const town = (clientTown || "").trim();
     const last = (clientLastName || "").trim();
@@ -1601,37 +1606,7 @@ useEffect(() => {
     URL.revokeObjectURL(url);
   };
 
-  const handleFileSave = () => {
-    if (!estimateName) {
-      const town = (clientTown || "").trim();
-      const last = (clientLastName || "").trim();
-      if (!town || !last) {
-        alert("Please enter Location and Last Name before saving.");
-        setActiveNav("estimator");
-        return;
-      }
-      const baseName = `${town} ${last}`.trim();
-      const counterKey = `du_estimate_counter::${baseName.toLowerCase()}`;
-      const current = Number(localStorage.getItem(counterKey) || "0");
-      const next = current + 1;
-      localStorage.setItem(counterKey, String(next));
-      const name = `${baseName} Est${next}`;
-      setEstimateName(name);
-      setEstimateNameLocked(true);
-      showToast("Name created. Click Save again to download the file.");
-      return;
-    }
-    setEstimateNameLocked(true);
-
-    const snap = buildSnapshot();
-    pushRecent(estimateName, snap);
-    refreshRecents();
-
-    downloadTextFile(defaultFileName(), JSON.stringify(snap, null, 2));
-    setIsDirty(false);
-  };
-
-  const handleFileSaveAs = () => {
+   const handleFileSaveAs = () => {
     const input = prompt("Save As file name:", defaultFileName());
     if (!input) return;
 
@@ -1645,6 +1620,25 @@ useEffect(() => {
     refreshRecents();
 
     downloadTextFile(filename, JSON.stringify(snap, null, 2));
+    setLastSavedFileName(filename);
+    setIsDirty(false);
+  };
+
+
+   const handleFileSave = () => {
+    // If we don't yet have a saved filename, fall back to Save As behavior
+    if (!lastSavedFileName) {
+      handleFileSaveAs();
+      return;
+    }
+
+    const snap = buildSnapshot();
+
+    const recentLabel = lastSavedFileName.replace(new RegExp(`${EST_EXT}$`, "i"), "");
+    pushRecent(recentLabel, snap);
+    refreshRecents();
+
+    downloadTextFile(lastSavedFileName, JSON.stringify(snap, null, 2));
     setIsDirty(false);
   };
 
@@ -2882,120 +2876,134 @@ useEffect(() => {
             onClick={() => setFileOpen((v) => !v)}
           >
             <span className="sidebar-nav-dot" />
-            <span className="sidebar-file-label">File</span>
+<span className="sidebar-file-label">File</span>
+
             <span className="sidebar-file-caret">{fileOpen ? "▾" : "▸"}</span>
           </button>
 
-          {fileOpen && (
-            <div className="sidebar-file-menu">
-              <button
-                type="button"
-                className="sidebar-file-item"
-                onClick={() => {
-                  setFileOpen(false);
-                  requestNewProject();
-                }}
-              >
-                New
-              </button>
-              <button
-                type="button"
-                className="sidebar-file-item"
-                onClick={() => {
-                  handleFileOpen();
-                  setTimeout(() => setFileOpen(false), 0);
-                }}
-              >
-                Open…
-              </button>
-              <button
-                type="button"
-                className="sidebar-file-item"
-                onClick={() => {
-                  refreshRecents();
-                  setRecentOpen((v) => !v);
-                }}
-              >
-                Open Recent {recentOpen ? "▾" : "▸"}
-              </button>
-              {recentOpen && (
-                <div
-                  style={{ paddingLeft: 10, paddingTop: 6, paddingBottom: 6 }}
-                >
-                  {recentFiles.length === 0 ? (
-                    <div
-                      style={{
-                        fontSize: 12,
-                        opacity: 0.7,
-                        padding: "6px 10px",
-                      }}
-                    >
-                      No recent files yet.
-                    </div>
-                  ) : (
-                    recentFiles.map((rf) => (
-                      <button
-                        key={rf.ts + rf.name}
-                        type="button"
-                        className="sidebar-file-item"
-                        style={{ fontSize: 12, opacity: 0.95 }}
-                        onClick={() => openRecent(rf)}
-                        title={new Date(rf.ts).toLocaleString()}
-                      >
-                        {rf.name}
-                      </button>
-                    ))
-                  )}
+        {fileOpen && (
+  <div className="sidebar-file-menu">
+     
 
-                  {recentFiles.length > 0 && (
-                    <button
-                      type="button"
-                      className="sidebar-file-item"
-                      style={{ fontSize: 12, opacity: 0.8 }}
-                      onClick={() => {
-                        localStorage.removeItem(RECENTS_KEY);
-                        refreshRecents();
-                        setRecentOpen(false);
-                      }}
-                    >
-                      Clear Recent
-                    </button>
-                  )}
-                </div>
-              )}
-              <button
-                type="button"
-                className="sidebar-file-item"
-                onClick={() => {
-                  handleFileSaveAs(); // prompt + correct default filename
-                  setFileOpen(false); // close File menu
-                }}
-              >
-                Save As…
-              </button>
+    <button
+      type="button"
+      className="sidebar-file-item"
+      onClick={() => {
+        setFileOpen(false);
+        requestNewProject();
+      }}
+    >
+      New
+    </button>
 
-             <div className="sidebar-file-sep" />
+    <button
+      type="button"
+      className="sidebar-file-item"
+      onClick={() => {
+        handleFileOpen();
+        setTimeout(() => setFileOpen(false), 0);
+      }}
+    >
+      Open…
+    </button>
 
+    <button
+      type="button"
+      className="sidebar-file-item"
+      onClick={() => {
+        refreshRecents();
+        setRecentOpen((v) => !v);
+      }}
+    >
+      Open Recent {recentOpen ? "▾" : "▸"}
+    </button>
 
+    {recentOpen && (
+      <div style={{ paddingLeft: 10, paddingTop: 6, paddingBottom: 6 }}>
+        {recentFiles.length === 0 ? (
+          <div
+            style={{
+              fontSize: 12,
+              opacity: 0.7,
+              padding: "6px 10px",
+            }}
+          >
+            No recent files yet.
+          </div>
+        ) : (
+          recentFiles.map((rf) => (
+            <button
+              key={rf.ts + rf.name}
+              type="button"
+              className="sidebar-file-item"
+              style={{ fontSize: 12, opacity: 0.95 }}
+              onClick={() => openRecent(rf)}
+              title={new Date(rf.ts).toLocaleString()}
+            >
+              {rf.name}
+            </button>
+          ))
+        )}
+
+        {recentFiles.length > 0 && (
+          <button
+            type="button"
+            className="sidebar-file-item"
+            style={{ fontSize: 12, opacity: 0.8 }}
+            onClick={() => {
+              localStorage.removeItem(RECENTS_KEY);
+              refreshRecents();
+              setRecentOpen(false);
+            }}
+          >
+            Clear Recent
+          </button>
+        )}
+      </div>
+    )}
+
+{/* SAVE */}
 <button
   type="button"
   className="sidebar-file-item"
+
   onClick={() => {
+    handleFileSave();
     setFileOpen(false);
-    onLogout();
   }}
 >
-  Log out
+  Save
+
 </button>
 
 
-            </div>
-          )}
-          <div className="sidebar-footer">
-  
-<div className="sidebar-file-sep" />
-  
-</div>
+    {/* SAVE AS */}
+    <button
+      type="button"
+      className="sidebar-file-item"
+      onClick={() => {
+        handleFileSaveAs();
+        setFileOpen(false);
+      }}
+    >
+      Save As…
+    </button>
+
+
+    <button
+      type="button"
+      className="sidebar-file-item"
+      onClick={() => {
+        setFileOpen(false);
+        onLogout();
+      }}
+    >
+      Log out
+    </button>
+  </div>
+)}
+
+      
 
 
         </div>

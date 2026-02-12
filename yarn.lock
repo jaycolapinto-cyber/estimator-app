@@ -2835,7 +2835,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:*":
+"@types/node@npm:*, @types/node@npm:^25.2.3":
   version: 25.2.3
   resolution: "@types/node@npm:25.2.3"
   dependencies:
@@ -10906,6 +10906,7 @@ __metadata:
   resolution: "react-typescript@workspace:."
   dependencies:
     "@supabase/supabase-js": "npm:^2.91.0"
+    "@types/node": "npm:^25.2.3"
     "@types/react": "npm:^18.2.38"
     "@types/react-dom": "npm:^18.2.15"
     eslint: "npm:^8.57.1"

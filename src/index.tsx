@@ -8,5 +8,8 @@ const root = ReactDOM.createRoot(
 );
 root.render(<App />);
 
-serviceWorkerRegistration.register();
-
+if (process.env.NODE_ENV === "production") {
+  serviceWorkerRegistration.register();
+} else {
+  serviceWorkerRegistration.unregister();
+}
