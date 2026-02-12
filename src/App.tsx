@@ -61,7 +61,14 @@ function BootScreen({ label = "Loading…" }: { label?: string }) {
           </div>
         </div>
 
-        <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
+        <div
+          style={{
+            marginTop: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
           <div
             style={{
               width: 16,
@@ -345,9 +352,15 @@ function pushRecent(name: string, json: any) {
   saveRecents([{ name, json, ts: now }, ...filtered]);
 }
 async function saveProposal(proposalData: any) {
+  // inject current proposal sections snapshot
+  const proposalWithSnapshot = {
+    ...proposalData,
+    proposalSectionsSnapshot: dbProposalSections,
+  };
+
   const { data, error } = await supabase
     .from("proposals")
-    .insert([{ data: proposalData }])
+    .insert([{ data: proposalWithSnapshot }])
     .select("id")
     .single();
 
@@ -365,7 +378,6 @@ const DEPLOY_VERSION =
     .toString()
     .trim()
     .slice(0, 7) || "dev";
-
 
 function App() {
   const path = window.location.pathname;
@@ -385,65 +397,71 @@ function AuthedApp() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [orgLoading, setOrgLoading] = useState(true);
-const [orgResolved, setOrgResolved] = useState(false);
-useEffect(() => {
-  if (orgId) console.log("APP_ORG_ID", orgId);
-}, [orgId]);
-
+  const [orgResolved, setOrgResolved] = useState(false);
+  useEffect(() => {
+    if (orgId) console.log("APP_ORG_ID", orgId);
+  }, [orgId]);
 
   const email = (session?.user?.email || "").toLowerCase();
-// ✅ Accept invite automatically once orgId is known
-const acceptedInviteRef = useRef<string>("");
+  // ✅ Accept invite automatically once orgId is known
+  const acceptedInviteRef = useRef<string>("");
 
-useEffect(() => {
-  // only attempt once we have orgId and a signed-in user
-  if (!orgId) return;
-  if (!session?.user?.id) return;
+  useEffect(() => {
+    // only attempt once we have orgId and a signed-in user
+    if (!orgId) return;
+    if (!session?.user?.id) return;
 
-  // Prevent calling repeatedly for the same org in a single session
-  if (acceptedInviteRef.current === orgId) return;
-  acceptedInviteRef.current = orgId;
+    // Prevent calling repeatedly for the same org in a single session
+    if (acceptedInviteRef.current === orgId) return;
+    acceptedInviteRef.current = orgId;
 
-  (async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke("accept-invite", {
-        body: { account_id: orgId },
-      });
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke(
+          "accept-invite",
+          {
+            body: { account_id: orgId },
+          }
+        );
 
-      // Not an error if they weren't invited
-      if (error) {
-        console.warn("accept-invite error:", error);
-        return;
+        // Not an error if they weren't invited
+        if (error) {
+          console.warn("accept-invite error:", error);
+          return;
+        }
+        if ((data as any)?.error) {
+          console.warn("accept-invite function error:", (data as any).error);
+          return;
+        }
+
+        console.log("accept-invite result:", data);
+      } catch (e) {
+        console.warn("accept-invite exception:", e);
       }
-      if ((data as any)?.error) {
-        console.warn("accept-invite function error:", (data as any).error);
-        return;
+    })();
+  }, [orgId, session?.user?.id]);
+  // 0) ✅ Finalize Supabase auth after invite/magic links (prevents blank spinning page)
+  useEffect(() => {
+    // Trigger Supabase to parse auth params from the URL (hash/query)
+    supabase.auth.getSession().catch(() => {});
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        // Clean up the URL after auth completes
+        if (window.location.hash || window.location.search) {
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+          );
+        }
       }
+    });
 
-      console.log("accept-invite result:", data);
-    } catch (e) {
-      console.warn("accept-invite exception:", e);
-    }
-  })();
-}, [orgId, session?.user?.id]);
-// 0) ✅ Finalize Supabase auth after invite/magic links (prevents blank spinning page)
-useEffect(() => {
-  // Trigger Supabase to parse auth params from the URL (hash/query)
-  supabase.auth.getSession().catch(() => {});
-
-  const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-    if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-      // Clean up the URL after auth completes
-      if (window.location.hash || window.location.search) {
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }
-  });
-
-  return () => {
-    sub.subscription.unsubscribe();
-  };
-}, []);
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
   // 1) Auth session bootstrap
   useEffect(() => {
@@ -455,11 +473,13 @@ useEffect(() => {
       setAuthLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (cancelled) return;
-      setSession(newSession ?? null);
-      setAuthLoading(false);
-    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
+        if (cancelled) return;
+        setSession(newSession ?? null);
+        setAuthLoading(false);
+      }
+    );
 
     return () => {
       cancelled = true;
@@ -467,79 +487,78 @@ useEffect(() => {
     };
   }, []);
 
- useEffect(() => {
-  let cancelled = false;
+  useEffect(() => {
+    let cancelled = false;
 
-  async function loadOrgForUser() {
-    // If not logged in yet, don’t resolve anything.
-    if (!session?.user?.id) return;
+    async function loadOrgForUser() {
+      // If not logged in yet, don’t resolve anything.
+      if (!session?.user?.id) return;
 
-    setOrgLoading(true);
-    setOrgResolved(false);
+      setOrgLoading(true);
+      setOrgResolved(false);
 
-    try {
-      const userId = session.user.id;
+      try {
+        const userId = session.user.id;
 
-      // 1) Try org_members.org_id first
-      const q1 = await supabase
-        .from("org_members")
-        .select("org_id, role")
-        .eq("user_id", userId)
-        .maybeSingle();
+        // 1) Try org_members.org_id first
+        const q1 = await supabase
+          .from("org_members")
+          .select("org_id, role")
+          .eq("user_id", userId)
+          .maybeSingle();
 
-      // If that worked and we have an org_id, use it
-      if (!q1.error && q1.data?.org_id) {
+        // If that worked and we have an org_id, use it
+        if (!q1.error && q1.data?.org_id) {
+          if (cancelled) return;
+          setOrgId(q1.data.org_id);
+          console.log("APP_ORG_ID", q1.data.org_id);
+          setIsAdmin(String(q1.data.role || "").toLowerCase() === "admin");
+          return;
+        }
+
+        // 2) If org_id column doesn’t exist, fallback to account_id
+        const msg = (q1.error?.message || "").toLowerCase();
+        const missingOrgId =
+          msg.includes("column") &&
+          msg.includes("org_id") &&
+          (msg.includes("does not exist") || msg.includes("not found"));
+
+        if (!missingOrgId) {
+          // If it’s some other error, treat as “no org” but don’t crash
+          console.warn("org lookup error:", q1.error);
+        }
+
+        const q2 = await supabase
+          .from("org_members")
+          .select("account_id, role")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (!q2.error && q2.data?.account_id) {
+          if (cancelled) return;
+          setOrgId(q2.data.account_id);
+          setIsAdmin(String(q2.data.role || "").toLowerCase() === "admin");
+          return;
+        }
+
+        // No org membership found -> IMPORTANT:
+        // They are NOT an admin and should NOT see CreateOrgPage.
         if (cancelled) return;
-        setOrgId(q1.data.org_id);
-        console.log("APP_ORG_ID", q1.data.org_id);
-        setIsAdmin(String(q1.data.role || "").toLowerCase() === "admin");
-        return;
-      }
-
-      // 2) If org_id column doesn’t exist, fallback to account_id
-      const msg = (q1.error?.message || "").toLowerCase();
-      const missingOrgId =
-        msg.includes("column") &&
-        msg.includes("org_id") &&
-        (msg.includes("does not exist") || msg.includes("not found"));
-
-      if (!missingOrgId) {
-        // If it’s some other error, treat as “no org” but don’t crash
-        console.warn("org lookup error:", q1.error);
-      }
-
-      const q2 = await supabase
-        .from("org_members")
-        .select("account_id, role")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (!q2.error && q2.data?.account_id) {
+        setOrgId(null);
+        setIsAdmin(false);
+      } finally {
         if (cancelled) return;
-        setOrgId(q2.data.account_id);
-        setIsAdmin(String(q2.data.role || "").toLowerCase() === "admin");
-        return;
+        setOrgLoading(false);
+        setOrgResolved(true); // ✅ this is the key fix
       }
-
-      // No org membership found -> IMPORTANT:
-      // They are NOT an admin and should NOT see CreateOrgPage.
-      if (cancelled) return;
-      setOrgId(null);
-      setIsAdmin(false);
-    } finally {
-      if (cancelled) return;
-      setOrgLoading(false);
-      setOrgResolved(true); // ✅ this is the key fix
     }
-  }
 
-  loadOrgForUser();
+    loadOrgForUser();
 
-  return () => {
-    cancelled = true;
-  };
-}, [session?.user?.id]);
-
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
 
   // 3) Render gates (IMPORTANT ORDER)
   if (authLoading) return <BootScreen label="Checking sign-in…" />;
@@ -547,34 +566,31 @@ useEffect(() => {
   if (!session) return <AuthPage />;
 
   if (orgLoading) return <BootScreen label="Loading your organization…" />;
-// ✅ Guard: user has no org
-if (orgResolved && !orgId) {
-  // Only admins are allowed to create an org
-  if (isAdmin) {
+  // ✅ Guard: user has no org
+  if (orgResolved && !orgId) {
+    // Only admins are allowed to create an org
+    if (isAdmin) {
+      return (
+        <CreateOrgPage
+          onCreated={(newOrgId) => {
+            setOrgId(newOrgId);
+            setIsAdmin(true);
+          }}
+        />
+      );
+    }
+
+    // Non-admins should NEVER see CreateOrgPage
     return (
-      <CreateOrgPage
-        onCreated={(newOrgId) => {
-          setOrgId(newOrgId);
-          setIsAdmin(true);
-        }}
-      />
+      <div style={{ padding: 32 }}>
+        <h1 style={{ marginBottom: 8 }}>No organization access</h1>
+        <p style={{ maxWidth: 640 }}>
+          Your account is not linked to an organization yet. Ask an admin to
+          invite you, then log out and log back in.
+        </p>
+      </div>
     );
   }
-  
-
-  // Non-admins should NEVER see CreateOrgPage
-  return (
-    <div style={{ padding: 32 }}>
-      <h1 style={{ marginBottom: 8 }}>No organization access</h1>
-      <p style={{ maxWidth: 640 }}>
-        Your account is not linked to an organization yet.
-        Ask an admin to invite you, then log out and log back in.
-      </p>
-    </div>
-  );
-}
-
-  
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -597,28 +613,22 @@ if (orgResolved && !orgId) {
       <div style={{ padding: 32 }}>
         <h1 style={{ marginBottom: 8 }}>No organization access</h1>
         <p style={{ maxWidth: 640 }}>
-          Your account is not linked to an organization yet. Ask an admin to invite you,
-          then log out and log back in.
+          Your account is not linked to an organization yet. Ask an admin to
+          invite you, then log out and log back in.
         </p>
       </div>
     );
   }
 
   return (
-    <AppShell isAdmin={isAdmin} orgId={orgId} onLogout={handleLogout} userEmail={email} />
+    <AppShell
+      isAdmin={isAdmin}
+      orgId={orgId}
+      onLogout={handleLogout}
+      userEmail={email}
+    />
   );
 }
-
-
-
-
-
-
-
-
-
-
-
 
 function AppShell({
   isAdmin,
@@ -631,84 +641,89 @@ function AppShell({
   onLogout: () => void;
   userEmail: string;
 }) {
+  // ===============================
+  // ROLE GATES (email-based for now)
+  // ===============================
+  const canEditPricing = isAdmin;
+  const canSeeUsersLicenses = isAdmin;
 
-// ===============================
-// ROLE GATES (email-based for now)
-// ===============================
-const canEditPricing = isAdmin;
-const canSeeUsersLicenses = isAdmin;
-
-
-function BootScreen({ label = "Loading…" }: { label?: string }) {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(180deg, #f3f4f6 0%, #eef2ff 100%)",
-        fontFamily: "system-ui",
-      }}
-    >
+  function BootScreen({ label = "Loading…" }: { label?: string }) {
+    return (
       <div
         style={{
-          width: 420,
-          maxWidth: "92vw",
-          padding: 22,
-          borderRadius: 16,
-          background: "white",
-          border: "1px solid rgba(0,0,0,0.10)",
-          boxShadow: "0 18px 45px rgba(0,0,0,0.12)",
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "linear-gradient(180deg, #f3f4f6 0%, #eef2ff 100%)",
+          fontFamily: "system-ui",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div
+          style={{
+            width: 420,
+            maxWidth: "92vw",
+            padding: 22,
+            borderRadius: 16,
+            background: "white",
+            border: "1px solid rgba(0,0,0,0.10)",
+            boxShadow: "0 18px 45px rgba(0,0,0,0.12)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: "#111",
+                color: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 900,
+                letterSpacing: 0.5,
+              }}
+            >
+              DU
+            </div>
+
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 900 }}>
+                Deck Estimator
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.7 }}>Decks Unique</div>
+            </div>
+          </div>
+
           <div
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
-              background: "#111",
-              color: "white",
+              marginTop: 16,
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 900,
-              letterSpacing: 0.5,
+              gap: 10,
             }}
           >
-            DU
+            <div
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: 999,
+                border: "3px solid rgba(0,0,0,0.12)",
+                borderTopColor: "rgba(0,0,0,0.65)",
+                animation: "duSpin 0.9s linear infinite",
+              }}
+            />
+            <div style={{ fontWeight: 800, opacity: 0.8 }}>{label}</div>
           </div>
 
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 900 }}>Deck Estimator</div>
-            <div style={{ fontSize: 12, opacity: 0.7 }}>Decks Unique</div>
-          </div>
+          <style>
+            {`@keyframes duSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
+          </style>
         </div>
-
-        <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
-          <div
-            style={{
-              width: 16,
-              height: 16,
-              borderRadius: 999,
-              border: "3px solid rgba(0,0,0,0.12)",
-              borderTopColor: "rgba(0,0,0,0.65)",
-              animation: "duSpin 0.9s linear infinite",
-            }}
-          />
-          <div style={{ fontWeight: 800, opacity: 0.8 }}>{label}</div>
-        </div>
-
-        <style>
-          {`@keyframes duSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
-        </style>
       </div>
-    </div>
-  );
-}
-
-
+    );
+  }
 
   // ===============================
   // FILE MENU + CONFIRM MODALS
@@ -716,16 +731,14 @@ function BootScreen({ label = "Loading…" }: { label?: string }) {
   const [fileOpen, setFileOpen] = useState(false);
   const [confirmNewOpen, setConfirmNewOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
- type EmailDraft = {
-  to: string;
-  subject: string;
-  body: string;
-  link: string;
-  proposalId?: string;
-  sendMeCopy?: boolean;
-};
-
-
+  type EmailDraft = {
+    to: string;
+    subject: string;
+    body: string;
+    link: string;
+    proposalId?: string;
+    sendMeCopy?: boolean;
+  };
 
   const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null);
   // ===============================
@@ -893,32 +906,31 @@ function BootScreen({ label = "Loading…" }: { label?: string }) {
   // ===============================
   // STATE: ESTIMATE + UI
   // ===============================
- // ===============================
-// STATE: ESTIMATE + UI
-// ===============================
-type NavKey =
-  | "proposals"
-  | "estimator"
-  | "pricingAdmin"
-  | "analytics"
-  | "settings"
-  | "users";
+  // ===============================
+  // STATE: ESTIMATE + UI
+  // ===============================
+  type NavKey =
+    | "proposals"
+    | "estimator"
+    | "pricingAdmin"
+    | "analytics"
+    | "settings"
+    | "users";
 
-const [activeNav, setActiveNav] = useState<NavKey>("estimator");
+  const [activeNav, setActiveNav] = useState<NavKey>("estimator");
 
-// UL-WIDE body class (full width on Users/Licenses)
-useEffect(() => {
-  document.body.classList.toggle("ul-wide", activeNav === "users");
-  return () => document.body.classList.remove("ul-wide");
-}, [activeNav]);
+  // UL-WIDE body class (full width on Users/Licenses)
+  useEffect(() => {
+    document.body.classList.toggle("ul-wide", activeNav === "users");
+    return () => document.body.classList.remove("ul-wide");
+  }, [activeNav]);
 
-// keep users locked out if not authorized
-useEffect(() => {
-  if (activeNav === "users" && !canSeeUsersLicenses) {
-    setActiveNav("estimator");
-  }
-}, [activeNav, canSeeUsersLicenses]);
-
+  // keep users locked out if not authorized
+  useEffect(() => {
+    if (activeNav === "users" && !canSeeUsersLicenses) {
+      setActiveNav("estimator");
+    }
+  }, [activeNav, canSeeUsersLicenses]);
 
   const EMAIL_DOMAINS = [
     "gmail.com",
@@ -981,18 +993,22 @@ useEffect(() => {
       return false;
     }
   });
-useEffect(() => {
-  const on = activeNav === "users";
-  document.body.classList.toggle("ul-wide", on);
+  useEffect(() => {
+    const on = activeNav === "users";
+    document.body.classList.toggle("ul-wide", on);
 
-  // TEMP debug:
-  console.log("[UL-WIDE]", { activeNav, on, bodyClass: document.body.className });
+    // TEMP debug:
+    console.log("[UL-WIDE]", {
+      activeNav,
+      on,
+      bodyClass: document.body.className,
+    });
 
-  return () => {
-    // cleanup so it doesn't stick if component unmounts
-    document.body.classList.remove("ul-wide");
-  };
-}, [activeNav]);
+    return () => {
+      // cleanup so it doesn't stick if component unmounts
+      document.body.classList.remove("ul-wide");
+    };
+  }, [activeNav]);
 
   useEffect(() => {
     try {
@@ -1071,7 +1087,6 @@ useEffect(() => {
       rowId:
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? uid()
-
           : `${Date.now()}-${Math.random()}`,
       category: "",
       itemId: "",
@@ -1101,7 +1116,9 @@ useEffect(() => {
     if (dirtySuspendedRef.current) return;
     setIsDirty(true);
   };
-  const [lastSavedFileName, setLastSavedFileName] = useState<string | null>(null);
+  const [lastSavedFileName, setLastSavedFileName] = useState<string | null>(
+    null
+  );
 
   // ===============================
   // USER SETTINGS (for Proposal PDF)
@@ -1111,13 +1128,12 @@ useEffect(() => {
   const [userSettings, setUserSettings] = useState(() => {
     try {
       const saved = localStorage.getItem("du_user_settings");
-     return saved
-  ? {
-      proposalLayoutOrder: [],
-      ...JSON.parse(saved),
-    }
-  : {
-
+      return saved
+        ? {
+            proposalLayoutOrder: [],
+            ...JSON.parse(saved),
+          }
+        : {
             userName: "Jason Colapinto",
             userPhone: "",
             userEmail: "",
@@ -1613,7 +1629,7 @@ useEffect(() => {
     URL.revokeObjectURL(url);
   };
 
-   const handleFileSaveAs = () => {
+  const handleFileSaveAs = () => {
     const input = prompt("Save As file name:", defaultFileName());
     if (!input) return;
 
@@ -1631,8 +1647,7 @@ useEffect(() => {
     setIsDirty(false);
   };
 
-
-   const handleFileSave = () => {
+  const handleFileSave = () => {
     // If we don't yet have a saved filename, fall back to Save As behavior
     if (!lastSavedFileName) {
       handleFileSaveAs();
@@ -1641,7 +1656,10 @@ useEffect(() => {
 
     const snap = buildSnapshot();
 
-    const recentLabel = lastSavedFileName.replace(new RegExp(`${EST_EXT}$`, "i"), "");
+    const recentLabel = lastSavedFileName.replace(
+      new RegExp(`${EST_EXT}$`, "i"),
+      ""
+    );
     pushRecent(recentLabel, snap);
     refreshRecents();
 
@@ -2883,136 +2901,128 @@ useEffect(() => {
             onClick={() => setFileOpen((v) => !v)}
           >
             <span className="sidebar-nav-dot" />
-<span className="sidebar-file-label">File</span>
+            <span className="sidebar-file-label">File</span>
 
             <span className="sidebar-file-caret">{fileOpen ? "▾" : "▸"}</span>
           </button>
 
-        {fileOpen && (
-  <div className="sidebar-file-menu">
-     
+          {fileOpen && (
+            <div className="sidebar-file-menu">
+              <button
+                type="button"
+                className="sidebar-file-item"
+                onClick={() => {
+                  setFileOpen(false);
+                  requestNewProject();
+                }}
+              >
+                New
+              </button>
 
-    <button
-      type="button"
-      className="sidebar-file-item"
-      onClick={() => {
-        setFileOpen(false);
-        requestNewProject();
-      }}
-    >
-      New
-    </button>
+              <button
+                type="button"
+                className="sidebar-file-item"
+                onClick={() => {
+                  handleFileOpen();
+                  setTimeout(() => setFileOpen(false), 0);
+                }}
+              >
+                Open…
+              </button>
 
-    <button
-      type="button"
-      className="sidebar-file-item"
-      onClick={() => {
-        handleFileOpen();
-        setTimeout(() => setFileOpen(false), 0);
-      }}
-    >
-      Open…
-    </button>
+              <button
+                type="button"
+                className="sidebar-file-item"
+                onClick={() => {
+                  refreshRecents();
+                  setRecentOpen((v) => !v);
+                }}
+              >
+                Open Recent {recentOpen ? "▾" : "▸"}
+              </button>
 
-    <button
-      type="button"
-      className="sidebar-file-item"
-      onClick={() => {
-        refreshRecents();
-        setRecentOpen((v) => !v);
-      }}
-    >
-      Open Recent {recentOpen ? "▾" : "▸"}
-    </button>
+              {recentOpen && (
+                <div
+                  style={{ paddingLeft: 10, paddingTop: 6, paddingBottom: 6 }}
+                >
+                  {recentFiles.length === 0 ? (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        opacity: 0.7,
+                        padding: "6px 10px",
+                      }}
+                    >
+                      No recent files yet.
+                    </div>
+                  ) : (
+                    recentFiles.map((rf) => (
+                      <button
+                        key={rf.ts + rf.name}
+                        type="button"
+                        className="sidebar-file-item"
+                        style={{ fontSize: 12, opacity: 0.95 }}
+                        onClick={() => openRecent(rf)}
+                        title={new Date(rf.ts).toLocaleString()}
+                      >
+                        {rf.name}
+                      </button>
+                    ))
+                  )}
 
-    {recentOpen && (
-      <div style={{ paddingLeft: 10, paddingTop: 6, paddingBottom: 6 }}>
-        {recentFiles.length === 0 ? (
-          <div
-            style={{
-              fontSize: 12,
-              opacity: 0.7,
-              padding: "6px 10px",
-            }}
-          >
-            No recent files yet.
-          </div>
-        ) : (
-          recentFiles.map((rf) => (
-            <button
-              key={rf.ts + rf.name}
-              type="button"
-              className="sidebar-file-item"
-              style={{ fontSize: 12, opacity: 0.95 }}
-              onClick={() => openRecent(rf)}
-              title={new Date(rf.ts).toLocaleString()}
-            >
-              {rf.name}
-            </button>
-          ))
-        )}
+                  {recentFiles.length > 0 && (
+                    <button
+                      type="button"
+                      className="sidebar-file-item"
+                      style={{ fontSize: 12, opacity: 0.8 }}
+                      onClick={() => {
+                        localStorage.removeItem(RECENTS_KEY);
+                        refreshRecents();
+                        setRecentOpen(false);
+                      }}
+                    >
+                      Clear Recent
+                    </button>
+                  )}
+                </div>
+              )}
 
-        {recentFiles.length > 0 && (
-          <button
-            type="button"
-            className="sidebar-file-item"
-            style={{ fontSize: 12, opacity: 0.8 }}
-            onClick={() => {
-              localStorage.removeItem(RECENTS_KEY);
-              refreshRecents();
-              setRecentOpen(false);
-            }}
-          >
-            Clear Recent
-          </button>
-        )}
-      </div>
-    )}
+              {/* SAVE */}
+              <button
+                type="button"
+                className="sidebar-file-item"
+                onClick={() => {
+                  handleFileSave();
+                  setFileOpen(false);
+                }}
+              >
+                Save
+              </button>
 
-{/* SAVE */}
-<button
-  type="button"
-  className="sidebar-file-item"
+              {/* SAVE AS */}
+              <button
+                type="button"
+                className="sidebar-file-item"
+                onClick={() => {
+                  handleFileSaveAs();
+                  setFileOpen(false);
+                }}
+              >
+                Save As…
+              </button>
 
-  onClick={() => {
-    handleFileSave();
-    setFileOpen(false);
-  }}
->
-  Save
-
-</button>
-
-
-    {/* SAVE AS */}
-    <button
-      type="button"
-      className="sidebar-file-item"
-      onClick={() => {
-        handleFileSaveAs();
-        setFileOpen(false);
-      }}
-    >
-      Save As…
-    </button>
-
-
-    <button
-      type="button"
-      className="sidebar-file-item"
-      onClick={() => {
-        setFileOpen(false);
-        onLogout();
-      }}
-    >
-      Log out
-    </button>
-  </div>
-)}
-
-      
-
-
+              <button
+                type="button"
+                className="sidebar-file-item"
+                onClick={() => {
+                  setFileOpen(false);
+                  onLogout();
+                }}
+              >
+                Log out
+              </button>
+            </div>
+          )}
         </div>
 
         <nav className="sidebar-nav">
@@ -3026,15 +3036,14 @@ useEffect(() => {
             isActive={activeNav === "proposals"}
             onClick={() => setActiveNav("proposals")}
           />
-      
-  {canEditPricing && (
-  <SidebarNavItem
-    label="Pricing Admin"
-    isActive={activeNav === "pricingAdmin"}
-    onClick={() => setActiveNav("pricingAdmin")}
-  />
-)}
 
+          {canEditPricing && (
+            <SidebarNavItem
+              label="Pricing Admin"
+              isActive={activeNav === "pricingAdmin"}
+              onClick={() => setActiveNav("pricingAdmin")}
+            />
+          )}
 
           <SidebarNavItem
             label="Analytics"
@@ -3046,21 +3055,15 @@ useEffect(() => {
             isActive={activeNav === "settings"}
             onClick={() => setActiveNav("settings")}
           />
-  
-{canSeeUsersLicenses && (
-  <SidebarNavItem
-    label="Users / Licenses"
-    isActive={activeNav === "users"}
-    onClick={() => setActiveNav("users")}
-  />
-)}
 
-
-
-
+          {canSeeUsersLicenses && (
+            <SidebarNavItem
+              label="Users / Licenses"
+              isActive={activeNav === "users"}
+              onClick={() => setActiveNav("users")}
+            />
+          )}
         </nav>
-       
-  
 
         {/* Offline indicator (sidebar) */}
         {(!isOnline ||
@@ -3074,26 +3077,20 @@ useEffect(() => {
         <div className="sidebar-footer">
           <div className="sidebar-footer-title">Estimator2.0</div>
           <div className="sidebar-footer-version">v{DEPLOY_VERSION}</div>
-
         </div>
         {/* ROLE LABEL (bottom of sidebar) */}
-<div
-  style={{
-    marginTop: 16,
-    padding: "12px 12px",
-    fontSize: 12,
-    opacity: 0.8,
-    borderTop: "1px solid rgba(255,255,255,0.10)",
-  }}
->
-  <div style={{ fontWeight: 800 }}>
-    {isAdmin ? "Admin" : "User"}
-  </div>
-  <div style={{ fontSize: 11, opacity: 0.85 }}>
-    {userEmail}
-  </div>
-</div>
-
+        <div
+          style={{
+            marginTop: 16,
+            padding: "12px 12px",
+            fontSize: 12,
+            opacity: 0.8,
+            borderTop: "1px solid rgba(255,255,255,0.10)",
+          }}
+        >
+          <div style={{ fontWeight: 800 }}>{isAdmin ? "Admin" : "User"}</div>
+          <div style={{ fontSize: 11, opacity: 0.85 }}>{userEmail}</div>
+        </div>
       </aside>
 
       <main
@@ -3108,12 +3105,11 @@ useEffect(() => {
             <div className="page-header__title">
               {activeNav === "estimator" && "Deck Estimate"}
               {activeNav === "proposals" && "Proposals"}
-          {activeNav === "pricingAdmin" && "Pricing Administration"}
+              {activeNav === "pricingAdmin" && "Pricing Administration"}
 
               {activeNav === "analytics" && "Analytics"}
               {activeNav === "settings" && "Settings"}
               {activeNav === "users" && "Users / Licenses"}
-
             </div>
 
             <div className="page-header__subtitle">
@@ -3142,27 +3138,22 @@ useEffect(() => {
               <AnalyticsPage />
             </section>
           )}
-{/* ====== USERS / LICENSES (ADMIN ONLY) ====== */}
-{activeNav === "users" && (
-  canSeeUsersLicenses ? (
-    <section className="users-licenses-page">
-    <UsersLicensesPage orgId={orgId} />
-
-
-
-    </section>
-  ) : (
-    <section style={{ padding: 16 }}>
-      <div style={{ fontWeight: 800, fontSize: 16 }}>Not authorized</div>
-      <div style={{ opacity: 0.75, marginTop: 6 }}>
-        You don’t have permission to view Users / Licenses.
-      </div>
-    </section>
-  )
-)}
-
-
-
+          {/* ====== USERS / LICENSES (ADMIN ONLY) ====== */}
+          {activeNav === "users" &&
+            (canSeeUsersLicenses ? (
+              <section className="users-licenses-page">
+                <UsersLicensesPage orgId={orgId} />
+              </section>
+            ) : (
+              <section style={{ padding: 16 }}>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>
+                  Not authorized
+                </div>
+                <div style={{ opacity: 0.75, marginTop: 6 }}>
+                  You don’t have permission to view Users / Licenses.
+                </div>
+              </section>
+            ))}
 
           {/* ====== ESTIMATOR ====== */}
           {activeNav === "estimator" && (
@@ -4026,38 +4017,34 @@ useEffect(() => {
               </div>
             </section>
           )}
-{activeNav === "pricingAdmin" && (
-  canEditPricing ? (
-    <PricingAdmin readOnly={false} />
-  ) : (
-    <section style={{ padding: 16 }}>
-      <div style={{ fontWeight: 800, fontSize: 16 }}>Not authorized</div>
-      <div style={{ opacity: 0.75, marginTop: 6 }}>
-        You don’t have permission to view Pricing Admin.
-      </div>
-    </section>
-  )
-)}
+          {activeNav === "pricingAdmin" &&
+            (canEditPricing ? (
+              <PricingAdmin readOnly={false} />
+            ) : (
+              <section style={{ padding: 16 }}>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>
+                  Not authorized
+                </div>
+                <div style={{ opacity: 0.75, marginTop: 6 }}>
+                  You don’t have permission to view Pricing Admin.
+                </div>
+              </section>
+            ))}
 
-
-
-
-{activeNav === "settings" && (
-  <SettingsPage
-    userSettings={userSettings}
-    setUserSettings={setUserSettings}
-    orgId={orgId}
-    isAdmin={isAdmin}
-  />
-)}
-
+          {activeNav === "settings" && (
+            <SettingsPage
+              userSettings={userSettings}
+              setUserSettings={setUserSettings}
+              orgId={orgId}
+              isAdmin={isAdmin}
+            />
+          )}
 
           {activeNav === "proposals" && (
             <ProposalPage
-            orgId={orgId}
+              orgId={orgId}
               constructionType={constructionType}
               userSettings={userSettings}
-            
               estimateName={estimateName}
               finalEstimate={finalEstimate}
               clientTitle={clientTitle}
@@ -4249,157 +4236,160 @@ useEffect(() => {
           )}
         </div>
       </main>
-     
-   <ConfirmNewProjectModal
-  open={confirmNewOpen}
-  onCancel={cancelNew}
-  onDiscard={discardAndNew}
-  onSave={saveAndNew}
-/>
 
-{/* =============================== */}
-{/* EMAIL MODAL (TEMP TEST) */}
-{/* =============================== */}
-{emailModalOpen && (
-  <div
-    style={{
-      position: "fixed",
-      inset: 0,
-      background: "rgba(0,0,0,0.45)",
-      zIndex: 9999,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 16,
-    }}
-
-    onClick={() => setEmailModalOpen(false)}
-  >
-    <div
-      style={{
-        width: "min(720px, 95vw)",
-        background: "#fff",
-        borderRadius: 12,
-        padding: 16,
-        boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-      }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>
-        Send Estimate
-      </div>
-
-      <div style={{ fontSize: 13, marginBottom: 8 }}>
-        <div>
-          <b>To:</b>{" "}
-          {(emailDraft?.to || clientEmail || "").trim() || "(empty)"}
-        </div>
-
-        <div>
-          <b>Subject:</b> {emailDraft?.subject || "(empty)"}
-        </div>
-
-        {/* ✅ STEP 2C: Show CC only when toggle is ON */}
-        {emailDraft?.sendMeCopy && (userSettings?.userEmail || "").trim() ? (
-          <div>
-            <b>CC:</b> {(userSettings?.userEmail || "").trim()}
-          </div>
-        ) : null}
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          margin: "10px 0 12px",
-        }}
-      >
-        <span style={{ fontSize: 13, fontWeight: 600 }}>Send me a copy</span>
-
-        <label
-          style={{
-            position: "relative",
-            display: "inline-block",
-            width: 34,
-            height: 18,
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={sendMeCopy}
-            onChange={(e) => {
-              const checked = e.target.checked;
-              setSendMeCopy(checked);
-              setEmailDraft((d) => (d ? { ...d, sendMeCopy: checked } : d));
-            }}
-          />
-
-          <span
-            style={{
-              position: "absolute",
-              inset: 0,
-              backgroundColor: sendMeCopy ? "#16a34a" : "#d1d5db",
-              borderRadius: 999,
-              transition: "0.2s",
-            }}
-          />
-
-          {/* Knob */}
-          <span
-            style={{
-              position: "absolute",
-              height: 14,
-              width: 14,
-              left: sendMeCopy ? 18 : 2,
-              top: 2,
-              backgroundColor: "#fff",
-              borderRadius: "50%",
-              transition: "0.2s",
-            }}
-          />
-        </label>
-      </div>
-
-      <textarea
-        value={emailDraft?.body || ""}
-        onChange={(e) =>
-          setEmailDraft((d) => (d ? { ...d, body: e.target.value } : d))
-        }
-        style={{
-          fontFamily:
-            'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
-          fontSize: "14px",
-          lineHeight: "1.5",
-          padding: "10px",
-          resize: "none",
-          height: "180px",
-          width: "100%",
-        }}
+      <ConfirmNewProjectModal
+        open={confirmNewOpen}
+        onCancel={cancelNew}
+        onDiscard={discardAndNew}
+        onSave={saveAndNew}
       />
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: 10,
-          marginTop: 12,
-        }}
-      >
-        <button onClick={() => setEmailModalOpen(false)}>Cancel</button>
-
-        <button
-          onClick={handleSendEmailFromModal}
-          style={{ fontWeight: 700 }}
-          disabled={!emailDraft}
+      {/* =============================== */}
+      {/* EMAIL MODAL (TEMP TEST) */}
+      {/* =============================== */}
+      {emailModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setEmailModalOpen(false)}
         >
-          Send
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+          <div
+            style={{
+              width: "min(720px, 95vw)",
+              background: "#fff",
+              borderRadius: 12,
+              padding: 16,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>
+              Send Estimate
+            </div>
 
+            <div style={{ fontSize: 13, marginBottom: 8 }}>
+              <div>
+                <b>To:</b>{" "}
+                {(emailDraft?.to || clientEmail || "").trim() || "(empty)"}
+              </div>
+
+              <div>
+                <b>Subject:</b> {emailDraft?.subject || "(empty)"}
+              </div>
+
+              {/* ✅ STEP 2C: Show CC only when toggle is ON */}
+              {emailDraft?.sendMeCopy &&
+              (userSettings?.userEmail || "").trim() ? (
+                <div>
+                  <b>CC:</b> {(userSettings?.userEmail || "").trim()}
+                </div>
+              ) : null}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                margin: "10px 0 12px",
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600 }}>
+                Send me a copy
+              </span>
+
+              <label
+                style={{
+                  position: "relative",
+                  display: "inline-block",
+                  width: 34,
+                  height: 18,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={sendMeCopy}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setSendMeCopy(checked);
+                    setEmailDraft((d) =>
+                      d ? { ...d, sendMeCopy: checked } : d
+                    );
+                  }}
+                />
+
+                <span
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    backgroundColor: sendMeCopy ? "#16a34a" : "#d1d5db",
+                    borderRadius: 999,
+                    transition: "0.2s",
+                  }}
+                />
+
+                {/* Knob */}
+                <span
+                  style={{
+                    position: "absolute",
+                    height: 14,
+                    width: 14,
+                    left: sendMeCopy ? 18 : 2,
+                    top: 2,
+                    backgroundColor: "#fff",
+                    borderRadius: "50%",
+                    transition: "0.2s",
+                  }}
+                />
+              </label>
+            </div>
+
+            <textarea
+              value={emailDraft?.body || ""}
+              onChange={(e) =>
+                setEmailDraft((d) => (d ? { ...d, body: e.target.value } : d))
+              }
+              style={{
+                fontFamily:
+                  'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
+                fontSize: "14px",
+                lineHeight: "1.5",
+                padding: "10px",
+                resize: "none",
+                height: "180px",
+                width: "100%",
+              }}
+            />
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 10,
+                marginTop: 12,
+              }}
+            >
+              <button onClick={() => setEmailModalOpen(false)}>Cancel</button>
+
+              <button
+                onClick={handleSendEmailFromModal}
+                style={{ fontWeight: 700 }}
+                disabled={!emailDraft}
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4513,7 +4503,7 @@ function AnalyticsDashboard(props: AnalyticsDashboardProps) {
   </div>
 </div>
 */}
-</>
-);
+    </>
+  );
 }
 export default App;
