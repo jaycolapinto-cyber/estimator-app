@@ -3,7 +3,11 @@ import { supabase } from "./supabaseClient";
 import ProposalPage from "./ProposalPage";
 
 export default function ReviewProposalPage() {
-  const id = window.location.pathname.split("/review/")[1];
+  const raw = window.location.pathname.split("/review/")[1] || "";
+  const id = decodeURIComponent(raw)
+    .split(/[?#]/)[0]
+    .replace(/\/+$/, "")
+    .trim();
 
   const [proposalData, setProposalData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -13,34 +17,33 @@ export default function ReviewProposalPage() {
 
     supabase
       .from("proposals")
-       .select("data, org_id")
+      .select("data, org_id")
       .eq("id", id)
       .single()
-.then(async ({ data, error }: { data: any; error: any }) => {
-
+      .then(async ({ data, error }: { data: any; error: any }) => {
         if (error) {
-          console.error("Failed to load proposal:", error);
+          console.error("Failed to load proposal:", { id, error });
+          setProposalData(null);
         } else {
           const proposal = data?.data || {};
-const orgId = data?.org_id ?? null;
+          const orgId = data?.org_id ?? null;
 
-// fetch settings for that org (public-safe read)
-let settings: any = null;
-if (orgId) {
-  const { data: s } = await supabase
-    .from("user_settings")
-    .select("*")
-    .eq("org_id", orgId)
-    .single();
-  settings = s || null;
-}
+          // fetch settings for that org (public-safe read)
+          let settings: any = null;
+          if (orgId) {
+            const { data: s } = await supabase
+              .from("user_settings")
+              .select("*")
+              .eq("org_id", orgId)
+              .single();
+            settings = s || null;
+          }
 
-setProposalData({
-  ...proposal,
-  orgId,
-  userSettings: settings,
-});
-
+          setProposalData({
+            ...proposal,
+            orgId,
+            userSettings: settings,
+          });
         }
         setLoading(false);
       });
