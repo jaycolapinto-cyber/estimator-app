@@ -360,6 +360,11 @@ async function saveProposal(proposalData: any) {
   return data.id;
 }
 
+const DEPLOY_VERSION =
+  (process.env.REACT_APP_COMMIT_SHA || process.env.REACT_APP_VERSION || "")
+    .toString()
+    .trim()
+    .slice(0, 7) || "dev";
 
 
 function App() {
@@ -3068,7 +3073,7 @@ useEffect(() => {
 
         <div className="sidebar-footer">
           <div className="sidebar-footer-title">Estimator2.0</div>
-          <div className="sidebar-footer-version">v{process.env.REACT_APP_VERSION || "dev"}</div>
+          <div className="sidebar-footer-version">v{DEPLOY_VERSION}</div>
 
         </div>
         {/* ROLE LABEL (bottom of sidebar) */}
