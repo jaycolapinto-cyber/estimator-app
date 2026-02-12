@@ -13,15 +13,34 @@ export default function ReviewProposalPage() {
 
     supabase
       .from("proposals")
-      .select("data")
+       .select("data, org_id")
       .eq("id", id)
       .single()
-      .then(({ data, error }: { data: any; error: any }) => {
+.then(async ({ data, error }: { data: any; error: any }) => {
 
         if (error) {
           console.error("Failed to load proposal:", error);
         } else {
-          setProposalData(data?.data);
+          const proposal = data?.data || {};
+const orgId = data?.org_id ?? null;
+
+// fetch settings for that org (public-safe read)
+let settings: any = null;
+if (orgId) {
+  const { data: s } = await supabase
+    .from("user_settings")
+    .select("*")
+    .eq("org_id", orgId)
+    .single();
+  settings = s || null;
+}
+
+setProposalData({
+  ...proposal,
+  orgId,
+  userSettings: settings,
+});
+
         }
         setLoading(false);
       });

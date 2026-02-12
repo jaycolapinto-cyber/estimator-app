@@ -804,6 +804,8 @@ function BootScreen({ label = "Loading…" }: { label?: string }) {
             to,
             subject,
             html, // ✅ function expects html
+            proposalId: estimateName,
+
             text: bodyText, // optional
             replyTo: replyTo || undefined,
 
