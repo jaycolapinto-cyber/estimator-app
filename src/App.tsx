@@ -355,7 +355,6 @@ async function saveProposal(proposalData: any) {
   // inject current proposal sections snapshot
   const proposalWithSnapshot = {
     ...proposalData,
-    proposalSectionsSnapshot: dbProposalSections,
   };
 
   const { data, error } = await supabase
