@@ -383,8 +383,9 @@ const DEPLOY_VERSION =
     .slice(0, 7) || "dev";
 
 function App() {
-  const [proposalSectionsSnapshot, setProposalSectionsSnapshot] = useState<any[]>([]);
-
+  const [proposalSectionsSnapshot, setProposalSectionsSnapshot] = useState<
+    any[]
+  >([]);
 
   const path = window.location.pathname;
 
