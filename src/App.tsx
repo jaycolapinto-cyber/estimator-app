@@ -351,7 +351,10 @@ function pushRecent(name: string, json: any) {
   const filtered = prev.filter((r) => r?.name !== name);
   saveRecents([{ name, json, ts: now }, ...filtered]);
 }
-async function saveProposal(proposalData: any) {
+async function saveProposal(
+  proposalData: any,
+  proposalSectionsSnapshot: any[] = proposalData?.proposalSectionsSnapshot ?? []
+) {
   // inject current proposal sections snapshot
   const proposalWithSnapshot = {
     ...proposalData,
