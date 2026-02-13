@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-
+import { fetchProposalSections } from "./proposalSections"; // <-- add this import near the top
 import PricingAdmin from "./PricingAdmin";
 import ProposalPage from "./ProposalPage";
 import SettingsPage from "./SettingsPage";
@@ -351,11 +351,19 @@ function pushRecent(name: string, json: any) {
   const filtered = prev.filter((r) => r?.name !== name);
   saveRecents([{ name, json, ts: now }, ...filtered]);
 }
-async function saveProposal(
-  proposalData: any,
-  proposalSectionsSnapshot: any[] = proposalData?.proposalSectionsSnapshot ?? []
-) {
-  // inject current proposal sections snapshot
+
+async function saveProposal(proposalData: any, orgId: string | null) {
+  // ✅ fetch snapshot at save-time so public review always has blocks
+  let proposalSectionsSnapshot: any[] = [];
+  try {
+    if (orgId) {
+      const rows = await fetchProposalSections(orgId);
+      proposalSectionsSnapshot = Array.isArray(rows) ? rows : [];
+    }
+  } catch (e) {
+    console.warn("Could not fetch proposal sections snapshot", e);
+  }
+
   const proposalWithSnapshot = {
     ...proposalData,
     proposalSectionsSnapshot,
@@ -383,10 +391,6 @@ const DEPLOY_VERSION =
     .slice(0, 7) || "dev";
 
 function App() {
-  const [proposalSectionsSnapshot, setProposalSectionsSnapshot] = useState<
-    any[]
-  >([]);
-
   const path = window.location.pathname;
 
   // Public route: proposal review (NO hooks here)
@@ -653,6 +657,9 @@ function AppShell({
   // ===============================
   const canEditPricing = isAdmin;
   const canSeeUsersLicenses = isAdmin;
+  const [proposalSectionsSnapshot, setProposalSectionsSnapshot] = useState<
+    any[]
+  >([]);
 
   function BootScreen({ label = "Loading…" }: { label?: string }) {
     return (
@@ -4093,7 +4100,6 @@ function AppShell({
               addItemsDetailed={addItemsDetailed as any}
               upliftMultiplier={upliftMultiplier}
               onEmailProposal={handleEmailProposal}
-              onSectionsSnapshot={setProposalSectionsSnapshot}
             />
           )}
 

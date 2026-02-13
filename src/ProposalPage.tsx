@@ -287,7 +287,7 @@ export default function ProposalPage(props: ProposalPageProps) {
         if (!alive) return;
         const next = Array.isArray(rows) ? rows : [];
         setDbProposalSections(next);
-        onSectionsSnapshot?.(next);
+        props.onSectionsSnapshot?.(next);
       } catch {
         if (!alive) return;
         setDbProposalSections([]);
@@ -647,10 +647,10 @@ export default function ProposalPage(props: ProposalPageProps) {
 
   const enabledSections = useMemo(() => {
     const raw = (
-      readOnly ? proposalSectionsSnapshot : dbProposalSections
+      readOnly ? props.proposalSectionsSnapshot : dbProposalSections
     ) as ProposalSection[];
     return Array.isArray(raw) ? raw.filter((s) => s?.enabled) : [];
-  }, [dbProposalSections, proposalSectionsSnapshot, readOnly]);
+  }, [dbProposalSections, props.proposalSectionsSnapshot, readOnly]);
 
   // ✅ Order from SettingsPage
   const layoutOrder = useMemo<string[]>(() => {
