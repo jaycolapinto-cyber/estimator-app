@@ -50,7 +50,7 @@ function toSowKey(raw: string): ConstructionSowKey | "" {
   return "";
 }
 
-type ProposalPageProps = {
+export type ProposalPageProps = {
   userSettings: UserSettings | null;
   estimateName: string;
   finalEstimate: number;
@@ -99,11 +99,12 @@ type ProposalPageProps = {
   addItemsDetailed: AddItemRow[];
 
   upliftMultiplier: number;
+  onSectionsSnapshot?: (sections: ProposalSection[]) => void;
 
   defaultShowLineItemPrices?: boolean;
   onEmailProposal?: () => void;
   readOnly?: boolean;
-
+  proposalSectionsSnapshot?: ProposalSection[] | null;
   proposalNotesSnapshot?: string | null;
   sowModeSnapshot?: "auto" | "custom" | null;
   sowCustomTextSnapshot?: string | null;
@@ -128,8 +129,6 @@ function formatDurationRange(days: number) {
   if (days <= 10) return "7–10 days";
   return "10+ days";
 }
-
-
 
 function money0(n: number) {
   return Math.round(n || 0).toLocaleString(undefined, {
@@ -185,11 +184,6 @@ function bulletLines(text?: string | null) {
     .map((s) => s.trim())
     .filter(Boolean);
 }
-
-
-
-
-
 
 export default function ProposalPage(props: ProposalPageProps) {
   const {
@@ -253,26 +247,26 @@ export default function ProposalPage(props: ProposalPageProps) {
 
   const docRef = useRef<HTMLElement | null>(null);
   // PRINT: set total pages in footer ("Page 1 of Y")
-useEffect(() => {
-  const onBeforePrint = () => {
-    const el = document.getElementById("proposal-doc");
-    if (!el) return;
+  useEffect(() => {
+    const onBeforePrint = () => {
+      const el = document.getElementById("proposal-doc");
+      if (!el) return;
 
-    // page height in px for Letter at 96dpi minus browser margins is variable,
-    // so we measure based on viewport print layout approximation.
-    // This is a lightweight estimate that's stable enough for proposals.
-    const pagePx = 1056; // ~11in * 96dpi
-    const total = Math.max(1, Math.ceil(el.scrollHeight / pagePx));
+      // page height in px for Letter at 96dpi minus browser margins is variable,
+      // so we measure based on viewport print layout approximation.
+      // This is a lightweight estimate that's stable enough for proposals.
+      const pagePx = 1056; // ~11in * 96dpi
+      const total = Math.max(1, Math.ceil(el.scrollHeight / pagePx));
 
-    const curEl = document.getElementById("du-page-cur");
-    const totalEl = document.getElementById("du-page-total");
-    if (curEl) curEl.textContent = "1";
-    if (totalEl) totalEl.textContent = String(total);
-  };
+      const curEl = document.getElementById("du-page-cur");
+      const totalEl = document.getElementById("du-page-total");
+      if (curEl) curEl.textContent = "1";
+      if (totalEl) totalEl.textContent = String(total);
+    };
 
-  window.addEventListener("beforeprint", onBeforePrint);
-  return () => window.removeEventListener("beforeprint", onBeforePrint);
-}, []);
+    window.addEventListener("beforeprint", onBeforePrint);
+    return () => window.removeEventListener("beforeprint", onBeforePrint);
+  }, []);
 
   const safeOrgId = orgId ?? null;
 
@@ -291,7 +285,9 @@ useEffect(() => {
       try {
         const rows = await fetchProposalSections(safeOrgId);
         if (!alive) return;
-        setDbProposalSections(Array.isArray(rows) ? rows : []);
+        const next = Array.isArray(rows) ? rows : [];
+        setDbProposalSections(next);
+        onSectionsSnapshot?.(next);
       } catch {
         if (!alive) return;
         setDbProposalSections([]);
@@ -402,15 +398,15 @@ useEffect(() => {
   // SOW
   const sowKey = useMemo(() => toSowKey(constructionType), [constructionType]);
 
-  const [sowTemplatesMap, setSowTemplatesMap] = useState<Record<string, string>>(
-    () => {
-      try {
-        return JSON.parse(localStorage.getItem("du_sow_templates_v1") || "{}");
-      } catch {
-        return {};
-      }
+  const [sowTemplatesMap, setSowTemplatesMap] = useState<
+    Record<string, string>
+  >(() => {
+    try {
+      return JSON.parse(localStorage.getItem("du_sow_templates_v1") || "{}");
+    } catch {
+      return {};
     }
-  );
+  });
 
   useEffect(() => {
     (async () => {
@@ -430,14 +426,15 @@ useEffect(() => {
   const SOW_MODE_KEY =
     estimateName && estimateName.trim() ? `du_sow_mode::${estimateName}` : "";
   const SOW_CUSTOM_KEY =
-    estimateName && estimateName.trim()
-      ? `du_sow_custom::${estimateName}`
-      : "";
+    estimateName && estimateName.trim() ? `du_sow_custom::${estimateName}` : "";
 
   const isAdmin = !readOnly;
 
   const [sowMode, setSowMode] = useState<"auto" | "custom">(() => {
-    if (readOnly && (sowModeSnapshot === "auto" || sowModeSnapshot === "custom"))
+    if (
+      readOnly &&
+      (sowModeSnapshot === "auto" || sowModeSnapshot === "custom")
+    )
       return sowModeSnapshot;
     return "auto";
   });
@@ -507,7 +504,12 @@ useEffect(() => {
         key: "decking",
         label: "Decking",
         typeText: deckingType || "",
-        qtyText: fmtQty(deckingQty, deckingUnit || "sf", deckingType, "Decking"),
+        qtyText: fmtQty(
+          deckingQty,
+          deckingUnit || "sf",
+          deckingType,
+          "Decking"
+        ),
         description:
           (deckingDescription || "").trim() ||
           "Composite decking installed to match selected finish and layout.",
@@ -644,9 +646,11 @@ useEffect(() => {
   ]);
 
   const enabledSections = useMemo(() => {
-    const raw = dbProposalSections as ProposalSection[];
+    const raw = (
+      readOnly ? proposalSectionsSnapshot : dbProposalSections
+    ) as ProposalSection[];
     return Array.isArray(raw) ? raw.filter((s) => s?.enabled) : [];
-  }, [dbProposalSections]);
+  }, [dbProposalSections, proposalSectionsSnapshot, readOnly]);
 
   // ✅ Order from SettingsPage
   const layoutOrder = useMemo<string[]>(() => {
@@ -672,7 +676,9 @@ useEffect(() => {
     });
 
     // Append any enabled custom ids missing from saved order
-    const missingCustomIds = enabledCustomIds.filter((id) => !valid.includes(id));
+    const missingCustomIds = enabledCustomIds.filter(
+      (id) => !valid.includes(id)
+    );
 
     // Ensure system ids exist, but DON'T move them to top/bottom — keep user’s order
     const withMissing = [...valid, ...missingCustomIds];
@@ -691,8 +697,6 @@ useEffect(() => {
       effectiveOrder,
     });
   }, [userSettings, layoutOrder, enabledSections, effectiveOrder]);
-
- 
 
   // Header blocks
   const PreparedBlock = (
@@ -814,56 +818,56 @@ useEffect(() => {
     );
   };
 
- const renderTimelineBlock = () => {
-  return (
-    <>
-      <h2 className="proposal-secTitle">Timeline</h2>
+  const renderTimelineBlock = () => {
+    return (
+      <>
+        <h2 className="proposal-secTitle">Timeline</h2>
 
-      {!readOnly && (
-        <div className="proposal-timeline no-print">
-          <div className="proposal-timeline-field">
-            <span className="proposal-text">Est. Start Date:</span>
-            <select
-              className="proposal-timeline-select"
-              value={startWeeks}
-              onChange={(e) => setStartWeeks(Number(e.target.value))}
-            >
-              <option value={1}>1 week</option>
-              <option value={2}>2 weeks</option>
-              <option value={3}>3 weeks</option>
-              <option value={4}>4 weeks</option>
-              <option value={6}>5–6 weeks</option>
-              <option value={8}>7–8 weeks</option>
-            </select>
+        {!readOnly && (
+          <div className="proposal-timeline no-print">
+            <div className="proposal-timeline-field">
+              <span className="proposal-text">Est. Start Date:</span>
+              <select
+                className="proposal-timeline-select"
+                value={startWeeks}
+                onChange={(e) => setStartWeeks(Number(e.target.value))}
+              >
+                <option value={1}>1 week</option>
+                <option value={2}>2 weeks</option>
+                <option value={3}>3 weeks</option>
+                <option value={4}>4 weeks</option>
+                <option value={6}>5–6 weeks</option>
+                <option value={8}>7–8 weeks</option>
+              </select>
+            </div>
+
+            <div className="proposal-timeline-field">
+              <span className="proposal-text">Est. Project Duration:</span>
+              <select
+                className="proposal-timeline-select"
+                value={durationDays}
+                onChange={(e) => setDurationDays(Number(e.target.value))}
+              >
+                <option value={2}>1–2 days</option>
+                <option value={5}>3–5 days</option>
+                <option value={6}>4–6 days</option>
+                <option value={10}>7–10 days</option>
+                <option value={14}>10+ days</option>
+              </select>
+            </div>
           </div>
+        )}
 
-          <div className="proposal-timeline-field">
-            <span className="proposal-text">Est. Project Duration:</span>
-            <select
-              className="proposal-timeline-select"
-              value={durationDays}
-              onChange={(e) => setDurationDays(Number(e.target.value))}
-            >
-              <option value={2}>1–2 days</option>
-              <option value={5}>3–5 days</option>
-              <option value={6}>4–6 days</option>
-              <option value={10}>7–10 days</option>
-              <option value={14}>10+ days</option>
-            </select>
-          </div>
-        </div>
-      )}
-
-    <p className={readOnly ? "proposal-text" : "proposal-text only-print"} style={{ marginTop: 6 }}>
-  Estimated start timeframe: {formatStartWeeksRange(startWeeks)}. Estimated project duration: {formatDurationRange(durationDays)}.
-</p>
-
-
-    </>
-  );
-};
-
-    
+        <p
+          className={readOnly ? "proposal-text" : "proposal-text only-print"}
+          style={{ marginTop: 6 }}
+        >
+          Estimated start timeframe: {formatStartWeeksRange(startWeeks)}.
+          Estimated project duration: {formatDurationRange(durationDays)}.
+        </p>
+      </>
+    );
+  };
 
   return (
     <section className="proposal-page">
@@ -872,8 +876,7 @@ useEffect(() => {
           <button
             type="button"
             className="btn btn-primary"
-           onClick={() => window.print()}
-
+            onClick={() => window.print()}
           >
             Print / Save PDF
           </button>
@@ -914,165 +917,161 @@ useEffect(() => {
           Email Proposal
         </button>
       )}
-<article ref={docRef as any} className="proposal-doc" id="proposal-doc">
-  <div className="du-print-page">
+      <article ref={docRef as any} className="proposal-doc" id="proposal-doc">
+        <div className="du-print-page">
+          {userSettings?.logoDataUrl ? (
+            <img
+              className="du-print-watermark"
+              src={userSettings.logoDataUrl}
+              alt=""
+              aria-hidden="true"
+            />
+          ) : null}
 
-  
+          <header className="proposal-head">
+            <div className="proposal-headSlot proposal-headSlot-left">
+              {PreparedBlock}
+            </div>
+            <div className="proposal-headSlot proposal-headSlot-center">
+              {LogoBlock}
+            </div>
+            <div className="proposal-headSlot proposal-headSlot-right">
+              {ClientBlock}
+            </div>
+          </header>
 
-  {userSettings?.logoDataUrl ? (
-    <img
-      className="du-print-watermark"
-      src={userSettings.logoDataUrl}
-      alt=""
-      aria-hidden="true"
-    />
-  ) : null}
+          <h1 className="proposal-title">Project Estimate</h1>
 
-  
+          <section className="proposal-scope">
+            <div
+              className="proposal-clientBarTitle"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <span>Scope of Work</span>
 
+              {isAdmin ? (
+                <div className="no-print" style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className={`btn ${
+                      sowMode === "auto" ? "btn-secondary" : "btn-outline"
+                    }`}
+                    onClick={() => setSowMode("auto")}
+                  >
+                    Auto
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${
+                      sowMode === "custom" ? "btn-secondary" : "btn-outline"
+                    }`}
+                    onClick={() => setSowMode("custom")}
+                  >
+                    Custom
+                  </button>
+                </div>
+              ) : null}
+            </div>
 
-        <header className="proposal-head">
-          <div className="proposal-headSlot proposal-headSlot-left">
-            {PreparedBlock}
-          </div>
-          <div className="proposal-headSlot proposal-headSlot-center">
-            {LogoBlock}
-          </div>
-          <div className="proposal-headSlot proposal-headSlot-right">
-            {ClientBlock}
-          </div>
-        </header>
-
-        <h1 className="proposal-title">Project Estimate</h1>
-
-        <section className="proposal-scope">
-          <div
-            className="proposal-clientBarTitle"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
-          >
-            <span>Scope of Work</span>
-
-            {isAdmin ? (
-              <div className="no-print" style={{ display: "flex", gap: 8 }}>
-                <button
-                  type="button"
-                  className={`btn ${
-                    sowMode === "auto" ? "btn-secondary" : "btn-outline"
-                  }`}
-                  onClick={() => setSowMode("auto")}
-                >
-                  Auto
-                </button>
-                <button
-                  type="button"
-                  className={`btn ${
-                    sowMode === "custom" ? "btn-secondary" : "btn-outline"
-                  }`}
-                  onClick={() => setSowMode("custom")}
-                >
-                  Custom
-                </button>
+            {!readOnly && sowMode === "custom" ? (
+              <div className="no-print">
+                <textarea
+                  className="proposal-notes-input"
+                  placeholder="Admin: type a custom Scope of Work..."
+                  value={sowCustomText}
+                  onChange={(e) => setSowCustomText(e.target.value)}
+                  rows={7}
+                  readOnly={!isAdmin}
+                  spellCheck={true}
+                  autoCorrect="on"
+                  autoCapitalize="sentences"
+                />
               </div>
             ) : null}
-          </div>
 
-          {!readOnly && sowMode === "custom" ? (
+            <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
+              {finalScopeText?.trim()
+                ? finalScopeText
+                : "This project includes the construction of a custom outdoor deck designed to match the selected materials, layout, and site conditions. Final scope and details are based on the selections made during the estimate and are subject to on-site verification."}
+            </p>
+          </section>
+
+          {/* ✅ Render in SettingsPage order */}
+          {effectiveOrder.map((idRaw) => {
+            const id = normalizeLayoutId(idRaw);
+
+            if (id === "__details__") {
+              return (
+                <React.Fragment key={id}>{renderDetailsBlock()}</React.Fragment>
+              );
+            }
+            if (id === "__timeline__") {
+              return (
+                <React.Fragment key={id}>
+                  {renderTimelineBlock()}
+                </React.Fragment>
+              );
+            }
+
+            const sec = enabledSections.find(
+              (s) => String(s.id).trim() === String(id).trim()
+            );
+
+            if (!sec) return null;
+
+            return (
+              <section key={sec.id}>
+                <h2 className="proposal-secTitle">{sec.title}</h2>
+
+                {sec.type === "bullets" ? (
+                  <ul className="proposal-bullets">
+                    {bulletLines(sec.text).map((line, idx) => (
+                      <li key={`${sec.id}_${idx}`}>{line}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p
+                    className="proposal-text"
+                    style={{ whiteSpace: "pre-wrap" }}
+                  >
+                    {sec.text || ""}
+                  </p>
+                )}
+              </section>
+            );
+          })}
+
+          <h2 className="proposal-secTitle">Notes</h2>
+
+          {!readOnly && (
             <div className="no-print">
               <textarea
                 className="proposal-notes-input"
-                placeholder="Admin: type a custom Scope of Work..."
-                value={sowCustomText}
-                onChange={(e) => setSowCustomText(e.target.value)}
-                rows={7}
-                readOnly={!isAdmin}
+                placeholder="Notes (optional)…"
+                value={proposalNotes}
+                onChange={(e) => setProposalNotes(e.target.value)}
+                rows={5}
                 spellCheck={true}
                 autoCorrect="on"
                 autoCapitalize="sentences"
               />
             </div>
+          )}
+
+          {proposalNotes?.trim() ? (
+            <p
+              className="proposal-text proposal-notes-print"
+              style={{ whiteSpace: "pre-wrap" }}
+            >
+              {proposalNotes}
+            </p>
           ) : null}
-
-          <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
-            {finalScopeText?.trim()
-              ? finalScopeText
-              : "This project includes the construction of a custom outdoor deck designed to match the selected materials, layout, and site conditions. Final scope and details are based on the selections made during the estimate and are subject to on-site verification."}
-          </p>
-        </section>
-
-        {/* ✅ Render in SettingsPage order */}
-        {effectiveOrder.map((idRaw) => {
-          const id = normalizeLayoutId(idRaw);
-
-          if (id === "__details__") {
-            return (
-              <React.Fragment key={id}>{renderDetailsBlock()}</React.Fragment>
-            );
-          }
-          if (id === "__timeline__") {
-            return (
-              <React.Fragment key={id}>{renderTimelineBlock()}</React.Fragment>
-            );
-          }
-
-         const sec = enabledSections.find((s) => String(s.id).trim() === String(id).trim());
-
-          if (!sec) return null;
-
-          return (
-            <section key={sec.id}>
-              <h2 className="proposal-secTitle">{sec.title}</h2>
-
-              {sec.type === "bullets" ? (
-                <ul className="proposal-bullets">
-                  {bulletLines(sec.text).map((line, idx) => (
-                    <li key={`${sec.id}_${idx}`}>{line}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
-                  {sec.text || ""}
-                </p>
-              )}
-            </section>
-          );
-        })}
-
-        <h2 className="proposal-secTitle">Notes</h2>
-
-        {!readOnly && (
-          <div className="no-print">
-            <textarea
-              className="proposal-notes-input"
-              placeholder="Notes (optional)…"
-              value={proposalNotes}
-              onChange={(e) => setProposalNotes(e.target.value)}
-              rows={5}
-              spellCheck={true}
-              autoCorrect="on"
-              autoCapitalize="sentences"
-            />
-          </div>
-        )}
-
-        {proposalNotes?.trim() ? (
-          <p
-            className="proposal-text proposal-notes-print"
-            style={{ whiteSpace: "pre-wrap" }}
-          >
-            {proposalNotes}
-          </p>
-        ) : null}
-        
-
-
-
-  </div>
-
+        </div>
       </article>
     </section>
   );
