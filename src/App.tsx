@@ -355,6 +355,7 @@ async function saveProposal(proposalData: any) {
   // inject current proposal sections snapshot
   const proposalWithSnapshot = {
     ...proposalData,
+    proposalSectionsSnapshot,
   };
 
   const { data, error } = await supabase
@@ -379,6 +380,10 @@ const DEPLOY_VERSION =
     .slice(0, 7) || "dev";
 
 function App() {
+  const [proposalSectionsSnapshot, setProposalSectionsSnapshot] = useState<
+    any[]
+  >([]);
+
   const path = window.location.pathname;
 
   // Public route: proposal review (NO hooks here)
@@ -4085,6 +4090,7 @@ function AppShell({
               addItemsDetailed={addItemsDetailed as any}
               upliftMultiplier={upliftMultiplier}
               onEmailProposal={handleEmailProposal}
+              onSectionsSnapshot={setProposalSectionsSnapshot}
             />
           )}
 
