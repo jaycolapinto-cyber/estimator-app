@@ -644,8 +644,7 @@ export default function ProposalPage(props: ProposalPageProps) {
     demoDescription,
     skirtingDescription,
   ]);
-  q;
-  f;
+
   const enabledSections = useMemo(() => {
     const raw = (
       readOnly ? props.proposalSectionsSnapshot : dbProposalSections
