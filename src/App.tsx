@@ -13,8 +13,6 @@ import ReviewProposalPage from "./ReviewProposalPage";
 import { uid } from "./utils/uid";
 import UsersLicensesPage from "./UsersLicensesPage";
 import AuthPage from "./AuthPage";
-import { fetchProposalSections } from "./proposalSections";
-
 import CreateOrgPage from "./CreateOrgPage";
 function BootScreen({ label = "Loading…" }: { label?: string }) {
   return (
@@ -201,7 +199,6 @@ function getSmallJobTierForTotal(
     const name = (row.name || "").toLowerCase();
     return unit === "global_multiplier" && name.includes("deck less than");
   });
-const APP_VERSION = process.env.REACT_APP_COMMIT_SHA?.slice(0, 7) || "dev";
 
   if (!smallRows.length) return { multiplier: 1, threshold: null };
 
@@ -378,7 +375,6 @@ async function saveProposal(proposalData: any, orgId: string | null) {
     .select("id")
     .single();
 
-
   if (error) {
     console.error("Failed to save proposal", error);
     alert("Failed to save proposal");
@@ -411,68 +407,15 @@ function AuthedApp() {
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [orgId, setOrgId] = useState<string | null>(null);
-  const [proposalSectionsSnapshot, setProposalSectionsSnapshot] = useState<any[]>([]);
-
-useEffect(() => {
-  let alive = true;
-
-  (async () => {
-    if (!orgId) {
-      setProposalSectionsSnapshot([]);
-      return;
-    }
-    try {
-      const rows = await fetchProposalSections(orgId);
-      if (!alive) return;
-      setProposalSectionsSnapshot(Array.isArray(rows) ? rows : []);
-    } catch {
-      if (!alive) return;
-      setProposalSectionsSnapshot([]);
-    }
-  })();
-
-  return () => {
-    alive = false;
-  };
-}, [orgId]);
-
   const [orgLoading, setOrgLoading] = useState(true);
   const [orgResolved, setOrgResolved] = useState(false);
   useEffect(() => {
     if (orgId) console.log("APP_ORG_ID", orgId);
   }, [orgId]);
 
-
   const email = (session?.user?.email || "").toLowerCase();
-
+  // ✅ Accept invite automatically once orgId is known
   const acceptedInviteRef = useRef<string>("");
-
-// ✅ Accept invite automatically once orgId is known
-const acceptedInviteRef = useRef<string>("");
-useEffect(() => {
-  let alive = true;
-
-  (async () => {
-    if (!orgId) {
-      setProposalSectionsSnapshot([]);
-      return;
-    }
-
-    try {
-      const rows = await fetchProposalSections(orgId);
-      if (!alive) return;
-      setProposalSectionsSnapshot(Array.isArray(rows) ? rows : []);
-    } catch {
-      if (!alive) return;
-      setProposalSectionsSnapshot([]);
-    }
-  })();
-
-  return () => {
-    alive = false;
-  };
-}, [orgId]);
-
 
   useEffect(() => {
     // only attempt once we have orgId and a signed-in user
@@ -709,7 +652,6 @@ function AppShell({
   onLogout: () => void;
   userEmail: string;
 }) {
-
   // ===============================
   // ROLE GATES (email-based for now)
   // ===============================
@@ -718,32 +660,6 @@ function AppShell({
   const [proposalSectionsSnapshot, setProposalSectionsSnapshot] = useState<
     any[]
   >([]);
-=======
-const [proposalSectionsSnapshot, setProposalSectionsSnapshot] = useState<any[]>([]);
-
-useEffect(() => {
-  let alive = true;
-
-  (async () => {
-    if (!orgId) {
-      setProposalSectionsSnapshot([]);
-      return;
-    }
-    try {
-      const rows = await fetchProposalSections(orgId);
-      if (!alive) return;
-      setProposalSectionsSnapshot(Array.isArray(rows) ? rows : []);
-    } catch {
-      if (!alive) return;
-      setProposalSectionsSnapshot([]);
-    }
-  })();
-
-  return () => {
-    alive = false;
-  };
-}, [orgId]);
-
 
   function BootScreen({ label = "Loading…" }: { label?: string }) {
     return (
@@ -1512,16 +1428,6 @@ useEffect(() => {
       const fastenerUnit = "ea";
       const skirtingQty = Number(skirtingSf || 0);
       const skirtingUnit = "sf";
-// ✅ Snapshot sections at send-time (admin/authenticated) so public /review can render without DB reads
-let sectionsSnap: any[] = [];
-try {
-  if (orgId) {
-    const rows = await fetchProposalSections(orgId);
-    sectionsSnap = Array.isArray(rows) ? rows : [];
-  }
-} catch {
-  sectionsSnap = [];
-}
 
       const payload = {
         estimate_name: estimateName || "Untitled Estimate",
@@ -1590,9 +1496,7 @@ try {
           fastenerQty,
           fastenerUnit,
           skirtingQty,
-          skirtingUnit,   
-          proposalSectionsSnapshot: proposalSectionsSnapshot ?? [],
-
+          skirtingUnit,
         },
       };
 
@@ -3184,21 +3088,10 @@ try {
           </div>
         )}
 
-<<<<<<< HEAD
         <div className="sidebar-footer">
           <div className="sidebar-footer-title">Estimator2.0</div>
           <div className="sidebar-footer-version">v{DEPLOY_VERSION}</div>
         </div>
-=======
-       <div className="sidebar-footer">
-  <div className="sidebar-footer-title">Estimator2.0</div>
-  <div className="sidebar-version">
-    v{process.env.REACT_APP_VERSION ?? "dev"}
-  </div>
-</div>
-
-
->>>>>>> 28f3827 (Snapshot proposal sections for public review)
         {/* ROLE LABEL (bottom of sidebar) */}
         <div
           style={{
@@ -4206,8 +4099,6 @@ try {
               skirtingUnit="sf"
               addItemsDetailed={addItemsDetailed as any}
               upliftMultiplier={upliftMultiplier}
-proposalSectionsSnapshot={proposalSectionsSnapshot}
-
               onEmailProposal={handleEmailProposal}
             />
           )}
