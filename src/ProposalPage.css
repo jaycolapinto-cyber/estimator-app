@@ -483,3 +483,23 @@ padding: 34px 40px 360px 40px !important;
     z-index: 3;
   }
 }
+.du-print-page {
+  position: relative;
+}
+
+.du-print-watermark {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 70%;
+  max-width: 520px;
+  height: auto;
+  opacity: 0.08;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.du-print-page > *:not(.du-print-watermark) {
+  position: relative;
+  z-index: 1;
+}

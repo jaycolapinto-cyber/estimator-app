@@ -105,6 +105,8 @@ export type ProposalPageProps = {
   onEmailProposal?: () => void;
   readOnly?: boolean;
   proposalSectionsSnapshot?: ProposalSection[] | null;
+
+
   proposalNotesSnapshot?: string | null;
   sowModeSnapshot?: "auto" | "custom" | null;
   sowCustomTextSnapshot?: string | null;
@@ -243,6 +245,8 @@ export default function ProposalPage(props: ProposalPageProps) {
     startWeeksSnapshot,
     durationDaysSnapshot,
     showLineItemPricesSnapshot,
+    proposalSectionsSnapshot,
+
   } = props;
 
   const docRef = useRef<HTMLElement | null>(null);
@@ -274,30 +278,37 @@ export default function ProposalPage(props: ProposalPageProps) {
     ProposalSection[]
   >([]);
 
-  useEffect(() => {
-    let alive = true;
+ useEffect(() => {
+  let alive = true;
 
-    (async () => {
-      if (!safeOrgId) {
-        setDbProposalSections([]);
-        return;
-      }
-      try {
-        const rows = await fetchProposalSections(safeOrgId);
-        if (!alive) return;
-        const next = Array.isArray(rows) ? rows : [];
-        setDbProposalSections(next);
-        props.onSectionsSnapshot?.(next);
-      } catch {
-        if (!alive) return;
-        setDbProposalSections([]);
-      }
-    })();
+  (async () => {
+    if (readOnly) {
+      setDbProposalSections([]);
+      return;
+    }
 
-    return () => {
-      alive = false;
-    };
-  }, [safeOrgId]);
+    if (!safeOrgId) {
+      setDbProposalSections([]);
+      return;
+    }
+
+    try {
+      const rows = await fetchProposalSections(safeOrgId);
+      if (!alive) return;
+      const next = Array.isArray(rows) ? rows : [];
+      setDbProposalSections(next);
+      props.onSectionsSnapshot?.(next);
+    } catch {
+      if (!alive) return;
+      setDbProposalSections([]);
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+}, [safeOrgId, readOnly]);
+
 
   const [showLineItemPrices, setShowLineItemPrices] = useState<boolean>(() => {
     if (readOnly && typeof showLineItemPricesSnapshot === "boolean") {
@@ -645,12 +656,18 @@ export default function ProposalPage(props: ProposalPageProps) {
     skirtingDescription,
   ]);
 
-  const enabledSections = useMemo(() => {
-    const raw = (
-      readOnly ? props.proposalSectionsSnapshot : dbProposalSections
-    ) as ProposalSection[];
-    return Array.isArray(raw) ? raw.filter((s) => s?.enabled) : [];
-  }, [dbProposalSections, props.proposalSectionsSnapshot, readOnly]);
+
+
+   const enabledSections = useMemo(() => {
+  const raw = (readOnly ? proposalSectionsSnapshot : dbProposalSections) as
+    | ProposalSection[]
+    | null
+    | undefined;
+
+  return Array.isArray(raw) ? raw.filter((s) => s?.enabled) : [];
+}, [readOnly, proposalSectionsSnapshot, dbProposalSections]);
+
+
 
   // ✅ Order from SettingsPage
   const layoutOrder = useMemo<string[]>(() => {
