@@ -1428,12 +1428,32 @@ function AppShell({
       const fastenerUnit = "ea";
       const skirtingQty = Number(skirtingSf || 0);
       const skirtingUnit = "sf";
+// ✅ Ensure emailed/review proposal uses the SAME full sections as Print Proposal
+let sectionsSnapshot: any[] | null = null;
+
+try {
+  if (orgId) {
+    const { data: secs, error: secsErr } = await supabase
+      .from("org_proposal_sections")
+      .select("*")
+      .eq("org_id", orgId)
+      .order("sort_order", { ascending: true });
+
+    if (secsErr) throw secsErr;
+    sectionsSnapshot = Array.isArray(secs) ? secs : null;
+  }
+} catch (e) {
+  // If snapshot fetch fails, we fall back to whatever buildSnapshot() has
+  sectionsSnapshot = null;
+}
 
       const payload = {
         estimate_name: estimateName || "Untitled Estimate",
         data: {
           // ✅ keep snapshot fields (good for timeline/notes keys etc.)
           ...buildSnapshot(),
+proposalSectionsSnapshot:
+  sectionsSnapshot ?? (buildSnapshot() as any)?.proposalSectionsSnapshot ?? null,
 
           // ✅ REQUIRED by ProposalPage.tsx
           userSettings,
