@@ -1587,7 +1587,7 @@ if (existingId) {
         // ignore if browser blocks it
       }
       // 3) Store draft + open in-app send window
-      setEmailDraft({ to, subject, body, link, proposalId });
+setEmailDraft({ to, subject, body, link, proposalId: proposalId || undefined });
 
       setEmailModalOpen(true);
     } catch (err: any) {
