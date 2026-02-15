@@ -21,12 +21,12 @@ export default function ReviewProposalPage() {
           setLoading(false);
           return;
         }
+const { data, error } = await supabase
+  .from("proposals")
+  .select("data")
+  .eq("id", id)
+  .single();
 
-        const { data, error } = await supabase
-          .from("proposals")
-          .select("data, org_id")
-          .eq("id", id)
-          .single();
 
         if (!alive) return;
 
@@ -39,7 +39,7 @@ export default function ReviewProposalPage() {
         }
 
         const proposal = data?.data || {};
-        const orgId = data?.org_id ?? proposal?.orgId ?? null;
+const orgId = proposal?.orgId ?? null;
 
         // Load org settings (if public read allowed)
         let settings: any = null;

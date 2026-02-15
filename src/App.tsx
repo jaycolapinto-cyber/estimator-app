@@ -1507,17 +1507,21 @@ function AppShell({
         .single();
 
       if (error) throw error;
-      function getPublicBaseUrl() {
-        const origin = window.location.origin;
+     function getPublicBaseUrl() {
+  const origin = window.location.origin;
 
-        // ✅ If you're inside CodeSandbox editor/preview, never send that to clients.
-        if (origin.includes("codesandbox.io")) {
-          return "https://26gqfx.csb.app"; // <-- your public app URL
-        }
+  // ✅ Always force production emails to use your real public domain
+  if (
+    origin.includes("github.dev") ||
+    origin.includes("localhost") ||
+    origin.includes("codesandbox.io")
+  ) {
+    return "https://estimator-app.pages.dev";
+  }
 
-        // ✅ Otherwise use whatever domain the app is actually running on
-        return origin.replace(/\/$/, "");
-      }
+  return origin.replace(/\/$/, "");
+}
+
 
       const proposalId = data?.id;
       const link = `${getPublicBaseUrl()}/review/${proposalId}`;
