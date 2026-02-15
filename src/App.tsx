@@ -833,26 +833,40 @@ function AppShell({
         htmlLen: html.length,
       });
 
-      await supabase.functions.invoke("send-proposal-email", {
-  body: {
-    to,
-    subject,
-    html, // ✅ required by function
-    proposalId: proposalId, // ✅ MUST be the actual UUID id (ex: savedId), not estimateName
+  // ✅ get proposal id safely
+const proposalId = emailDraft?.proposalId || undefined;
 
-    // ✅ REQUIRED: reply-to must come from Settings (no Decks Unique fallback)
-    replyTo: (userSettings?.userEmail || "").trim(),
+// ✅ get reply-to from Settings (required)
 
-    // ✅ Optional plain-text fallback (helps deliverability)
-    text: (bodyText || "").trim() || undefined,
+if (!replyTo) {
+  alert("Missing Reply-To email. Go to Settings and set your email address.");
+  return;
+}
 
-    // ✅ Optional: send copy to yourself
-    cc:
-      sendMeCopy && (userSettings?.userEmail || "").trim()
-        ? [(userSettings?.userEmail || "").trim()]
-        : undefined,
-  },
-});
+// ✅ call Edge Function
+const { data, error } = await supabase.functions.invoke(
+  "send-proposal-email",
+  {
+    body: {
+      to,
+      subject,
+      html,
+      proposalId,
+      replyTo,
+      text: (bodyText || "").trim() || undefined,
+      cc: sendMeCopy ? [replyTo] : undefined,
+    },
+  }
+);
+
+if (error) {
+  console.error("EDGE FUNCTION ERROR:", error);
+  alert("Send failed:\n\n" + JSON.stringify(error, null, 2));
+  return;
+}
+
+console.log("EDGE FUNCTION SUCCESS:", data);
+
 
 
       if (error) {
