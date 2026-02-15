@@ -1601,8 +1601,12 @@ if (existingId) {
         vars
       );
 
-      const body =
-        (bodyBase || "").trim() + "\n\nView proposal here:\n" + link + "\n";
+     // Add the link at the bottom (always)
+
+const body =
+  (bodyBase || "").trim() + "\n\nView proposal here:\n" + link + "\n";
+
+
 
       // helpful: copy link to clipboard
       try {

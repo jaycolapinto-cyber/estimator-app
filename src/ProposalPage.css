@@ -503,3 +503,12 @@ padding: 34px 40px 360px 40px !important;
   position: relative;
   z-index: 1;
 }
+.proposal-headValue {
+  white-space: nowrap;
+}
+.proposal-headBlock {
+  min-width: 260px;
+}
+.proposal-headLine {
+  white-space: nowrap;
+}

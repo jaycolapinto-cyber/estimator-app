@@ -730,8 +730,12 @@ export default function ProposalPage(props: ProposalPageProps) {
         <strong>Phone:</strong> {userSettings?.userPhone || "________________"}
       </div>
       <div className="proposal-headLine">
-        <strong>Email:</strong> {userSettings?.userEmail || "________________"}
-      </div>
+  <strong>Email:</strong>{" "}
+  <span className="proposal-headValue">
+    {userSettings?.userEmail || "________________"}
+  </span>
+</div>
+
     </div>
   );
 
