@@ -1500,13 +1500,39 @@ function AppShell({
         },
       };
 
-      const { data, error } = await supabase
-        .from("proposals")
-        .insert(payload)
-        .select("id")
-        .single();
+     const storageKey = `du_proposal_id::${estimateName || "Untitled Estimate"}`;
+const existingId = localStorage.getItem(storageKey);
 
-      if (error) throw error;
+let savedId: string | null = null;
+
+if (existingId) {
+  // Update existing proposal snapshot (keeps the same review link)
+  const { error: upErr } = await supabase
+    .from("proposals")
+    .update({
+      estimate_name: payload.estimate_name,
+      data: payload.data,
+    })
+    .eq("id", existingId);
+
+  if (upErr) throw upErr;
+
+  savedId = existingId;
+} else {
+  // First time: create proposal row
+  const { data: ins, error: insErr } = await supabase
+    .from("proposals")
+    .insert(payload)
+    .select("id")
+    .single();
+
+  if (insErr) throw insErr;
+
+  savedId = ins?.id ?? null;
+
+  if (savedId) localStorage.setItem(storageKey, savedId);
+}
+
      function getPublicBaseUrl() {
   const origin = window.location.origin;
 
@@ -1523,7 +1549,7 @@ function AppShell({
 }
 
 
-      const proposalId = data?.id;
+      const proposalId = savedId;
       const link = `${getPublicBaseUrl()}/review/${proposalId}`;
 
       // 2) Build subject/body from Settings templates
