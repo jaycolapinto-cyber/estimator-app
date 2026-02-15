@@ -19,6 +19,7 @@ type AddItemRow = {
 
   customName?: string | null;
   customDescription?: string | null;
+  customQtyText?: string | null;
 
   isFixedPrice?: boolean;
   category?: string | null;
@@ -609,12 +610,15 @@ export default function ProposalPage(props: ProposalPageProps) {
             key: `add-${r.rowId}`,
             label: (r.category || "Additional Item").toString(),
             typeText,
-            qtyText: fmtQty(
-              r.qty,
-              r.unit,
-              customName || r.picked?.name || "",
-              r.category || ""
-            ),
+           qtyText: isMisc
+  ? ((r as any)?.customQtyText?.toString().trim() || "—")
+  : fmtQty(
+      r.qty,
+      r.unit,
+      customName || r.picked?.name || "",
+      r.category || ""
+    ),
+
             description,
             baseCost: Number(r.lineBase || 0),
             isFixedPrice: (r as any).isFixedPrice ?? isMisc,
@@ -792,11 +796,8 @@ export default function ProposalPage(props: ProposalPageProps) {
 
           <tbody>
             {rows.map((r) => {
-              const isMiscRow = (r.label || "").toLowerCase().trim() === "misc";
-              const qtyDisplay =
-                isMiscRow && !showLineItemPrices
-                  ? `$${money0(r.baseCost)}`
-                  : r.qtyText || "—";
+              const qtyDisplay = r.qtyText || "—";
+
 
               return (
                 <tr key={r.key}>

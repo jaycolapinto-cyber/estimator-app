@@ -106,6 +106,10 @@ type AddItemRow = {
 
   // ✅ Misc / custom user item
   customName?: string;
+  customQtyText?: string;
+
+  customDescription?: string;
+
   customPrice?: number;
   isFixedPrice?: boolean;
 };
@@ -1660,7 +1664,7 @@ setEmailDraft({ to, subject, body, link, proposalId: proposalId || undefined });
     }
   };
 
-  const EST_EXT = ".json";
+const EST_EXT = ".DUest";
 
   const defaultFileName = () => {
     const town = (clientTown || "").trim();
@@ -3439,6 +3443,7 @@ setEmailDraft({ to, subject, body, link, proposalId: proposalId || undefined });
                             </select>
                           </div>
 
+
                           {/* MI */}
                           <div className="form-field">
                             <input
@@ -3915,64 +3920,99 @@ setEmailDraft({ to, subject, body, link, proposalId: proposalId || undefined });
                                       </button>
                                     </div>
                                   </>
-                                ) : normalizeCat(row.category || "") ===
-                                  "misc" ? (
-                                  <>
-                                    <div className="form-field">
-                                      <input
-                                        type="text"
-                                        className="form-input"
-                                        placeholder="Description (e.g., Dumpster)"
-                                        value={row.customName || ""}
-                                        onChange={(e) =>
-                                          updateAddItemRow(row.rowId, {
-                                            customName: e.target.value,
-                                            qty: 1,
-                                          })
-                                        }
-                                      />
-                                    </div>
+) : normalizeCat(row.category || "") === "misc" ? (
+  <>
+    {/* Title (col 2) */}
+    <div className="form-field">
+      <input
+        type="text"
+        className="form-input"
+        placeholder="Title (e.g., Screened Sunroom)"
+        value={row.customName || ""}
+        onChange={(e) =>
+          updateAddItemRow(row.rowId, {
+            customName: e.target.value,
+            qty: 1,
+          })
+        }
+      />
+    </div>
 
-                                    <div
-                                      className="additem-qty-wrap"
-                                      data-tooltip={
-                                        row.tooltip || "Fixed price (no uplift)"
-                                      }
-                                    >
-                                      <input
-                                        type="number"
-                                        className="form-input no-spinner"
-                                        placeholder="$ Price"
-                                        value={
-                                          row.customPrice === 0 ||
-                                          row.customPrice == null
-                                            ? ""
-                                            : String(row.customPrice)
-                                        }
-                                        onChange={(e) =>
-                                          updateAddItemRow(row.rowId, {
-                                            customPrice:
-                                              e.target.value === ""
-                                                ? 0
-                                                : Number(e.target.value),
-                                            qty: 1,
-                                          })
-                                        }
-                                      />
-                                      <button
-                                        type="button"
-                                        className="additem-remove"
-                                        onClick={() =>
-                                          removeAddItemRow(row.rowId)
-                                        }
-                                        aria-label="Remove item"
-                                        title="Remove"
-                                      >
-                                        ✕
-                                      </button>
-                                    </div>
-                                  </>
-                                ) : (
+    {/* Proposal Qty (col 3) */}
+    <div className="form-field">
+      <input
+        type="text"
+        className="form-input"
+        placeholder="Proposal Qty (e.g., 400 sf)"
+        value={(row as any).customQtyText || ""}
+        onChange={(e) =>
+          updateAddItemRow(
+            row.rowId,
+            { customQtyText: e.target.value, qty: 1 } as any
+          )
+        }
+      />
+    </div>
+
+    {/* Remove X (col 4) — EXACTLY like other rows */}
+    <button
+      type="button"
+      className="additem-remove"
+      onClick={() => removeAddItemRow(row.rowId)}
+      aria-label="Remove item"
+      title="Remove"
+    >
+      ✕
+    </button>
+
+    {/* ---- second line (indented under Title/Qty) ---- */}
+
+    {/* spacer (col 1) so the line starts under Title */}
+    <div />
+
+    {/* Proposal description (col 2-3) */}
+    <div className="form-field" style={{ gridColumn: "2 / 3" }}>
+      <input
+        type="text"
+        className="form-input"
+        placeholder="Proposal description (optional)"
+        value={row.customDescription || ""}
+        onChange={(e) =>
+          updateAddItemRow(row.rowId, {
+            customDescription: e.target.value,
+            qty: 1,
+          })
+        }
+      />
+    </div>
+
+    {/* Price (col 3) */}
+    <div className="form-field" style={{ gridColumn: "3 / 4" }}>
+      <input
+        type="number"
+        className="form-input no-spinner additem-qty-input"
+        placeholder="$ Price"
+        value={
+          row.customPrice === 0 || row.customPrice == null
+            ? ""
+            : String(row.customPrice)
+        }
+        onChange={(e) =>
+          updateAddItemRow(row.rowId, {
+            customPrice: e.target.value === "" ? 0 : Number(e.target.value),
+            qty: 1,
+          })
+        }
+      />
+    </div>
+
+    {/* empty col 4 to keep grid shape consistent */}
+    <div />
+  </>
+) : (
+
+
+
                                   <>
                                     {normalizeCat(row.category || "") ===
                                     "bench" ? (
