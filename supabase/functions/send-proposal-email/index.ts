@@ -9,9 +9,13 @@ const corsHeaders = {
 
 type Payload = {
   to: string; // recipient email
-proposalId?: string;
+  proposalId?: string;
   subject: string;
   html: string; // email body (HTML)
+
+  // ✅ REQUIRED: where replies should go (per-user / per-company)
+  replyTo: string;
+
   // optional attachment (base64 PDF, no data: prefix)
   pdfBase64?: string;
   filename?: string; // ex: "Proposal.pdf"
@@ -32,12 +36,13 @@ Deno.serve(async (req) => {
       });
     }
 
-           const body = (await req.json()) as Payload;
+    const body = (await req.json()) as Payload;
 
-    if (!body?.to || !body?.subject || !body?.html) {
+    // ✅ Validate required fields (including replyTo)
+    if (!body?.to || !body?.subject || !body?.html || !body?.replyTo) {
       return new Response(
         JSON.stringify({
-          error: "Missing required fields: to, subject, html",
+          error: "Missing required fields: to, subject, html, replyTo",
         }),
         {
           status: 400,
@@ -46,13 +51,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verified sending address (domain verified in Resend)
-    const from = "Decks Unique <send@estimator.trade>";
-    const reply_to = "info@decksunique.com";
+    const replyTo = String(body.replyTo || "").trim();
+    if (!replyTo) {
+      return new Response(
+        JSON.stringify({
+          error: "replyTo is required and cannot be empty",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // ✅ Verified sending address (domain verified in Resend)
+    // IMPORTANT: do NOT brand this as Decks Unique — this is your platform sender identity.
+    const from = "Estimator <send@estimator.trade>";
 
     const resendPayload: any = {
       from,
-      reply_to,
+
+      // ✅ Resend expects "reply_to" (works) — we pass the per-user email here
+      reply_to: replyTo,
+
       to: body.to,
       subject: body.subject,
       html: body.html,
@@ -79,8 +100,6 @@ Deno.serve(async (req) => {
         },
       ];
     }
-
-
 
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",

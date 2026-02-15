@@ -833,23 +833,27 @@ function AppShell({
         htmlLen: html.length,
       });
 
-      const { data, error } = await supabase.functions.invoke(
-        "send-proposal-email",
-        {
-          body: {
-            to,
-            subject,
-            html, // ✅ function expects html
-            proposalId: estimateName,
+      await supabase.functions.invoke("send-proposal-email", {
+  body: {
+    to,
+    subject,
+    html, // ✅ required by function
+    proposalId: proposalId, // ✅ MUST be the actual UUID id (ex: savedId), not estimateName
 
-            text: bodyText, // optional
-            replyTo: replyTo || undefined,
+    // ✅ REQUIRED: reply-to must come from Settings (no Decks Unique fallback)
+    replyTo: (userSettings?.userEmail || "").trim(),
 
-            // ✅ send copy to you (Edge Function should honor cc/bcc)
-            cc: sendMeCopy && replyTo ? [replyTo] : undefined,
-          },
-        }
-      );
+    // ✅ Optional plain-text fallback (helps deliverability)
+    text: (bodyText || "").trim() || undefined,
+
+    // ✅ Optional: send copy to yourself
+    cc:
+      sendMeCopy && (userSettings?.userEmail || "").trim()
+        ? [(userSettings?.userEmail || "").trim()]
+        : undefined,
+  },
+});
+
 
       if (error) {
         console.error("EDGE FUNCTION ERROR (raw):", error);

@@ -1380,12 +1380,12 @@ input:checked + .slider:before {
 /* =========================================================
          ESTIMATE SUMMARY (Hi-tech panel)
          ========================================================= */
-
 .estimate-summary {
   position: sticky;
-  top: 92px;
+  top: 140px; /* was 92px — lowers the card */
   align-self: start;
 }
+
 
 .estimate-panel {
   background: rgba(255, 255, 255, 0.72);
