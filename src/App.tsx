@@ -14,6 +14,8 @@ import { uid } from "./utils/uid";
 import UsersLicensesPage from "./UsersLicensesPage";
 import AuthPage from "./AuthPage";
 import CreateOrgPage from "./CreateOrgPage";
+import ContractPage from "./ContractPage";
+
 function BootScreen({ label = "Loading…" }: { label?: string }) {
   return (
     <div
@@ -945,13 +947,15 @@ console.log("EDGE FUNCTION SUCCESS:", data);
   // ===============================
   // STATE: ESTIMATE + UI
   // ===============================
-  type NavKey =
-    | "proposals"
-    | "estimator"
-    | "pricingAdmin"
-    | "analytics"
-    | "settings"
-    | "users";
+ type NavKey =
+  | "estimator"
+  | "proposals"
+  | "pricingAdmin"
+  | "analytics"
+  | "settings"
+  | "users"
+  | "contract";  // ← ADD THIS
+
 
   const [activeNav, setActiveNav] = useState<NavKey>("estimator");
 
@@ -1058,6 +1062,7 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
 
   const [clientTitle, setClientTitle] = useState("");
   const [clientLastName, setClientLastName] = useState("");
+  const [clientLocation, setClientLocation] = useState<string>("");
   const [clientTown, setClientTown] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   useEffect(() => {
@@ -3527,6 +3532,11 @@ const altBaseTotal =
             isActive={activeNav === "proposals"}
             onClick={() => setActiveNav("proposals")}
           />
+<SidebarNavItem
+  label="Contract"
+  isActive={activeNav === "contract"}
+  onClick={() => setActiveNav("contract")}
+/>
 
           {canEditPricing && (
             <SidebarNavItem
@@ -3597,10 +3607,11 @@ const altBaseTotal =
               {activeNav === "estimator" && "Deck Estimate"}
               {activeNav === "proposals" && "Proposals"}
               {activeNav === "pricingAdmin" && "Pricing Administration"}
-
               {activeNav === "analytics" && "Analytics"}
               {activeNav === "settings" && "Settings"}
               {activeNav === "users" && "Users / Licenses"}
+              {activeNav === "contract" && "Contract (Page Under Contruction)"}
+
             </div>
 
             <div className="page-header__subtitle">
@@ -4677,6 +4688,21 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
               onEmailProposal={handleEmailProposal}
             />
           )}
+         {activeNav === "contract" && (
+  <ContractPage
+    finalEstimate={finalEstimate}
+    selectedDecking={selectedDecking}
+    selectedRailing={selectedRailing}
+    selectedStairOption={selectedStairOption}
+    selectedFastener={selectedFastener}
+    selectedConstruction={selectedConstruction}
+    clientTitle={clientTitle}
+    clientLastName={clientLastName}
+    clientLocation={clientLocation}
+    clientEmail={clientEmail}
+  />
+)}
+
 
           {/* RIGHT: ESTIMATE SUMMARY */}
           {activeNav === "estimator" && (
