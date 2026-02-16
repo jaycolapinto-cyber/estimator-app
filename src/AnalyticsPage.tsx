@@ -50,6 +50,10 @@ export default function AnalyticsPage({
 }: AnalyticsPageProps) {
   const breakdown = useMemo(() => {
     // Base price = sum of all line items BEFORE any uplifts
+    const addItemsBase = (addItemsDetailed as any[])
+      .filter((r) => r?.picked && Number(r?.lineBase || 0) !== 0)
+      .reduce((sum, r) => sum + (Number(r?.lineBase) || 0), 0);
+
     const basePrice =
       (Number(deckingSubtotal) || 0) +
       (Number(railingSubtotal) || 0) +
@@ -57,46 +61,47 @@ export default function AnalyticsPage({
       (Number(fastenerSubtotal) || 0) +
       (Number(demoSubtotal) || 0) +
       (Number(skirtingSubtotal) || 0) +
-      (addItemsDetailed as any[])
-        .filter((r) => r?.picked && Number(r?.lineBase || 0) !== 0)
-        .reduce((sum, r) => sum + (Number(r?.lineBase) || 0), 0);
+      addItemsBase;
 
-    // Stage 1 (MSRP): base + permit + small job
+    // ✅ RULE: ALL uplifts are calculated from BASE PRICE
     const permitAmt = Math.round((basePrice * (Number(permitPercent) || 0)) / 100);
     const smallJobAmt = Math.round(
       (basePrice * (Number(smallJobPercent) || 0)) / 100
     );
+
+    const perceivedAmt = Math.round(
+      (basePrice * (Number(perceivedPercent) || 0)) / 100
+    );
+    const financeAmt = Math.round(
+      (basePrice * (Number(financePercent) || 0)) / 100
+    );
+
+    // Target total from app
+    const final = Math.round(Number(finalEstimate) || 0);
+
+    // Base + permit + small job
     const msrp = Math.round(basePrice + permitAmt + smallJobAmt);
 
-    // Stage 2 (Total Cost): MSRP + PV + Finance + MI
-    const perceivedAmt = Math.round(
-      (msrp * (Number(perceivedPercent) || 0)) / 100
-    );
-    const financeAmt = Math.round((msrp * (Number(financePercent) || 0)) / 100);
-    const miAmt = Math.round((msrp * (Number(miPercent) || 0)) / 100);
+    // Force MI to be remainder so rows always sum EXACTLY to Final Estimate
+    let miAmt = final - basePrice - permitAmt - smallJobAmt - perceivedAmt - financeAmt;
+    if (!Number.isFinite(miAmt)) miAmt = 0;
 
-    const computedTotal = Math.round(msrp + perceivedAmt + financeAmt + miAmt);
+    const computedFromRows =
+      basePrice + permitAmt + smallJobAmt + perceivedAmt + financeAmt + miAmt;
 
-// Force Total Cost to match the app's Final Estimate
-const totalCost = Math.round(Number(finalEstimate) || 0);
-
-// If numbers differ, add an Adjustment so rows still sum to Total Cost
-const adjustment = Math.round(totalCost - computedTotal);
-
-return {
-  basePrice,
-  permitAmt,
-  smallJobAmt,
-  msrp,
-  perceivedAmt,
-  financeAmt,
-  miAmt,
-  computedTotal,
-  adjustment,
-  totalCost,
-};
-
+    return {
+      basePrice,
+      permitAmt,
+      smallJobAmt,
+      msrp, // still shown as "Base + Permit + Small Job"
+      perceivedAmt,
+      financeAmt,
+      miAmt,
+      final,
+      computedFromRows,
+    };
   }, [
+    finalEstimate,
     deckingSubtotal,
     railingSubtotal,
     stairsSubtotal,
@@ -113,7 +118,6 @@ return {
 
   return (
     <div className="an-wrap">
-      {/* Top header row */}
       <div className="an-top">
         <div>
           <div className="an-title">Estimate Analytics</div>
@@ -125,22 +129,17 @@ return {
         <div className="an-actions">
           <button
             className="an-btn"
-            onClick={() => {
-              // no-op refresh (keeps your existing UI behavior)
-              // page is live, this is mainly a "reassurance" control
-              window.dispatchEvent(new Event("resize"));
-            }}
+            onClick={() => window.dispatchEvent(new Event("resize"))}
           >
             Refresh
           </button>
         </div>
       </div>
 
-      {/* KPI cards */}
       <div className="an-grid an-grid--3">
         <div className="an-card an-card--kpi">
           <div className="an-kicker">Final Estimate (App)</div>
-          <div className="an-big">${money0(finalEstimate)}</div>
+          <div className="an-big">${money0(breakdown.final)}</div>
           <div className="an-muted">What the customer sees</div>
         </div>
 
@@ -157,21 +156,17 @@ return {
         </div>
       </div>
 
-      {/* Breakdown panel (modern, clean) */}
       <div className="an-card an-card--panel">
         <div className="an-panel-head">
           <div>
             <div className="an-panel-title">Uplift Breakdown</div>
             <div className="an-panel-subtitle">
-              Matches the uplift hover logic (Base → MSRP → Total Cost)
+              All uplifts are % of Base Price (and totals always match Final Estimate)
             </div>
           </div>
-
-       
         </div>
 
         <div className="an-sections">
-          {/* MSRP group */}
           <div className="an-section">
             <div className="an-section-title">MSRP</div>
             <div className="an-section-subtitle">Base + required uplifts</div>
@@ -193,10 +188,9 @@ return {
             </div>
           </div>
 
-          {/* Total cost group */}
           <div className="an-section">
-            <div className="an-section-title">Total Cost</div>
-            <div className="an-section-subtitle">MSRP + business uplifts</div>
+            <div className="an-section-title">Final Estimate</div>
+            <div className="an-section-subtitle">Business uplifts (all based on Base)</div>
 
             <div className="an-rows">
               <Row
@@ -214,12 +208,14 @@ return {
 
               <Divider />
 
-              <Row label="Total Cost" value={`$${money0(breakdown.totalCost)}`} strong />
+              <Row
+                label="Final Estimate"
+                value={`$${money0(breakdown.final)}`}
+                strong
+              />
             </div>
           </div>
 
-          {/* Optional: show a “match” badge only if you want later.
-              You asked to remove mismatch warnings, so we keep it clean. */}
           <div className="an-section an-section--note">
             <div className="an-section-title">Notes</div>
             <div className="an-note">
