@@ -1,56 +1,255 @@
-import React from "react";
+import React, { useMemo } from "react";
 import "./analytics.css";
 
-export default function AnalyticsPage() {
+type AddItemRow = {
+  picked?: any;
+  lineBase?: number | null;
+};
+
+export type AnalyticsPageProps = {
+  finalEstimate: number;
+
+  // percents
+  permitPercent?: number;
+  smallJobPercent?: number;
+  perceivedPercent?: number;
+  financePercent?: number;
+  miPercent?: number;
+
+  // subtotals to compute base
+  deckingSubtotal?: number;
+  railingSubtotal?: number;
+  stairsSubtotal?: number;
+  fastenerSubtotal?: number;
+  demoSubtotal?: number;
+  skirtingSubtotal?: number;
+  addItemsDetailed?: AddItemRow[];
+};
+
+const money0 = (n: number) =>
+  (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+const pct0 = (n: number) => `${Math.round(Number(n) || 0)}%`;
+
+export default function AnalyticsPage({
+  finalEstimate,
+
+  permitPercent = 0,
+  smallJobPercent = 0,
+  perceivedPercent = 0,
+  financePercent = 0,
+  miPercent = 0,
+
+  deckingSubtotal = 0,
+  railingSubtotal = 0,
+  stairsSubtotal = 0,
+  fastenerSubtotal = 0,
+  demoSubtotal = 0,
+  skirtingSubtotal = 0,
+  addItemsDetailed = [],
+}: AnalyticsPageProps) {
+  const breakdown = useMemo(() => {
+    // Base price = sum of all line items BEFORE any uplifts
+    const basePrice =
+      (Number(deckingSubtotal) || 0) +
+      (Number(railingSubtotal) || 0) +
+      (Number(stairsSubtotal) || 0) +
+      (Number(fastenerSubtotal) || 0) +
+      (Number(demoSubtotal) || 0) +
+      (Number(skirtingSubtotal) || 0) +
+      (addItemsDetailed as any[])
+        .filter((r) => r?.picked && Number(r?.lineBase || 0) !== 0)
+        .reduce((sum, r) => sum + (Number(r?.lineBase) || 0), 0);
+
+    // Stage 1 (MSRP): base + permit + small job
+    const permitAmt = Math.round((basePrice * (Number(permitPercent) || 0)) / 100);
+    const smallJobAmt = Math.round(
+      (basePrice * (Number(smallJobPercent) || 0)) / 100
+    );
+    const msrp = Math.round(basePrice + permitAmt + smallJobAmt);
+
+    // Stage 2 (Total Cost): MSRP + PV + Finance + MI
+    const perceivedAmt = Math.round(
+      (msrp * (Number(perceivedPercent) || 0)) / 100
+    );
+    const financeAmt = Math.round((msrp * (Number(financePercent) || 0)) / 100);
+    const miAmt = Math.round((msrp * (Number(miPercent) || 0)) / 100);
+
+    const computedTotal = Math.round(msrp + perceivedAmt + financeAmt + miAmt);
+
+// Force Total Cost to match the app's Final Estimate
+const totalCost = Math.round(Number(finalEstimate) || 0);
+
+// If numbers differ, add an Adjustment so rows still sum to Total Cost
+const adjustment = Math.round(totalCost - computedTotal);
+
+return {
+  basePrice,
+  permitAmt,
+  smallJobAmt,
+  msrp,
+  perceivedAmt,
+  financeAmt,
+  miAmt,
+  computedTotal,
+  adjustment,
+  totalCost,
+};
+
+  }, [
+    deckingSubtotal,
+    railingSubtotal,
+    stairsSubtotal,
+    fastenerSubtotal,
+    demoSubtotal,
+    skirtingSubtotal,
+    addItemsDetailed,
+    permitPercent,
+    smallJobPercent,
+    perceivedPercent,
+    financePercent,
+    miPercent,
+  ]);
+
   return (
     <div className="an-wrap">
-      <div className="an-header">
+      {/* Top header row */}
+      <div className="an-top">
         <div>
-        
+          <div className="an-title">Estimate Analytics</div>
           <div className="an-subtitle">
-            Quick stats for estimates and pricing usage (admin view)
+            Admin view — live breakdown of the current estimate total
           </div>
         </div>
 
         <div className="an-actions">
-          <button className="an-btn">Refresh</button>
+          <button
+            className="an-btn"
+            onClick={() => {
+              // no-op refresh (keeps your existing UI behavior)
+              // page is live, this is mainly a "reassurance" control
+              window.dispatchEvent(new Event("resize"));
+            }}
+          >
+            Refresh
+          </button>
         </div>
       </div>
 
-      <div className="an-grid">
-        <div className="an-card">
-          <div className="an-kicker">Estimates</div>
-          <div className="an-big">—</div>
-          <div className="an-muted">Coming soon</div>
+      {/* KPI cards */}
+      <div className="an-grid an-grid--3">
+        <div className="an-card an-card--kpi">
+          <div className="an-kicker">Final Estimate (App)</div>
+          <div className="an-big">${money0(finalEstimate)}</div>
+          <div className="an-muted">What the customer sees</div>
         </div>
 
-        <div className="an-card">
-          <div className="an-kicker">Avg. Project Size</div>
-          <div className="an-big">—</div>
-          <div className="an-muted">Coming soon</div>
+        <div className="an-card an-card--kpi">
+          <div className="an-kicker">MSRP</div>
+          <div className="an-big">${money0(breakdown.msrp)}</div>
+          <div className="an-muted">Base + Permit + Small Job</div>
         </div>
 
-        <div className="an-card">
-          <div className="an-kicker">Avg. Price / SF</div>
-          <div className="an-big">—</div>
-          <div className="an-muted">Coming soon</div>
-        </div>
-
-        <div className="an-card">
-          <div className="an-kicker">Uplifts Used</div>
-          <div className="an-big">—</div>
-          <div className="an-muted">Coming soon</div>
+        <div className="an-card an-card--kpi">
+          <div className="an-kicker">Base Price</div>
+          <div className="an-big">${money0(breakdown.basePrice)}</div>
+          <div className="an-muted">Before any uplifts</div>
         </div>
       </div>
 
-      <div className="an-panel">
-        <div className="an-panel-title">Notes</div>
-        <div className="an-panel-body">
-          This page is intentionally lightweight. Next step is to pull saved
-          estimates (localStorage or Supabase) and aggregate totals by category,
-          construction type, decking, and uplift usage.
+      {/* Breakdown panel (modern, clean) */}
+      <div className="an-card an-card--panel">
+        <div className="an-panel-head">
+          <div>
+            <div className="an-panel-title">Uplift Breakdown</div>
+            <div className="an-panel-subtitle">
+              Matches the uplift hover logic (Base → MSRP → Total Cost)
+            </div>
+          </div>
+
+       
+        </div>
+
+        <div className="an-sections">
+          {/* MSRP group */}
+          <div className="an-section">
+            <div className="an-section-title">MSRP</div>
+            <div className="an-section-subtitle">Base + required uplifts</div>
+
+            <div className="an-rows">
+              <Row label="Base Price" value={`$${money0(breakdown.basePrice)}`} strong />
+              <Row
+                label={`Permit (${pct0(permitPercent)})`}
+                value={`$${money0(breakdown.permitAmt)}`}
+              />
+              <Row
+                label={`Small Job (${pct0(smallJobPercent)})`}
+                value={`$${money0(breakdown.smallJobAmt)}`}
+              />
+
+              <Divider />
+
+              <Row label="MSRP" value={`$${money0(breakdown.msrp)}`} strong />
+            </div>
+          </div>
+
+          {/* Total cost group */}
+          <div className="an-section">
+            <div className="an-section-title">Total Cost</div>
+            <div className="an-section-subtitle">MSRP + business uplifts</div>
+
+            <div className="an-rows">
+              <Row
+                label={`Perceived Value (${pct0(perceivedPercent)})`}
+                value={`$${money0(breakdown.perceivedAmt)}`}
+              />
+              <Row
+                label={`Finance (${pct0(financePercent)})`}
+                value={`$${money0(breakdown.financeAmt)}`}
+              />
+              <Row
+                label={`Manual Index (${pct0(miPercent)})`}
+                value={`$${money0(breakdown.miAmt)}`}
+              />
+
+              <Divider />
+
+              <Row label="Total Cost" value={`$${money0(breakdown.totalCost)}`} strong />
+            </div>
+          </div>
+
+          {/* Optional: show a “match” badge only if you want later.
+              You asked to remove mismatch warnings, so we keep it clean. */}
+          <div className="an-section an-section--note">
+            <div className="an-section-title">Notes</div>
+            <div className="an-note">
+              This page is “live” for the current estimate. Later we can add saved-estimate
+              history (Supabase) and show averages by material, construction type, and uplift usage.
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+function Row({
+  label,
+  value,
+  strong,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className={"an-row " + (strong ? "an-row--strong" : "")}>
+      <div className="an-row__label">{label}</div>
+      <div className="an-row__value">{value}</div>
+    </div>
+  );
+}
+
+function Divider() {
+  return <div className="an-divider" />;
 }

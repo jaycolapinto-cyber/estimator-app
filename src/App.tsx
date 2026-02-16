@@ -3275,12 +3275,26 @@ const EST_EXT = ".DUest";
             (activeNav === "pricingAdmin" ? "main-grid--pricing " : "")
           }
         >
-          {/* ====== ANALYTICS ====== */}
           {activeNav === "analytics" && (
-            <section className="analytics-page">
-              <AnalyticsPage />
-            </section>
-          )}
+  <section className="analytics-page">
+    <AnalyticsPage
+      finalEstimate={finalEstimate}
+      permitPercent={permitPercent}
+      smallJobPercent={smallJobPercent}
+      perceivedPercent={perceivedPercent}
+      financePercent={financePercent}
+      miPercent={miPercent}
+      deckingSubtotal={deckingSubtotal}
+      railingSubtotal={railingSubtotal}
+      stairsSubtotal={stairsSubtotal}
+      fastenerSubtotal={fastenerSubtotal}
+      demoSubtotal={demoSubtotal}
+      skirtingSubtotal={skirtingSubtotal}
+      addItemsDetailed={addItemsDetailed}
+    />
+  </section>
+)}
+
           {/* ====== USERS / LICENSES (ADMIN ONLY) ====== */}
           {activeNav === "users" &&
             (canSeeUsersLicenses ? (
