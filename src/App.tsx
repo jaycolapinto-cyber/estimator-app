@@ -2905,6 +2905,59 @@ const EST_EXT = ".DUest";
     permitPercent;
 
   const upliftMultiplier = 1 + totalUpliftPercent / 100;
+    const upliftBreakdown = useMemo(() => {
+    const money0 = (n: number) =>
+      (n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+    const basePrice =
+      (Number(deckingSubtotal) || 0) +
+      (Number(railingSubtotal) || 0) +
+      (Number(stairsSubtotal) || 0) +
+      (Number(fastenerSubtotal) || 0) +
+      (Number(demoSubtotal) || 0) +
+      (Number(skirtingSubtotal) || 0) +
+      (addItemsDetailed as any[])
+        .filter((r) => r && r.picked && Number(r.lineBase || 0) !== 0)
+        .reduce((sum, r) => sum + (Number(r.lineBase) || 0), 0);
+
+    const permitAmt = (basePrice * (Number(permitPercent) || 0)) / 100;
+    const smallJobAmt = (basePrice * (Number(smallJobPercent) || 0)) / 100;
+    const msrp = basePrice + permitAmt + smallJobAmt;
+
+        const perceivedAmt = (basePrice * (Number(perceivedPercent) || 0)) / 100;
+    const financeAmt = (basePrice * (Number(financePercent) || 0)) / 100;
+    const miAmt = (basePrice * (Number(miPercent) || 0)) / 100;
+    const totalCost = msrp + perceivedAmt + financeAmt + miAmt;
+
+    const r0 = (n: number) => Math.round(Number(n) || 0);
+
+    return {
+      money0,
+           basePrice: r0(basePrice),
+      permitAmt: r0(permitAmt),
+      smallJobAmt: r0(smallJobAmt),
+      msrp: r0(msrp),
+      perceivedAmt: r0(perceivedAmt),
+      financeAmt: r0(financeAmt),
+      miAmt: r0(miAmt),
+      totalCost: r0(totalCost),
+
+    };
+  }, [
+    deckingSubtotal,
+    railingSubtotal,
+    stairsSubtotal,
+    fastenerSubtotal,
+    demoSubtotal,
+    skirtingSubtotal,
+    addItemsDetailed,
+    permitPercent,
+    smallJobPercent,
+    perceivedPercent,
+    financePercent,
+    miPercent,
+  ]);
+
 
   const totalUpliftDollars =
     baseProjectTotal > 0 ? (baseProjectTotal * totalUpliftPercent) / 100 : 0;
@@ -3284,29 +3337,77 @@ const EST_EXT = ".DUest";
                             : "MSRP mode OFF"
                         }
                       />
+                     
+                    
+
 
                       {/* Right: Uplift multiplier pill (1.17) + hover breakdown */}
-                      <div className="pill-wrapper uplift-hover">
-                        <span className="pill pill--uplift">
-                          {upliftMultiplier.toFixed(2)}
-                        </span>
+{(() => {
+  const money0 = (n: number) =>
+    (n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
-                        <div className="uplift-hover-box">
-                          <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                            Uplift Breakdown
-                          </div>
-                          <div>Finance: {Math.round(financePercent)}%</div>
-                          <div>
-                            Perceived Value: {Math.round(perceivedPercent)}%
-                          </div>
-                          <div>Manual Index: {Math.round(miPercent)}%</div>
-                          <div>Small Job: {Math.round(smallJobPercent)}%</div>
-                          <div>Permit: {Math.round(permitPercent)}%</div>
-                          <div style={{ marginTop: 8, fontWeight: 700 }}>
-                            Total: {Math.round(totalUpliftPercent)}%
-                          </div>
-                        </div>
-                      </div>
+  const basePrice =
+    (Number(deckingSubtotal) || 0) +
+    (Number(railingSubtotal) || 0) +
+    (Number(stairsSubtotal) || 0) +
+    (Number(fastenerSubtotal) || 0) +
+    (Number(demoSubtotal) || 0) +
+    (Number(skirtingSubtotal) || 0) +
+    (addItemsDetailed as any[])
+      .filter((r) => r && r.picked && Number(r.lineBase || 0) !== 0)
+      .reduce((sum, r) => sum + (Number(r.lineBase) || 0), 0);
+
+  const permitAmt = (basePrice * (Number(permitPercent) || 0)) / 100;
+  const smallJobAmt = (basePrice * (Number(smallJobPercent) || 0)) / 100;
+  const msrp = basePrice + permitAmt + smallJobAmt;
+
+  const perceivedAmt = (msrp * (Number(perceivedPercent) || 0)) / 100;
+  const financeAmt = (msrp * (Number(financePercent) || 0)) / 100;
+  const miAmt = (msrp * (Number(miPercent) || 0)) / 100;
+  const totalCost = msrp + perceivedAmt + financeAmt + miAmt;
+
+  return (
+    <div className="pill-wrapper uplift-hover">
+      <span className="pill pill--uplift">{upliftMultiplier.toFixed(2)}</span>
+
+      <div className="uplift-hover-box">
+  <div style={{ fontWeight: 800, marginBottom: 8 }}>Uplift Breakdown</div>
+
+  <div style={{ fontWeight: 800, marginBottom: 6 }}>
+    Base Price: ${upliftBreakdown.money0(upliftBreakdown.basePrice)}
+  </div>
+
+  <div>
+    Permit: {Math.round(permitPercent)}% (${upliftBreakdown.money0(upliftBreakdown.permitAmt)})
+  </div>
+  <div>
+    Small Job: {Math.round(smallJobPercent)}% (${upliftBreakdown.money0(upliftBreakdown.smallJobAmt)})
+  </div>
+
+  <div style={{ marginTop: 10, fontWeight: 800 }}>
+    MSRP: ${upliftBreakdown.money0(upliftBreakdown.msrp)}
+  </div>
+
+  <div style={{ marginTop: 8 }}>
+    Perceived Value: {Math.round(perceivedPercent)}% (${upliftBreakdown.money0(upliftBreakdown.perceivedAmt)})
+  </div>
+  <div>
+    Finance: {Math.round(financePercent)}% (${upliftBreakdown.money0(upliftBreakdown.financeAmt)})
+  </div>
+  <div>
+    Manual Index: {Math.round(miPercent)}% (${upliftBreakdown.money0(upliftBreakdown.miAmt)})
+  </div>
+
+  <div style={{ marginTop: 10, fontWeight: 900 }}>
+    Total Cost: ${upliftBreakdown.money0(upliftBreakdown.totalCost)}
+  </div>
+</div>
+
+    </div>
+  );
+})()}
+
+
                     </div>
 
                     {/* ===== Client Info ===== */}
