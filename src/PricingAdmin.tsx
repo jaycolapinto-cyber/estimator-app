@@ -42,6 +42,8 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
 
   const topScrollRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
@@ -252,6 +254,17 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    if (!isDirty) return;
+
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
 
   const activeCats = useMemo(
     () => categories.filter((c) => c.is_active),
@@ -322,17 +335,20 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
     colVis,
     colW,
   ]);
+const updateItem = (id: string, field: keyof PricingItem, value: any) => {
+  if (readOnly) {
+    denyIfReadOnly();
+    return;
+  }
 
-  const updateItem = (id: string, field: keyof PricingItem, value: any) => {
-    if (readOnly) {
-      denyIfReadOnly();
-      return;
-    }
+  setItems((prev) =>
+    prev.map((it) => (it.id === id ? { ...it, [field]: value } : it))
+  );
 
-    setItems((prev) =>
-      prev.map((it) => (it.id === id ? { ...it, [field]: value } : it))
-    );
-  };
+  setIsDirty(true);
+};
+
+  
 
   const handleAddItem = () => {
     if (readOnly) {
@@ -373,6 +389,8 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
     };
 
     setItems((prev) => [newItem, ...prev]);
+        setIsDirty(true);
+
     setShowTrash(false);
     setItemSearch("");
     setSuccess(null);
@@ -451,6 +469,27 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
       setSavingItems(false);
     }
   };
+  const handleSaveAllChanges = async () => {
+    if (readOnly) {
+      denyIfReadOnly();
+      return;
+    }
+
+    try {
+      setIsSavingChanges(true);
+      setError(null);
+      setSuccess(null);
+await Promise.all([handleSaveCategories(), handleSaveItems()]);
+
+
+      setIsDirty(false);
+      setSuccess("All changes saved.");
+    } catch (e: any) {
+      setError(e?.message || "Failed to save changes");
+    } finally {
+      setIsSavingChanges(false);
+    }
+  };
 
   const softDeleteItem = (id: string) => {
     if (readOnly) {
@@ -466,6 +505,7 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
         it.id === id ? { ...it, deleted_at: new Date().toISOString() } : it
       )
     );
+    setIsDirty(true);
 
     setSuccess("Item moved to Trash. Click 'Save Items' to persist.");
   };
@@ -561,6 +601,18 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
           >
             {savingCats ? "Saving…" : "Save Categories"}
           </button>
+                             {(isDirty || isSavingChanges) && (
+            <button
+              className="paBtn primary"
+              onClick={handleSaveAllChanges}
+              disabled={isSavingChanges || loading || readOnly}
+              title={readOnly ? "Read-only" : ""}
+            >
+              {isSavingChanges ? "Saving…" : "Save Changes"}
+            </button>
+          )}
+
+
 <button
   className="paBtn primary"
   onClick={handleAddItem}
