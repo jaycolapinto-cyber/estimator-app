@@ -990,6 +990,7 @@ console.log("EDGE FUNCTION SUCCESS:", data);
 
   // ✅ FIX: this state must live at component level (NOT inside render)
   const [showBreakdown, setShowBreakdown] = useState(false);
+const [showDeckingLevels, setShowDeckingLevels] = useState(false);
 
   const [estimateId, setEstimateId] = useState<string>(() => {
     try {
@@ -2232,9 +2233,57 @@ const EST_EXT = ".DUest";
 
   const baseDemoUnit = selectedDemo?.cost ?? 0;
   const demoSubtotal = baseDemoUnit * demoQty;
+function computeEffectiveSkirtingRate(params: {
+  selectedDeckingUnit: number; // IMPORTANT: pass ADJUSTED decking $/sf here
+  skirtingRow: PricingItemRow | undefined;
+}): { effectiveRate: number; tooltip: string } {
+  const { selectedDeckingUnit, skirtingRow } = params;
 
-  const baseSkirtingUnit = selectedSkirting?.cost ?? 0;
-  const skirtingSubtotal = baseSkirtingUnit * skirtingSf;
+  if (!skirtingRow) {
+    return { effectiveRate: 0, tooltip: "Select skirting/lattice type" };
+  }
+
+  const unit = String(skirtingRow.unit || "").toLowerCase().trim();
+  const cost = Number(skirtingRow.cost || 0);
+
+  // ✅ Skirting rows that are deck-based:
+  // - multiplier = baseDeckSf * cost
+  // - addon_sf   = baseDeckSf + cost
+  if (unit === "multiplier") {
+    const rate = selectedDeckingUnit * cost;
+    return {
+      effectiveRate: rate,
+      tooltip: `${skirtingRow.name}: ${cost} × $${selectedDeckingUnit.toFixed(
+        2
+      )}/sf = $${rate.toFixed(2)}/sf`,
+    };
+  }
+
+  if (unit === "addon_sf") {
+    const rate = selectedDeckingUnit + cost;
+    return {
+      effectiveRate: rate,
+      tooltip: `${skirtingRow.name}: $${selectedDeckingUnit.toFixed(
+        2
+      )}/sf + $${cost.toFixed(2)}/sf = $${rate.toFixed(2)}/sf`,
+    };
+  }
+
+  // ✅ fixed price per sf (ex: lattice) or override
+  return {
+    effectiveRate: cost,
+    tooltip: `${skirtingRow.name}: $${cost.toFixed(2)}/sf`,
+  };
+}
+const skirtingCalc = computeEffectiveSkirtingRate({
+  // ✅ use ADJUSTED decking rate (base + construction adj)
+  selectedDeckingUnit: adjustedDeckingUnit,
+  skirtingRow: selectedSkirting,
+});
+
+const effectiveSkirtingRate = skirtingCalc.effectiveRate;
+const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
+
 
   // ===============================
   // ADD ITEMS — categories + pricing
@@ -2957,6 +3006,10 @@ const EST_EXT = ".DUest";
     financePercent,
     miPercent,
   ]);
+// ===============================
+// Trex Decking Price Levels (what-if totals)
+// Only swaps the decking unit price; keeps the rest identical.
+// ===============================
 
 
   const totalUpliftDollars =
@@ -2975,6 +3028,301 @@ const EST_EXT = ".DUest";
   const projectTotalWithUplift =
     baseProjectTotal > 0 ? baseProjectTotal * upliftMultiplier : 0;
   const finalEstimate = projectTotalWithUplift + addItemsSubtotalFixed;
+  const trexLevelsWhatIf = useMemo(() => {
+ const LEVELS = [
+  "Trex Enhance Basics",
+  "Trex Enhance Naturals",
+  "Trex Select",
+  "Trex Transcend",
+  "Trex Lineage",
+  "Trex Signature",
+] as const;
+
+
+  const curName = (selectedDecking?.name || "").toString();
+  const isTrex = curName.toLowerCase().includes("trex");
+  if (!isTrex) return null;
+
+  const fmt0 = (n: number) =>
+    (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+  const curFinal = Number(finalEstimate) || 0;
+
+  // If we don’t have enough info yet, return rows with blanks
+  const safeBaseProjectTotal = Number(baseProjectTotal) || 0;
+  const safeDeckingSubtotal = Number(deckingSubtotal) || 0;
+const safeSkirtingSubtotal = Number(skirtingSubtotal) || 0;
+const safeSkirtingSf = Number(skirtingSf ?? 0) || 0;
+  const safeUpliftMultiplier = Number(upliftMultiplier) || 0;
+  const safeFixed = Number(addItemsSubtotalFixed) || 0;
+  const safeSqFt = Number(deckingSqFt) || 0;
+  const safeConstructionAdj = Number(constructionAdj) || 0;
+
+  // We need sq ft and multipliers to compute anything meaningful
+  const canCompute =
+    safeSqFt > 0 && safeUpliftMultiplier > 0 && safeBaseProjectTotal >= 0;
+
+  // Helper: find the pricing item row for a given Trex level name
+const findTrexRow = (levelName: string) => {
+  const DECK_CATS = new Set(["decking", "composite_decking", "ipe"]);
+
+  const currentCat = String((selectedDecking as any)?.category || "")
+    .toLowerCase()
+    .trim();
+
+  const preferredCat = currentCat && DECK_CATS.has(currentCat) ? currentCat : null;
+
+  const curName = (selectedDecking?.name || "").toString().toLowerCase();
+
+  // Try to carry over “profile keywords” so we pick the comparable item
+  // (ex: “grooved”, “square edge”, “scalloped”, “flat top”, etc.)
+  const KEYWORDS = [
+    "grooved",
+    "square",
+    "square edge",
+    "scalloped",
+    "flat top",
+    "solid",
+    "boards",
+    "plank",
+    "edge",
+  ];
+
+  const curKw = KEYWORDS.filter((k) => curName.includes(k));
+
+  const needleExact = levelName.toLowerCase().trim();          // "trex enhance"
+const needleLoose = needleExact.replace(/^trex\s+/, "");     // "enhance"
+const mustContain = needleLoose;                             // force level keyword
+
+
+  // Collect candidates (decking categories only)
+  const candidates = pricingItems.filter((it) => {
+    if (it.active === false) return false;
+    if ((it.deleted_at ?? null) != null) return false;
+
+    const cat = String((it as any).category || "").toLowerCase().trim();
+    if (!DECK_CATS.has(cat)) return false;
+
+    const nm = (it.name || "").toString().trim().toLowerCase();
+
+   // Must be a Trex row AND must contain the specific level keyword ("basics", "enhance", etc.)
+if (!nm.includes("trex")) return false;
+if (!nm.includes(mustContain)) return false;
+
+// Exact match or contains the full "trex <level>" phrase
+if (nm === needleExact) return true;
+if (nm.includes(needleExact)) return true;
+
+// Otherwise allow it if it clearly matches the level keyword (already enforced above)
+return true;
+
+  });
+
+  if (candidates.length === 0) return undefined;
+
+  // Prefer same category as selected decking
+  let pool = candidates;
+  if (preferredCat) {
+    const sameCat = candidates.filter(
+      (it) =>
+        String((it as any).category || "").toLowerCase().trim() === preferredCat
+    );
+    if (sameCat.length > 0) pool = sameCat;
+  }
+
+  // Score candidates: more keyword overlap wins, shorter name wins (more “base”)
+  const score = (it: any) => {
+    const nm = (it.name || "").toString().toLowerCase();
+    const kwHits = curKw.reduce((s, k) => s + (nm.includes(k) ? 1 : 0), 0);
+    const lengthPenalty = Math.min(nm.length / 100, 2); // small penalty for super long names
+    return kwHits * 10 - lengthPenalty;
+  };
+
+  pool.sort((a, b) => score(b) - score(a));
+  return pool[0];
+};
+
+
+
+  const rows = LEVELS.map((level) => {
+    const row = findTrexRow(level);
+    const altBaseDeckingUnit = Number((row as any)?.cost || 0);
+
+    if (!canCompute || altBaseDeckingUnit <= 0) {
+      return {
+        level,
+        total: null as number | null,
+        diff: null as number | null,
+        labelTotal: "—",
+        labelDiff: "—",
+      };
+    }
+
+    const altAdjustedDeckingUnit = altBaseDeckingUnit + safeConstructionAdj;
+    const altDeckingSubtotal = altAdjustedDeckingUnit * safeSqFt;
+    // Recompute skirting using THIS decking level (skirting is keyed off selectedDecking cost)
+const simSkirtingCalc = computeEffectiveSkirtingRate({
+  selectedDeckingUnit: altAdjustedDeckingUnit,
+skirtingRow: selectedSkirting || undefined,
+});
+
+const simSkirtingRate = Number(simSkirtingCalc.effectiveRate) || 0;
+const simSkirtingSubtotal = simSkirtingRate * safeSkirtingSf;
+
+// Recompute stairs using THIS decking level (stairs are keyed off selectedDecking.name)
+const altStairsCalc = computeEffectiveStairsRate({
+  pricingItems,
+  selectedDecking: row as any, // this Trex level row
+  stairOptionRow: selectedStairOption || null,
+});
+
+const altStairsSubtotal =
+  (Number(altStairsCalc.effectiveRate) || 0) * (Number(stairsCount ?? 0) || 0);
+  // Recompute ONLY the deck-based Add Items using this decking level cost.
+// (This makes the panel match what happens when you change the main decking dropdown.)
+const curDeckSf = Number(selectedDecking?.cost || 0);
+const altDeckSf = Number((row as any)?.cost || 0);
+
+const altAddItemsSubtotalUpliftable = (addItemsDetailed as any[])
+  .filter((r) => r && r.picked && !r.isFixedPrice && Number(r.lineBase || 0) !== 0)
+  .reduce((sum, r) => {
+    const qty = Number(r.qty || 0);
+    if (qty <= 0) return sum;
+
+    const picked = r.picked || {};
+    const pickedUnit = String(picked.unit || r.unit || r.unitLabel || "")
+      .toLowerCase()
+      .trim();
+
+    const nameLc = String(r.displayName || picked.name || "").toLowerCase();
+    const catLc = String(r.category || "").toLowerCase();
+
+    const isPicFrame =
+      nameLc.includes("pic frame") ||
+      nameLc.includes("picture frame") ||
+      nameLc.includes("picframe");
+
+    const isPlanter = nameLc.includes("planter");
+    const isRamp = nameLc.includes("ramp");
+
+    const referencesDecking =
+      catLc.includes("deck") ||
+      catLc === "decking_options" ||
+      nameLc.includes("deck") ||
+      nameLc.includes("stair landing") ||
+      nameLc.includes("diagonal") ||
+      nameLc.includes("picture frame") ||
+      nameLc.includes("pic frame") ||
+      nameLc.includes("planter") ||
+      nameLc.includes("ramp") ||
+      nameLc.includes("board over board");
+
+    // if this add-item doesn't depend on decking, keep its existing lineBase
+    if (!referencesDecking) return sum + (Number(r.lineBase) || 0);
+
+    // If we don't have deck $/sf data, fall back safely to existing lineBase
+    if (!(curDeckSf > 0 && altDeckSf > 0)) return sum + (Number(r.lineBase) || 0);
+
+    // Mirror your exact add-item rules for deck-based items:
+    const pickedCost = Number(picked.cost || 0);
+
+    // Pic Frame Border: 0.75 × decking $/sf
+    if (isPicFrame) {
+      const unitCost = altDeckSf * 0.75;
+      return sum + unitCost * qty;
+    }
+
+    // Planter: 0.90 × decking $/sf
+    if (isPlanter) {
+      const unitCost = altDeckSf * 0.9;
+      return sum + unitCost * qty;
+    }
+
+    // Ramp: (picked multiplier) × decking $/sf
+    if (isRamp) {
+      const mult = pickedCost;
+      const unitCost = altDeckSf * mult;
+      return sum + unitCost * qty;
+    }
+
+    // multiplier: base × mult
+    if (pickedUnit === "multiplier") {
+      const unitCost = altDeckSf * pickedCost;
+      return sum + unitCost * qty;
+    }
+
+    // addon_sf / addon_lf: base + add
+    if (pickedUnit === "addon_sf" || pickedUnit === "addon_lf") {
+      const unitCost = altDeckSf + pickedCost;
+      return sum + unitCost * qty;
+    }
+
+    // Default deck-based fallback: scale linearly with decking cost
+    // (keeps behavior stable for any other deck-tied lines)
+    const scaled = (Number(r.lineBase) || 0) * (altDeckSf / curDeckSf);
+    return sum + scaled;
+  }, 0);
+
+const altBaseTotal =
+  safeBaseProjectTotal -
+  safeDeckingSubtotal -
+  safeSkirtingSubtotal -
+  (Number(stairsSubtotal) || 0) -
+  (Number(addItemsSubtotalUpliftable) || 0) +
+  altDeckingSubtotal +
+  simSkirtingSubtotal +
+  altStairsSubtotal +
+  altAddItemsSubtotalUpliftable;
+
+
+
+    const altFinal = altBaseTotal * safeUpliftMultiplier + safeFixed;
+    const diff = altFinal - curFinal;
+
+    const diffLabel =
+      diff === 0
+        ? "$0"
+        : diff > 0
+        ? `+$${fmt0(diff)}`
+        : `-$${fmt0(Math.abs(diff))}`;
+
+    return {
+      level,
+      total: altFinal,
+      diff,
+      labelTotal: `$${fmt0(altFinal)}`,
+      labelDiff: diffLabel,
+    };
+  });
+
+  // Identify the “current level” row by name match
+  const curLevel = LEVELS.find((lvl) =>
+    curName.toLowerCase().includes(lvl.toLowerCase().replace("trex ", ""))
+  );
+
+  return { rows, curLevel };
+}, [
+  pricingItems,
+  selectedDecking,
+  finalEstimate,
+  baseProjectTotal,
+  deckingSubtotal,
+  upliftMultiplier,
+  addItemsSubtotalFixed,
+    addItemsDetailed,
+  addItemsSubtotalUpliftable,
+  deckingSqFt,
+  constructionAdj,
+  selectedStairOption,
+  stairsCount,
+  stairsSubtotal,
+    skirtingSubtotal,
+  selectedSkirting,
+  skirtingSf,
+
+]);
+
+
   const prettyCat = (cat: string) =>
     (cat || "").replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
   function getBenchAddonPct(
@@ -3909,7 +4257,7 @@ const EST_EXT = ".DUest";
                             />
                             <div className="tooltip-box">
                               <div>
-                                Rate: ${baseSkirtingUnit.toFixed(2)} / sf
+Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                               </div>
                               <div style={{ marginTop: 4, fontWeight: 600 }}>
                                 Subtotal: $
@@ -4473,8 +4821,113 @@ const EST_EXT = ".DUest";
                   );
                 })()}
               </div>
+              {/* Decking Price Levels (Trex only) */}
+{(() => {
+ const isTrex =
+  ((selectedDecking?.name || "") as string).toLowerCase().includes("trex");
+
+
+  if (!isTrex) return null;
+
+  return (
+    <div className="estimate-panel" style={{ marginTop: 12 }}>
+      <div
+        className="estimate-panel__disclosure"
+        role="button"
+        tabIndex={0}
+        onClick={() => setShowDeckingLevels((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setShowDeckingLevels((v) => !v);
+          }
+        }}
+        aria-expanded={showDeckingLevels}
+      >
+        <span className="estimate-panel__disclosure-label">
+          Decking Tier Pricing
+        </span>
+        <span
+          className={`estimate-panel__chev ${showDeckingLevels ? "is-open" : ""}`}
+          aria-hidden="true"
+        >
+          ▾
+        </span>
+      </div>
+
+     {showDeckingLevels && (
+  <div className="estimate-panel__rows">
+    {/* header row */}
+    <div
+      className="estimate-panel__row"
+      style={{
+        fontSize: 11,
+        opacity: 0.7,
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+      }}
+    >
+      <span>Level</span>
+      <span style={{ display: "flex", gap: 14 }}>
+        <span style={{ minWidth: 90, textAlign: "right" }}>Total</span>
+        <span style={{ minWidth: 70, textAlign: "right" }}>Δ</span>
+      </span>
+    </div>
+
+    {(trexLevelsWhatIf?.rows || []).map((r) => {
+      const isCurrent =
+        (selectedDecking?.name || "").toLowerCase().includes(r.level.toLowerCase());
+
+      return (
+        <div
+          key={r.level}
+          className="estimate-panel__row"
+          style={{
+            padding: "10px 0",
+            borderTop: "1px solid rgba(0,0,0,0.06)",
+            fontWeight: isCurrent ? 800 : 600,
+            opacity: isCurrent ? 1 : 0.95,
+          }}
+        >
+          <span>
+            {r.level}
+            {isCurrent ? (
+              <span style={{ marginLeft: 8, fontSize: 11, opacity: 0.65 }}>
+                (current)
+              </span>
+            ) : null}
+          </span>
+
+          <span style={{ display: "flex", gap: 14 }}>
+            <span style={{ minWidth: 90, textAlign: "right" }}>
+              {r.labelTotal}
+            </span>
+            <span style={{ minWidth: 70, textAlign: "right", opacity: 0.85 }}>
+              {r.labelDiff}
+            </span>
+          </span>
+        </div>
+      );
+    })}
+
+    {/* If rows didn't compute (missing data) */}
+    {trexLevelsWhatIf && (trexLevelsWhatIf.rows || []).length === 0 && (
+      <div className="estimate-panel__row">
+        <span style={{ opacity: 0.7 }}>—</span>
+        <span style={{ opacity: 0.7 }}>—</span>
+      </div>
+    )}
+  </div>
+)}
+
+    </div>
+  );
+})()}
+
             </aside>
           )}
+          
         </div>
       </main>
 
