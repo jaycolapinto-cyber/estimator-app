@@ -3610,7 +3610,7 @@ const altBaseTotal =
               {activeNav === "analytics" && "Analytics"}
               {activeNav === "settings" && "Settings"}
               {activeNav === "users" && "Users / Licenses"}
-              {activeNav === "contract" && "Contract (Page Under Contruction)"}
+              {activeNav === "contract" && "Contract (Page Under Construction)"}
 
             </div>
 
