@@ -5,6 +5,7 @@ import { supabase } from "./supabaseClient";
 type PricingItemRow = any;
 
 type Props = {
+  orgId: string | null;
   // Keep these loose so we don’t fight types while you’re building.
   finalEstimate: number;
   selectedDecking: any;
@@ -12,11 +13,14 @@ type Props = {
   selectedStairOption: any;
   selectedFastener: any;
   selectedConstruction: any;
+  selectedDemo?: any;  
   constructionKey?: string;
   clientTitle?: string;
   clientLastName?: string;
   clientLocation?: string;
   clientEmail?: string;
+  demoType?: string | null;
+demoDescription?: string | null;
 };
 
 export default function ContractPage(props: Props) {
@@ -49,23 +53,92 @@ const [constructionScopeText, setConstructionScopeText] = useState<string>("");
     const override = priceOverride === "" ? null : Number(priceOverride);
     return override != null && !Number.isNaN(override) ? override : base;
   }, [props.finalEstimate, priceOverride]);
- const autoProjectSummary = useMemo(() => {
+  const companyName = useMemo(() => {
+  const tryRead = (key: string) => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return "";
+      const obj = JSON.parse(raw);
+      return (
+        (obj?.organizationName ||
+          obj?.orgName ||
+          obj?.companyName ||
+          "") as string
+      ).trim();
+    } catch {
+      return "";
+    }
+  };
+
+  return (
+    tryRead("userSettings") ||
+    tryRead("du_user_settings") ||
+    tryRead("duUserSettings") ||
+    "Decks Unique"
+  );
+}, []);
+const autoProjectSummary = useMemo(() => {
   const lines: string[] = [];
 
-  // Line 1 — fixed intro (as requested)
-  lines.push(
+ const pushLine = (s?: string | null) => {
+  const t = (s || "").trim();
+  if (t) lines.push(`- ${t}`);
+};
+
+  // Line 1 — fixed intro
+  pushLine(
     "New deck will be built as per the sketch plans and 3D renderings that will be emailed prior for approval."
   );
 
-  // Line 2 — pulled from Supabase sow_templates.body
-  if (constructionScopeText) {
-    lines.push(constructionScopeText);
-  } else {
-    lines.push("Demolition and structural preparation will be completed per the approved scope of work.");
-  }
+  // Line 2 — Demolition (USE BLURB, fallback to name)
+  const demoName = (props.demoType || "").trim();
+  const demoBlurb = (props.demoDescription || "").trim();
 
-  return lines.join("\n\n");
-}, [constructionScopeText]);
+  if (demoBlurb) {
+    pushLine(`Demolition: ${demoBlurb}`);
+  } else if (demoName) {
+    pushLine(`Demolition: ${demoName}.`);
+  }
+  // Line 3 — Decking
+  const deckingName = (props.selectedDecking?.name || props.selectedDecking?.label || "").trim();
+  const fastenerName = (props.selectedFastener?.name || props.selectedFastener?.label || "").trim();
+
+  if (deckingName && fastenerName) {
+    pushLine(
+      `${companyName} will supply and install ${deckingName} secured with ${fastenerName}. Decking color to be selected (TBD).`
+    );
+  } else if (deckingName) {
+    pushLine(
+      `${companyName} will supply and install ${deckingName}. Decking color to be selected (TBD).`
+    );
+  }
+    // Line 4 — Railing
+  const railingName = (props.selectedRailing?.name || props.selectedRailing?.label || "").trim();
+
+  if (railingName) {
+    pushLine(
+      `${companyName} will supply and install ${railingName} railing system. Railing color to be selected (TBD).`
+    );
+  }
+    // Line 5 — Stairs
+  const stairName = (props.selectedStairOption?.name || props.selectedStairOption?.label || "").trim();
+  const stairBlurb = (props.selectedStairOption?.proposal_description || "").trim();
+
+  if (stairBlurb) {
+    pushLine(`Stairs: ${stairBlurb}`);
+  } else if (stairName) {
+    pushLine(`${companyName} will supply and install ${stairName}.`);
+  }
+  // (keep your scope text / constructionScopeText lines wherever you want them)
+  // pushLine(constructionScopeText);
+
+  return lines.join("\n"); // ✅ IMPORTANT: no blank line
+}, [props.demoType, 
+  props.demoDescription, 
+  props.selectedDecking, props.selectedFastener, 
+  props.selectedRailing, 
+  props.selectedStairOption,
+  companyName /*, constructionScopeText */]);
     useEffect(() => {
     if (projectSummaryTouched) return;
     setProjectSummaryText(autoProjectSummary);
@@ -188,22 +261,17 @@ if (!data?.body) {
 
     {/* CENTER: Title + Logo + Company info */}
     <div className="contract-frame-center">
-      <div className="contract-frame-title">Contract</div>
-      <div className="contract-frame-tagline">“Pride and Quality Make Decks Unique”</div>
+  <div className="contract-frame-top">
+    <div className="contract-frame-title">Contract</div>
+    <div className="contract-frame-tagline">"Pride and Quality Make Decks Unique"</div>
+  </div>
 
-      <div className="contract-frame-logoWrap">
-        {/* If you have a logo file, update src path here */}
-        {/* Example: src="/DU-logo.png" */}
-        <img className="contract-frame-logo" src="/DU-logo.png" alt="Decks Unique" />
-      </div>
-
-      <div className="contract-frame-company">
-        <div>119 Commack Road</div>
-        <div>Commack, NY 11725</div>
-        <div>631.266.3004 • 516.822.4008</div>
-        <div>www.decksunique.com</div>
-      </div>
-    </div>
+<img className="contract-watermark" src="/DU-watermark.png" alt="" />
+  <div className="contract-frame-company">
+  <div>119 Commack Rd, Commack NY 11725</div>
+          <div>631.266.3004</div>
+</div>
+</div>
 
     {/* RIGHT: Page + schedule fields */}
     <div className="contract-frame-right">

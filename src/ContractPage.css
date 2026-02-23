@@ -429,10 +429,11 @@ flex-direction: column;
   padding-right: 12px;
   border-right: 1px solid rgba(47, 79, 47, 0.35);
 }
-
 .contract-frame-center {
-  padding: 0 12px;
-  text-align: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .contract-frame-right {
@@ -498,19 +499,20 @@ margin-top: 4px;}
   display: flex;
   justify-content: center;
 margin: 4px 0 2px 0;}
-
 .contract-frame-logo {
-width: 84px;  height: auto;
+  display: block;
+  height: 130px;
+  width: auto;
+  max-width: 380px;
   object-fit: contain;
 }
-
 .contract-frame-company {
-  font-size: 11px;
-  color: #111827;
-  line-height: 1.45;
-  margin-top: 6px;
+  margin-top: auto;
+  padding-top: 10px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.4;
 }
-
 /* RIGHT: page + date box + checks */
 .contract-pageRow {
   display: flex;
@@ -677,4 +679,31 @@ padding: 8px 10px;}
   background-repeat: repeat-y;
 
   padding: 4px 4px;
+}.contract-frame-center {
+  position: relative;
+}
+.contract-watermark {
+  position: absolute;
+  top: 55%;            /* moved down */
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 240px;       /* slightly larger */
+  opacity: 0.65;       /* darker */
+  pointer-events: none;
+  z-index: 0;
+}
+.contract-frame-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.contract-frame-tagline {
+  margin-top: 6px;
+}
+  
+.contract-frame-company {
+  margin-top: auto;
+  padding-top: 10px;
 }

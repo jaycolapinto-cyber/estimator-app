@@ -15,7 +15,6 @@ import UsersLicensesPage from "./UsersLicensesPage";
 import AuthPage from "./AuthPage";
 import CreateOrgPage from "./CreateOrgPage";
 import ContractPage from "./ContractPage";
-
 function BootScreen({ label = "Loading…" }: { label?: string }) {
   return (
     <div
@@ -1104,6 +1103,7 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
   const [selectedFastenerId, setSelectedFastenerId] = useState<string>("");
 
   const [selectedDemoId, setSelectedDemoId] = useState<string>("");
+ 
   const [demoQty, setDemoQty] = useState<number>(0);
   const [selectedSkirtingId, setSelectedSkirtingId] = useState<string>("");
   const [skirtingSf, setSkirtingSf] = useState<number>(0);
@@ -4688,19 +4688,27 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
               onEmailProposal={handleEmailProposal}
             />
           )}
-        {activeNav === "contract" && (
+{activeNav === "contract" && (
   <ContractPage
+    orgId={orgId}
     finalEstimate={finalEstimate}
     selectedDecking={selectedDecking}
     selectedRailing={selectedRailing}
     selectedStairOption={selectedStairOption}
     selectedFastener={selectedFastener}
     selectedConstruction={selectedConstruction}
-    constructionKey={(((selectedConstruction as any)?.construction_key) || "") as string}
     clientTitle={clientTitle}
     clientLastName={clientLastName}
-    clientLocation={clientLocation}
+    clientLocation={clientTown}
     clientEmail={clientEmail}
+   demoType={
+  demoOptions.find((d: any) => String(d.id) === String(selectedDemoId))?.name ??
+  ""
+}
+    demoDescription={
+  demoOptions.find((d: any) => String(d.id) === String(selectedDemoId))
+    ?.proposal_description ?? ""
+}
   />
 )}
 
