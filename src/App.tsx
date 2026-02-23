@@ -4688,7 +4688,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
               onEmailProposal={handleEmailProposal}
             />
           )}
-         {activeNav === "contract" && (
+        {activeNav === "contract" && (
   <ContractPage
     finalEstimate={finalEstimate}
     selectedDecking={selectedDecking}
@@ -4696,13 +4696,13 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
     selectedStairOption={selectedStairOption}
     selectedFastener={selectedFastener}
     selectedConstruction={selectedConstruction}
+    constructionKey={(((selectedConstruction as any)?.construction_key) || "") as string}
     clientTitle={clientTitle}
     clientLastName={clientLastName}
     clientLocation={clientLocation}
     clientEmail={clientEmail}
   />
 )}
-
 
           {/* RIGHT: ESTIMATE SUMMARY */}
           {activeNav === "estimator" && (
