@@ -857,4 +857,138 @@ line-height: 20px;  /* ✅ exact match */  padding: 18px 16px;
     break-inside: avoid;
     page-break-inside: avoid;
   }
+}/* ============================= */
+/* Payment Terms Box             */
+/* ============================= */
+.contract-paymentBox {
+  border: 3px solid #2f4b2f;
+  border-radius: 22px;
+  padding: 14px 18px 16px 18px;
+  background: #fff;
+  margin-top: 14px;
+  margin-left: -8px;  /* 👈 shifts box slightly left */
+}
+
+.contract-paymentTitle {
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.contract-paymentRow {
+  display: grid;
+  grid-template-columns: 1fr auto;   /* auto width */
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.contract-paymentLabel {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 6px;
+}
+
+.contract-paymentWordsInput {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.55);
+  padding: 2px 0 4px 0;
+  font-size: 13px;
+}
+.contract-paymentNumerals {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(17, 24, 39, 0.55);
+  border-radius: 10px;
+  padding: 6px 8px;
+  width: fit-content;
+  margin-left: auto;   /* 👈 ensures right alignment */
+}
+
+.contract-paymentNumeralsLabel {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.contract-paymentNumeralsInput {
+   width: 7ch;     /* fits XXX,XXX perfectly */
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  text-align: right;
+}
+
+.contract-paymentScheduleInput {
+  width: 100%;
+  border: 1px solid rgba(17, 24, 39, 0.18);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  background: #fff;
+}
+
+/* Print: keep payment box together */
+@media print {
+  .contract-paymentBox {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}/* ============================= */
+/* Payment Bottom Row            */
+/* ============================= */
+.contract-paymentBottom {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(17, 24, 39, 0.15);
+  text-align: center;
+}
+
+.contract-cancelTextCentered {
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.85;
+  max-width: 700px;
+  margin: 0 auto 22px auto;
+}
+
+.contract-authorizedSigCentered {
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.contract-authorizedLabel {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.contract-authorizedLine {
+  height: 1px;
+  background: #111;
+  margin-top: 18px;
+}.contract-paymentRow {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+.contract-paymentRightColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: flex-end;   /* 👈 pushes everything to the right */
+}
+
+.contract-authorizedSigInline {
+  text-align: right;
 }

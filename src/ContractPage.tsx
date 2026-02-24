@@ -32,6 +32,12 @@ export default function ContractPage(props: Props) {
   const [priceOverride, setPriceOverride] = useState<number | "">("");
   const [startDate, setStartDate] = useState<string>("");
   const [duration, setDuration] = useState<string>("");
+  // Payment Terms (editable)
+const [paymentSumWords, setPaymentSumWords] = useState<string>("");
+const [paymentSumNumerals, setPaymentSumNumerals] = useState<string>("");
+const [paymentScheduleText, setPaymentScheduleText] = useState<string>(
+  "Payment Schedule: $1,000 deposit w/ contract. Balance due upon project completion."
+);
   // Header (manual fill-in fields — NOT auto-populated)
   const [hdrClient, setHdrClient] = useState<string>("");
   const [hdrAddress, setHdrAddress] = useState<string>("");
@@ -395,6 +401,61 @@ if (!data?.body) {
   {/* Print rendering (no scrollbars, true text layout) */}
   <div className="contract-linedPrint print-only">
     {projectSummaryText}
+  </div>
+</div>
+{/* Payment Terms */}
+<div className="contract-paymentBox">
+  <div className="contract-paymentTitle">
+    We propose to hereby to furnish material and labor – complete in accordance with the above
+    specifications, for the sum of:
+  </div>
+
+ <div className="contract-paymentRow">
+  <div className="contract-paymentWords">
+    <div className="contract-paymentLabel">dollars</div>
+    <input
+      className="contract-paymentWordsInput"
+      value={paymentSumWords}
+      onChange={(e) => setPaymentSumWords(e.target.value)}
+      placeholder="Type amount in words"
+    />
+  </div>
+
+  <div className="contract-paymentRightColumn">
+    <div className="contract-paymentNumerals">
+      <div className="contract-paymentNumeralsLabel">($</div>
+      <input
+        className="contract-paymentNumeralsInput"
+        value={paymentSumNumerals}
+        onChange={(e) => setPaymentSumNumerals(e.target.value)}
+        inputMode="decimal"
+      />
+      <div className="contract-paymentNumeralsLabel">)</div>
+    </div>
+
+    <div className="contract-authorizedSigInline">
+      <div className="contract-authorizedLabel">Authorized Signature</div>
+      <div className="contract-authorizedLine" />
+    </div>
+  </div>
+</div>
+  <div className="contract-paymentSchedule">
+    <textarea
+      className="contract-paymentScheduleInput"
+      value={paymentScheduleText}
+      onChange={(e) => setPaymentScheduleText(e.target.value)}
+      rows={2}
+    />
+  <div className="contract-paymentBottom">
+  <div className="contract-cancelTextCentered">
+    You, the buyer, may cancel at any time prior to midnight of the third business day after the date of this transaction.
+  </div>
+
+  <div className="contract-authorizedSigCentered">
+    <div className="contract-authorizedLabel">Authorized Signature</div>
+    <div className="contract-authorizedLine" />
+  </div>
+</div>
   </div>
 </div>
 </section>
