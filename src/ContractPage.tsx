@@ -16,6 +16,7 @@ type Props = {
   selectedDemo?: any;  
   constructionKey?: string;
   clientTitle?: string;
+  selectedSkirting?: any;
   clientLastName?: string;
   clientLocation?: string;
   clientEmail?: string;
@@ -40,11 +41,14 @@ export default function ContractPage(props: Props) {
   const [hdrPageOf, setHdrPageOf] = useState<string>("1");
     const [hdrApproxStart, setHdrApproxStart] = useState<string>("");
   const [hdrApproxEnd, setHdrApproxEnd] = useState<string>("");
-const [hdrEssence, setHdrEssence] = useState<"yes" | "not" | "">("");
+const [hdrEssence, setHdrEssence] = useState<"yes" | "not" | "">("not");
 const [constructionScopeText, setConstructionScopeText] = useState<string>("");
   const [projectSummaryText, setProjectSummaryText] = useState<string>("");
   const [projectSummaryTouched, setProjectSummaryTouched] = useState<boolean>(false);
-
+const PROJECT_SUMMARY_KEY = useMemo(() => {
+  const oid = (props.orgId || "no-org").trim();
+  return `du_contract_project_summary__${oid}`;
+}, [props.orgId]);
 
 
 
@@ -129,6 +133,15 @@ const autoProjectSummary = useMemo(() => {
   } else if (stairName) {
     pushLine(`${companyName} will supply and install ${stairName}.`);
   }
+    // Line 6 — Skirting / Lattice
+  const skirtingName = (props.selectedSkirting?.name || props.selectedSkirting?.label || "").trim();
+  const skirtingBlurb = (props.selectedSkirting?.proposal_description || "").trim();
+
+  if (skirtingBlurb) {
+    pushLine(`Skirting: ${skirtingBlurb}`);
+  } else if (skirtingName) {
+    pushLine(`${companyName} will supply and install ${skirtingName}.`);
+  }
   // (keep your scope text / constructionScopeText lines wherever you want them)
   // pushLine(constructionScopeText);
 
@@ -143,6 +156,17 @@ const autoProjectSummary = useMemo(() => {
     if (projectSummaryTouched) return;
     setProjectSummaryText(autoProjectSummary);
   }, [autoProjectSummary, projectSummaryTouched]);
+  useEffect(() => {
+  try {
+    const saved = (localStorage.getItem(PROJECT_SUMMARY_KEY) || "").trim();
+    if (saved) {
+      setProjectSummaryTouched(true);
+      setProjectSummaryText(saved);
+    }
+  } catch {
+    // ignore
+  }
+}, [PROJECT_SUMMARY_KEY]);
   const clientName = useMemo(() => {
     const t = (props.clientTitle || "").trim();
     const ln = (props.clientLastName || "").trim();
@@ -268,8 +292,8 @@ if (!data?.body) {
 
 <img className="contract-watermark" src="/DU-watermark.png" alt="" />
   <div className="contract-frame-company">
-  <div>119 Commack Rd, Commack NY 11725</div>
-          <div>631.266.3004</div>
+  <div className="contract-company-address">119 Commack Rd, Commack NY 11725</div>
+  <div className="contract-company-phone">631.266.3004</div>
 </div>
 </div>
 
@@ -348,132 +372,42 @@ if (!data?.body) {
 
 
 <section className="contract-section">
-  <h2 className="contract-title">We hereby submit specification for:</h2>
-
   <div className="contract-linedBox">
-    <textarea
-      className="contract-linedTextarea"
-      value={projectSummaryText}
-      onChange={(e) => {
-        setProjectSummaryTouched(true);
-        setProjectSummaryText(e.target.value);
-      }}
-    />
+    <div className="contract-linedHeader">
+      WE HEREBY SUBMIT SPECIFICATION FOR:
+    </div>
+  {/* Screen editing */}
+  <textarea
+    className="contract-linedTextarea no-print"
+    value={projectSummaryText}
+    onChange={(e) => {
+      const next = e.target.value;
+      setProjectSummaryTouched(true);
+      setProjectSummaryText(next);
+      try {
+        localStorage.setItem(PROJECT_SUMMARY_KEY, next);
+      } catch {
+        // ignore
+      }
+    }}
+  />
+
+  {/* Print rendering (no scrollbars, true text layout) */}
+  <div className="contract-linedPrint print-only">
+    {projectSummaryText}
   </div>
+</div>
 </section>
 
-        <section className="contract-section">
-         <h2 className="contract-section-title">Schedule & Pricing</h2>
+       
+      
 
-          <div className="contract-formGrid no-print">
-            <label className="contract-field">
-              <div className="contract-fieldLabel">Deposit</div>
-              <input
-                className="contract-input"
-                type="number"
-                value={deposit}
-                onChange={(e) => setDeposit(Number(e.target.value || 0))}
-              />
-            </label>
-
-            <label className="contract-field">
-              <div className="contract-fieldLabel">Price Override (optional)</div>
-              <input
-                className="contract-input"
-                type="number"
-                value={priceOverride}
-                placeholder="leave blank to use estimate"
-                onChange={(e) =>
-                  setPriceOverride(e.target.value === "" ? "" : Number(e.target.value))
-                }
-              />
-            </label>
-
-            <label className="contract-field">
-              <div className="contract-fieldLabel">Approx Start Date</div>
-              <input
-                className="contract-input"
-                type="text"
-                value={startDate}
-                placeholder="e.g., March 10, 2026"
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </label>
-
-            <label className="contract-field">
-              <div className="contract-fieldLabel">Duration</div>
-              <input
-                className="contract-input"
-                type="text"
-                value={duration}
-                placeholder="e.g., 3–5 days"
-                onChange={(e) => setDuration(e.target.value)}
-              />
-            </label>
-          </div>
-
-          {/* Print-friendly summary */}
-          <div className="contract-summary">
-            <div className="contract-summaryRow">
-              <span>Deposit</span>
-              <strong>${(Number(deposit) || 0).toLocaleString()}</strong>
-            </div>
-            <div className="contract-summaryRow">
-              <span>Total Contract Price</span>
-              <strong>${(Number(contractPrice) || 0).toLocaleString()}</strong>
-            </div>
-            <div className="contract-summaryRow">
-              <span>Approx Start Date</span>
-              <strong>{startDate || "TBD"}</strong>
-            </div>
-            <div className="contract-summaryRow">
-              <span>Duration</span>
-              <strong>{duration || "TBD"}</strong>
-            </div>
-          </div>
-        </section>
-
-        <section className="contract-section">
-         <h2 className="contract-section-title">Terms (editable later)</h2>
-          <p className="contract-text">
-            This contract is generated from the estimate selections. Final scope and
-            specifications will match the approved proposal. Any changes requested by
-            the client after signing may result in change orders and additional costs.
-          </p>
-          <p className="contract-text">
-            Materials are ordered upon receipt of deposit. Client is responsible for
-            providing access to the work area and any required HOA approvals.
-          </p>
-        </section>
-
-        <section className="contract-section contract-sign">
-          <div className="contract-signRow">
-            <div className="contract-line">
-              <div className="contract-lineLabel">Client Signature</div>
-              <div className="contract-lineBar" />
-            </div>
-            <div className="contract-line small">
-              <div className="contract-lineLabel">Date</div>
-              <div className="contract-lineBar" />
-            </div>
-          </div>
-
-          <div className="contract-signRow">
-            <div className="contract-line">
-              <div className="contract-lineLabel">Decks Unique Authorized Signature</div>
-              <div className="contract-lineBar" />
-            </div>
-            <div className="contract-line small">
-              <div className="contract-lineLabel">Date</div>
-              <div className="contract-lineBar" />
-            </div>
-          </div>
-        </section>
-
+     
         <footer className="contract-foot">
-          <div>Decks Unique • Contract generated by Estimator</div>
+          <span>Nassau H18607600</span> <span>Suffolk 1614-H</span>
         </footer>
       </div>
+
     </div>
   );
 }

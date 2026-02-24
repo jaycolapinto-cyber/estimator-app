@@ -4695,6 +4695,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
     selectedDecking={selectedDecking}
     selectedRailing={selectedRailing}
     selectedStairOption={selectedStairOption}
+    selectedSkirting={selectedSkirting}
     selectedFastener={selectedFastener}
     selectedConstruction={selectedConstruction}
     clientTitle={clientTitle}

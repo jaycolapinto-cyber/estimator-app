@@ -197,6 +197,10 @@ margin: 0 auto;
   #contract-doc * {
     visibility: visible !important;
   }
+ .contract-linedPrint {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 
   #contract-doc {
     position: absolute !important;
@@ -275,7 +279,31 @@ margin: 0 auto;
     box-shadow: none !important;
     border: 0 !important;
   }
+  @media print {
+  /* Fix Chrome print scaling / font substitution look */
+  html, body {
+    width: 8.5in;
+    height: 11in;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Ensure the contract prints at true size (no browser fit/shrink) */
+  #contract-doc {
+    width: 7.5in;          /* safe printable width */
+    margin: 0 auto;
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  /* Make sure text rendering stays consistent */
+  #contract-doc * {
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
+  }
 }
+}
+
 /* ============================= */
 /* Premium Header Styling        */
 /* ============================= */
@@ -285,7 +313,13 @@ margin: 0 auto;
   padding-bottom: 24px;
   border-bottom: 1px solid #e5e7eb;
 }
+.contract-company-address {
+  white-space: nowrap; /* ✅ keeps address looking like app view */
+}
 
+.contract-company-phone {
+  white-space: nowrap;
+}
 .contract-head-top {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -372,9 +406,8 @@ margin: 0 auto;
 /* ============================= */
 
 .contract-section {
-  margin-bottom: 40px;
+ margin-bottom: 8px;
 }
-
 .contract-section > h2 {
   font-size: 14px;
   letter-spacing: 1px;
@@ -510,6 +543,7 @@ margin: 4px 0 2px 0;}
   margin-top: auto;
   padding-top: 10px;
   text-align: center;
+  font-family: "Times New Roman", Times, serif;
   font-size: 13px;
   line-height: 1.4;
 }
@@ -647,17 +681,26 @@ padding: 8px 10px;}
     break-inside: avoid;
     page-break-inside: avoid;
   }
+  @media print {
+  .contract-company-address,
+  .contract-company-phone {
+    white-space: nowrap !important;
+  }
+}
+  .contract-frame-company {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+    font-size: 13px !important;
+  }
 }
 
 /* ===== Lined paper area (Project Summary) ===== */
-
 .contract-linedBox {
   border: 3px solid #2f4b2f;
   border-radius: 22px;
   padding: 16px 18px;
   background: #fff;
+  margin-top: 6px;   /* 👈 add this line */
 }
-
 .contract-linedTextarea {
   width: 100%;
   min-height: 260px;
@@ -666,20 +709,19 @@ padding: 8px 10px;}
   outline: none;
 
   font-size: 13px;
-  line-height: 26px;
+  line-height: 20px;     /* ✅ exact match to ruled lines */
+padding: 10px 10px;    /* ✅ baseline offset so text sits on the lines */
 
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent,
-    transparent 25px,
-    rgba(0, 0, 0, 0.35) 26px
-  );
-
-  background-size: 100% 26px;
+background-image: repeating-linear-gradient(
+  to bottom,
+  transparent 0px,
+  transparent 19px,
+  rgba(0, 0, 0, 0.22) 20px
+);
+background-size: 100% 20px;
   background-repeat: repeat-y;
-
-  padding: 4px 4px;
-}.contract-frame-center {
+}
+.contract-frame-center {
   position: relative;
 }
 .contract-watermark {
@@ -702,8 +744,117 @@ padding: 8px 10px;}
 .contract-frame-tagline {
   margin-top: 6px;
 }
-  
-.contract-frame-company {
+  .contract-frame-company {
   margin-top: auto;
   padding-top: 10px;
+  text-align: center;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.print-only { display: none; }
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+}
+
+/* Print version of the lined summary */
+.contract-linedPrint {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  font-size: 13px;
+line-height: 20px;  /* ✅ exact match */  padding: 18px 16px;
+  min-height: 240px;
+
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 19px,
+    rgba(0, 0, 0, 0.28) 20px
+  );
+  background-size: 100% 20px;
+
+}
+@media print {
+  /* Force contract doc to use the same UI font in print */
+  #contract-doc,
+  #contract-doc * {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+  }
+
+  /* Keep your contract title serif if you want it (remove this if you want everything UI font) */
+  .contract-frame-title {
+    font-family: Georgia, "Times New Roman", Times, serif !important;
+  }
+
+  /* Ensure company text stays UI font and consistent sizing */
+  .contract-frame-company {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+  }
+}.contract-linedHeader {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  padding: 6px 12px 0 12px;
+}/* ============================= */
+/* Acceptance Block              */
+/* ============================= */
+
+.contract-acceptance {
+  margin-top: 60px;
+  border: 3px solid #2f4b2f;
+  border-radius: 22px;
+  padding: 18px 22px;
+  background: #fff;
+}
+
+.contract-acceptance-text {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.contract-acceptance-signRow {
+  display: flex;
+  gap: 40px;
+  align-items: center;
+}
+
+.contract-sign-line {
+  flex: 1;
+}
+
+.contract-sign-line.small {
+  max-width: 200px;
+}
+
+.contract-sign-line span {
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.contract-sign-line .line {
+  height: 1px;
+  background: #111;
+  margin-top: 14px;
+}
+
+.contract-licenseRow {
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+/* Keep together in print */
+@media print {
+  .contract-acceptance {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }
