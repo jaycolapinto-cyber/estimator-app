@@ -2981,6 +2981,7 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
         const perceivedAmt = (basePrice * (Number(perceivedPercent) || 0)) / 100;
     const financeAmt = (basePrice * (Number(financePercent) || 0)) / 100;
     const miAmt = (basePrice * (Number(miPercent) || 0)) / 100;
+    const upliftSubtotal = perceivedAmt + financeAmt + miAmt;
     const totalCost = msrp + perceivedAmt + financeAmt + miAmt;
 
     const r0 = (n: number) => Math.round(Number(n) || 0);
@@ -2994,6 +2995,7 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
       perceivedAmt: r0(perceivedAmt),
       financeAmt: r0(financeAmt),
       miAmt: r0(miAmt),
+      upliftSubtotal: r0(upliftSubtotal),
       totalCost: r0(totalCost),
 
     };
@@ -3737,6 +3739,7 @@ const altBaseTotal =
   const perceivedAmt = (msrp * (Number(perceivedPercent) || 0)) / 100;
   const financeAmt = (msrp * (Number(financePercent) || 0)) / 100;
   const miAmt = (msrp * (Number(miPercent) || 0)) / 100;
+  const upliftSubtotal = perceivedAmt + financeAmt + miAmt;
   const totalCost = msrp + perceivedAmt + financeAmt + miAmt;
 
   return (
@@ -3769,6 +3772,9 @@ const altBaseTotal =
   </div>
   <div>
     Manual Index: {Math.round(miPercent)}% (${upliftBreakdown.money0(upliftBreakdown.miAmt)})
+ <div style={{ marginTop: 4, fontStyle: "italic", opacity: 0.85 }}>
+  Sub Total Uplift: ${upliftBreakdown.money0(upliftBreakdown.upliftSubtotal)}
+</div>
   </div>
 
   <div style={{ marginTop: 10, fontWeight: 900 }}>
