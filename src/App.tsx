@@ -4646,7 +4646,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
             />
           )}
 
-          {activeNav === "proposals" && (
+         <div style={{ display: activeNav === "proposals" ? "block" : "none" }}>
             <ProposalPage
               orgId={orgId}
               constructionType={constructionType}
@@ -4693,7 +4693,8 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
               upliftMultiplier={upliftMultiplier}
               onEmailProposal={handleEmailProposal}
             />
-          )}
+          </div>
+  
 {activeNav === "contract" && (
   <ContractPage
     orgId={orgId}

@@ -9,6 +9,7 @@ import type { UserSettings, ProposalSection } from "./SettingsPage";
 import { fetchSowTemplatesRows } from "./sowTemplates";
 import { fetchProposalSections } from "./proposalSections";
 
+
 type AddItemRow = {
   rowId: string;
   qty?: number | null;
@@ -189,6 +190,83 @@ function bulletLines(text?: string | null) {
 }
 
 export default function ProposalPage(props: ProposalPageProps) {
+    // ============================
+  // ============================
+  // 🔒 Freeze proposal rendering (no live updates)
+  // ============================
+  const latestPropsRef = useRef<ProposalPageProps>(props);
+  latestPropsRef.current = props;
+
+  const [proposalSnapshot, setProposalSnapshot] = useState<ProposalPageProps>(() => props);
+
+  // 🔔 Track if proposal is out-of-date
+  const [needsRefresh, setNeedsRefresh] = useState(false);
+
+  // Re-fetch sections + re-render proposal ONLY when user clicks refresh
+  const [proposalRefreshKey, setProposalRefreshKey] = useState(0);
+
+  const refreshProposal = () => {
+    setProposalSnapshot(latestPropsRef.current);
+    setProposalRefreshKey((k) => k + 1);
+    setNeedsRefresh(false);
+  };
+
+  // ✅ Auto-refresh when switching to a different estimate (fresh context)
+  useEffect(() => {
+    setProposalSnapshot(latestPropsRef.current);
+    setProposalRefreshKey((k) => k + 1);
+    setNeedsRefresh(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestPropsRef.current.estimateName]);
+  // ✅ Build a lightweight signature of the proposal inputs (so we can detect stale snapshot)
+  const liveSig = useMemo(() => {
+    return JSON.stringify({
+      finalEstimate: props.finalEstimate,
+      deckingType: props.deckingType,
+      railingType: props.railingType,
+      stairsType: props.stairsType,
+      fastenerType: props.fastenerType,
+      demoType: props.demoType,
+      skirtingType: props.skirtingType,
+      addItemsCount: (props.addItemsDetailed || []).length,
+    });
+  }, [
+    props.finalEstimate,
+    props.deckingType,
+    props.railingType,
+    props.stairsType,
+    props.fastenerType,
+    props.demoType,
+    props.skirtingType,
+    props.addItemsDetailed,
+  ]);
+
+  const snapSig = useMemo(() => {
+    return JSON.stringify({
+      finalEstimate: proposalSnapshot.finalEstimate,
+      deckingType: proposalSnapshot.deckingType,
+      railingType: proposalSnapshot.railingType,
+      stairsType: proposalSnapshot.stairsType,
+      fastenerType: proposalSnapshot.fastenerType,
+      demoType: proposalSnapshot.demoType,
+      skirtingType: proposalSnapshot.skirtingType,
+      addItemsCount: (proposalSnapshot.addItemsDetailed || []).length,
+    });
+  }, [
+    proposalSnapshot.finalEstimate,
+    proposalSnapshot.deckingType,
+    proposalSnapshot.railingType,
+    proposalSnapshot.stairsType,
+    proposalSnapshot.fastenerType,
+    proposalSnapshot.demoType,
+    proposalSnapshot.skirtingType,
+    proposalSnapshot.addItemsDetailed,
+  ]);
+    useEffect(() => {
+    setNeedsRefresh(liveSig !== snapSig);
+  }, [liveSig, snapSig]);
+
+  
   const {
     orgId,
     userSettings,
@@ -247,10 +325,11 @@ export default function ProposalPage(props: ProposalPageProps) {
     durationDaysSnapshot,
     showLineItemPricesSnapshot,
     proposalSectionsSnapshot,
+    
 
-  } = props;
-
+} = proposalSnapshot;
   const docRef = useRef<HTMLElement | null>(null);
+
   // PRINT: set total pages in footer ("Page 1 of Y")
   useEffect(() => {
     const onBeforePrint = () => {
@@ -275,6 +354,12 @@ export default function ProposalPage(props: ProposalPageProps) {
 
   const safeOrgId = orgId ?? null;
 
+// 🔔 Detect when estimator changes (mark proposal stale)
+useEffect(() => {
+  if (props.finalEstimate !== proposalSnapshot.finalEstimate) {
+    setNeedsRefresh(true);
+  }
+}, [props.finalEstimate, proposalSnapshot.finalEstimate]);
   const [dbProposalSections, setDbProposalSections] = useState<
     ProposalSection[]
   >([]);
@@ -308,8 +393,7 @@ export default function ProposalPage(props: ProposalPageProps) {
   return () => {
     alive = false;
   };
-}, [safeOrgId, readOnly]);
-
+}, [safeOrgId, readOnly, proposalRefreshKey]);
 
   const [showLineItemPrices, setShowLineItemPrices] = useState<boolean>(() => {
     if (readOnly && typeof showLineItemPricesSnapshot === "boolean") {
@@ -911,14 +995,21 @@ export default function ProposalPage(props: ProposalPageProps) {
       </>
     );
   };
-// 🔒 Prevent flicker: wait for sections to load
-if (!readOnly && safeOrgId && enabledSections.length === 0) {
-  return null; // or show a small loading placeholder
-}
+
   return (
     <section className="proposal-page">
       {!readOnly && (
+        
         <div className="proposal-actions no-print">
+          <button
+  type="button"
+  className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}
+  onClick={refreshProposal}
+  title="Update proposal to latest estimator inputs"
+>
+  Refresh Proposal
+</button>
+
           <button
             type="button"
             className="btn btn-primary"
@@ -954,8 +1045,7 @@ if (!readOnly && safeOrgId && enabledSections.length === 0) {
       {!readOnly && (
         <button
           type="button"
-          className="btn btn-secondary"
-          onClick={() => {
+className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onClick={() => {
             console.log("Email button clicked ✅", { onEmailProposal });
             onEmailProposal?.();
           }}
@@ -987,7 +1077,11 @@ if (!readOnly && safeOrgId && enabledSections.length === 0) {
           </header>
 
           <h1 className="proposal-title">Project Estimate</h1>
-
+{!readOnly && (
+  <div className="no-print" style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
+    Snapshot locked. Click “Refresh Proposal” to update.
+  </div>
+)}
           <section className="proposal-scope">
             <div
               className="proposal-clientBarTitle"
