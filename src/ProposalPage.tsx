@@ -684,30 +684,51 @@ export default function ProposalPage(props: ProposalPageProps) {
       : [];
   }, [userSettings]);
 
-  // ✅ Final order (matches Settings order + appends missing enabled custom ids)
-  const effectiveOrder = useMemo<string[]>(() => {
-    const enabledCustomIds = enabledSections.map((s) => String(s.id).trim());
+ const effectiveOrder = useMemo<string[]>(() => {
+  const enabledCustomIds = enabledSections.map((s) => String(s.id).trim());
 
-    const raw = layoutOrder.map((x) => String(x).trim()).filter(Boolean);
+  // Saved order from Settings (may be incomplete / stale)
+  const raw = layoutOrder.map((x) => String(x).trim()).filter(Boolean);
 
-    // Keep only ids that are valid (system ids OR enabled custom ids)
-    const valid = raw.filter((id) => {
-      if (id === "__details__" || id === "__timeline__") return true;
-      return enabledCustomIds.includes(id);
-    });
+  // Pull out just the system blocks in the order the user saved them
+  const systemOnly = raw.filter((id) => id === "__details__" || id === "__timeline__");
 
-    // Append any enabled custom ids missing from saved order
-    const missingCustomIds = enabledCustomIds.filter(
-      (id) => !valid.includes(id)
-    );
+  // If saved layout is missing ANY enabled ids, ignore the custom part of saved layout
+  // and use DB sort_order for custom sections (enabledSections is already DB-ordered).
+  const savedCustomIds = raw.filter((id) => id !== "__details__" && id !== "__timeline__");
+  const savedHasAllEnabled = enabledCustomIds.every((id) => savedCustomIds.includes(id));
 
-    // Ensure system ids exist, but DON'T move them to top/bottom — keep user’s order
-    const withMissing = [...valid, ...missingCustomIds];
-    if (!withMissing.includes("__details__")) withMissing.push("__details__");
-    if (!withMissing.includes("__timeline__")) withMissing.push("__timeline__");
+  const customOrder = savedHasAllEnabled
+    ? savedCustomIds.filter((id) => enabledCustomIds.includes(id))
+    : enabledCustomIds; // ✅ DB sort_order
 
-    return withMissing;
-  }, [layoutOrder, enabledSections]);
+  // Build final order:
+  // - if user saved system blocks, respect their relative position (details/timeline)
+  // - otherwise, default to putting details before timeline at the end
+  let out: string[] = [];
+
+  if (systemOnly.length) {
+    // If they have system blocks saved, just put custom sections between them in a sane way:
+    // Put details where it appears, timeline where it appears, custom sections fill the rest.
+    // Example: [details, custom..., timeline] or [custom..., details, timeline], etc.
+    const wantsDetailsFirst = systemOnly[0] === "__details__";
+    if (wantsDetailsFirst) {
+      out.push("__details__", ...customOrder, "__timeline__");
+    } else {
+      out.push(...customOrder, ...systemOnly);
+    }
+  } else {
+    // No saved system layout → default
+    out = [...customOrder, "__details__", "__timeline__"];
+  }
+
+  // Ensure both system ids exist exactly once
+  out = out.filter((v, i) => out.indexOf(v) === i);
+  if (!out.includes("__details__")) out.push("__details__");
+  if (!out.includes("__timeline__")) out.push("__timeline__");
+
+  return out;
+}, [layoutOrder, enabledSections]);
 
   useEffect(() => {
     console.log("✅ ProposalPage order check", {
@@ -890,7 +911,10 @@ export default function ProposalPage(props: ProposalPageProps) {
       </>
     );
   };
-
+// 🔒 Prevent flicker: wait for sections to load
+if (!readOnly && safeOrgId && enabledSections.length === 0) {
+  return null; // or show a small loading placeholder
+}
   return (
     <section className="proposal-page">
       {!readOnly && (
