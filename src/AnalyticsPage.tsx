@@ -81,13 +81,24 @@ export default function AnalyticsPage({
 
     // Base + permit + small job
     const msrp = Math.round(basePrice + permitAmt + smallJobAmt);
+// ✅ Manual Index is based on miPercent (matches the pill)
+const miAmt = Math.round((basePrice * (Number(miPercent) || 0)) / 100);
 
-    // Force MI to be remainder so rows always sum EXACTLY to Final Estimate
-    let miAmt = final - basePrice - permitAmt - smallJobAmt - perceivedAmt - financeAmt;
-    if (!Number.isFinite(miAmt)) miAmt = 0;
-const upliftSubtotal = perceivedAmt + financeAmt + miAmt;
+// ✅ Any leftover is an adjustment (rounding / missing items)
+let adjustmentAmt =
+  final -
+  basePrice -
+  permitAmt -
+  smallJobAmt -
+  perceivedAmt -
+  financeAmt -
+  miAmt;
+
+if (!Number.isFinite(adjustmentAmt)) adjustmentAmt = 0;
+
+const upliftSubtotal = perceivedAmt + financeAmt + miAmt + adjustmentAmt;
     const computedFromRows =
-      basePrice + permitAmt + smallJobAmt + perceivedAmt + financeAmt + miAmt;
+  basePrice + permitAmt + smallJobAmt + perceivedAmt + financeAmt + miAmt + adjustmentAmt;
 
     return {
       basePrice,
@@ -97,6 +108,7 @@ const upliftSubtotal = perceivedAmt + financeAmt + miAmt;
       perceivedAmt,
       financeAmt,
       miAmt,
+        adjustmentAmt, 
       upliftSubtotal,
       final,
       computedFromRows,
@@ -150,11 +162,7 @@ const upliftSubtotal = perceivedAmt + financeAmt + miAmt;
           <div className="an-muted">Base + Permit + Small Job</div>
         </div>
 
-        <div className="an-card an-card--kpi">
-          <div className="an-kicker">Base Price</div>
-          <div className="an-big">${money0(breakdown.basePrice)}</div>
-          <div className="an-muted">Before any uplifts</div>
-        </div>
+      
       </div>
 
       <div className="an-card an-card--panel">
