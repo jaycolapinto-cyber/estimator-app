@@ -201,14 +201,15 @@ export default function ProposalPage(props: ProposalPageProps) {
 
   // 🔔 Track if proposal is out-of-date
   const [needsRefresh, setNeedsRefresh] = useState(false);
-
+const liveUserSettings = props.userSettings;
   // Re-fetch sections + re-render proposal ONLY when user clicks refresh
   const [proposalRefreshKey, setProposalRefreshKey] = useState(0);
-
+const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(() => new Date());
   const refreshProposal = () => {
     setProposalSnapshot(latestPropsRef.current);
     setProposalRefreshKey((k) => k + 1);
     setNeedsRefresh(false);
+    setLastRefreshedAt(new Date());
   };
 
   // ✅ Auto-refresh when switching to a different estimate (fresh context)
@@ -758,58 +759,40 @@ useEffect(() => {
 
 
   // ✅ Order from SettingsPage
-  const layoutOrder = useMemo<string[]>(() => {
-    const arr = (userSettings as any)?.proposalLayoutOrder;
-    return Array.isArray(arr)
-      ? arr
-          .map(normalizeLayoutId)
-          .map((x) => String(x).trim())
-          .filter(Boolean)
-      : [];
-  }, [userSettings]);
+const layoutOrder = useMemo<string[]>(() => {
+  const arr = (liveUserSettings as any)?.proposalLayoutOrder;
+  return Array.isArray(arr)
+    ? arr
+        .map(normalizeLayoutId)
+        .map((x) => String(x).trim())
+        .filter(Boolean)
+    : [];
+}, [liveUserSettings]);
 
- const effectiveOrder = useMemo<string[]>(() => {
+const effectiveOrder = useMemo<string[]>(() => {
   const enabledCustomIds = enabledSections.map((s) => String(s.id).trim());
 
-  // Saved order from Settings (may be incomplete / stale)
-  const raw = layoutOrder.map((x) => String(x).trim()).filter(Boolean);
+  // saved order from Settings
+  const raw = (layoutOrder || []).map((x) => String(x).trim()).filter(Boolean);
 
-  // Pull out just the system blocks in the order the user saved them
-  const systemOnly = raw.filter((id) => id === "__details__" || id === "__timeline__");
+  // keep only enabled custom ids + system ids
+  const filtered = raw.filter(
+    (id) =>
+      id === "__details__" ||
+      id === "__timeline__" ||
+      enabledCustomIds.includes(id)
+  );
 
-  // If saved layout is missing ANY enabled ids, ignore the custom part of saved layout
-  // and use DB sort_order for custom sections (enabledSections is already DB-ordered).
-  const savedCustomIds = raw.filter((id) => id !== "__details__" && id !== "__timeline__");
-  const savedHasAllEnabled = enabledCustomIds.every((id) => savedCustomIds.includes(id));
+  // append any enabled custom sections missing from saved order (DB order)
+  const missingCustom = enabledCustomIds.filter((id) => !filtered.includes(id));
+  let out = [...filtered, ...missingCustom];
 
-  const customOrder = savedHasAllEnabled
-    ? savedCustomIds.filter((id) => enabledCustomIds.includes(id))
-    : enabledCustomIds; // ✅ DB sort_order
-
-  // Build final order:
-  // - if user saved system blocks, respect their relative position (details/timeline)
-  // - otherwise, default to putting details before timeline at the end
-  let out: string[] = [];
-
-  if (systemOnly.length) {
-    // If they have system blocks saved, just put custom sections between them in a sane way:
-    // Put details where it appears, timeline where it appears, custom sections fill the rest.
-    // Example: [details, custom..., timeline] or [custom..., details, timeline], etc.
-    const wantsDetailsFirst = systemOnly[0] === "__details__";
-    if (wantsDetailsFirst) {
-      out.push("__details__", ...customOrder, "__timeline__");
-    } else {
-      out.push(...customOrder, ...systemOnly);
-    }
-  } else {
-    // No saved system layout → default
-    out = [...customOrder, "__details__", "__timeline__"];
-  }
-
-  // Ensure both system ids exist exactly once
-  out = out.filter((v, i) => out.indexOf(v) === i);
+  // ensure system blocks exist exactly once
   if (!out.includes("__details__")) out.push("__details__");
   if (!out.includes("__timeline__")) out.push("__timeline__");
+
+  // de-dupe preserving first occurrence
+  out = out.filter((v, i) => out.indexOf(v) === i);
 
   return out;
 }, [layoutOrder, enabledSections]);
@@ -1001,20 +984,38 @@ useEffect(() => {
       {!readOnly && (
         
         <div className="proposal-actions no-print">
-          <button
-  type="button"
-  className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}
-  onClick={refreshProposal}
-  title="Update proposal to latest estimator inputs"
->
-  Refresh Proposal
-</button>
 
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => window.print()}
-          >
+  {needsRefresh && (
+    <div
+      style={{
+        marginBottom: 8,
+        padding: "8px 12px",
+        background: "#fff3f3",
+        border: "1px solid #f5c2c2",
+        borderRadius: 8,
+        color: "#b00020",
+        fontWeight: 600,
+        fontSize: 13,
+      }}
+    >
+      Changes made to Estimator. Proposal refresh required.
+    </div>
+  )}
+
+  <button
+    type="button"
+    className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}
+    onClick={refreshProposal}
+    title="Update proposal to latest estimator inputs"
+  >
+    Refresh Proposal
+  </button>
+
+  <button
+    type="button"
+    className="btn btn-primary"
+    onClick={() => window.print()}
+  >
             Print / Save PDF
           </button>
 
@@ -1078,140 +1079,135 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
 
           <h1 className="proposal-title">Project Estimate</h1>
 {!readOnly && (
-  <div className="no-print" style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
-    Snapshot locked. Click “Refresh Proposal” to update.
+  <div
+    className="no-print"
+    style={{ fontSize: 12, opacity: 0.6, marginBottom: 8 }}
+  >
+    Last refreshed:{" "}
+    {lastRefreshedAt.toLocaleString([], {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })}
   </div>
 )}
-          <section className="proposal-scope">
-            <div
-              className="proposal-clientBarTitle"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
-              <span>Scope of Work</span>
 
-              {isAdmin ? (
-                <div className="no-print" style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    className={`btn ${
-                      sowMode === "auto" ? "btn-secondary" : "btn-outline"
-                    }`}
-                    onClick={() => setSowMode("auto")}
-                  >
-                    Auto
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn ${
-                      sowMode === "custom" ? "btn-secondary" : "btn-outline"
-                    }`}
-                    onClick={() => setSowMode("custom")}
-                  >
-                    Custom
-                  </button>
-                </div>
-              ) : null}
-            </div>
+<section className="proposal-scope">
+  <div
+    className="proposal-clientBarTitle"
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    }}
+  >
+    <span>Scope of Work</span>
 
-            {!readOnly && sowMode === "custom" ? (
-              <div className="no-print">
-                <textarea
-                  className="proposal-notes-input"
-                  placeholder="Admin: type a custom Scope of Work..."
-                  value={sowCustomText}
-                  onChange={(e) => setSowCustomText(e.target.value)}
-                  rows={7}
-                  readOnly={!isAdmin}
-                  spellCheck={true}
-                  autoCorrect="on"
-                  autoCapitalize="sentences"
-                />
-              </div>
-            ) : null}
+    {isAdmin ? (
+      <div className="no-print" style={{ display: "flex", gap: 8 }}>
+        <button
+          type="button"
+          className={`btn ${sowMode === "auto" ? "btn-secondary" : "btn-outline"}`}
+          onClick={() => setSowMode("auto")}
+        >
+          Auto
+        </button>
+        <button
+          type="button"
+          className={`btn ${sowMode === "custom" ? "btn-secondary" : "btn-outline"}`}
+          onClick={() => setSowMode("custom")}
+        >
+          Custom
+        </button>
+      </div>
+    ) : null}
+  </div>
 
-            <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
-              {finalScopeText?.trim()
-                ? finalScopeText
-                : "This project includes the construction of a custom outdoor deck designed to match the selected materials, layout, and site conditions. Final scope and details are based on the selections made during the estimate and are subject to on-site verification."}
-            </p>
-          </section>
+  {!readOnly && sowMode === "custom" ? (
+    <div className="no-print">
+      <textarea
+        className="proposal-notes-input"
+        placeholder="Admin: type a custom Scope of Work..."
+        value={sowCustomText}
+        onChange={(e) => setSowCustomText(e.target.value)}
+        rows={7}
+        readOnly={!isAdmin}
+        spellCheck={true}
+        autoCorrect="on"
+        autoCapitalize="sentences"
+      />
+    </div>
+  ) : null}
 
-          {/* ✅ Render in SettingsPage order */}
-          {effectiveOrder.map((idRaw) => {
-            const id = normalizeLayoutId(idRaw);
+  <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
+    {finalScopeText?.trim()
+      ? finalScopeText
+      : "This project includes the construction of a custom outdoor deck designed to match the selected materials, layout, and site conditions. Final scope and details are based on the selections made during the estimate and are subject to on-site verification."}
+  </p>
+</section>
 
-            if (id === "__details__") {
-              return (
-                <React.Fragment key={id}>{renderDetailsBlock()}</React.Fragment>
-              );
-            }
-            if (id === "__timeline__") {
-              return (
-                <React.Fragment key={id}>
-                  {renderTimelineBlock()}
-                </React.Fragment>
-              );
-            }
+{/* ✅ Render in SettingsPage order */}
+{effectiveOrder.map((idRaw) => {
+  const id = normalizeLayoutId(idRaw);
 
-            const sec = enabledSections.find(
-              (s) => String(s.id).trim() === String(id).trim()
-            );
+  if (id === "__details__") {
+    return <React.Fragment key={id}>{renderDetailsBlock()}</React.Fragment>;
+  }
+  if (id === "__timeline__") {
+    return <React.Fragment key={id}>{renderTimelineBlock()}</React.Fragment>;
+  }
 
-            if (!sec) return null;
+  const sec = enabledSections.find(
+    (s) => String(s.id).trim() === String(id).trim()
+  );
 
-            return (
-              <section key={sec.id}>
-                <h2 className="proposal-secTitle">{sec.title}</h2>
+  if (!sec) return null;
 
-                {sec.type === "bullets" ? (
-                  <ul className="proposal-bullets">
-                    {bulletLines(sec.text).map((line, idx) => (
-                      <li key={`${sec.id}_${idx}`}>{line}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p
-                    className="proposal-text"
-                    style={{ whiteSpace: "pre-wrap" }}
-                  >
-                    {sec.text || ""}
-                  </p>
-                )}
-              </section>
-            );
-          })}
+  return (
+    <section key={sec.id}>
+      <h2 className="proposal-secTitle">{sec.title}</h2>
 
-          <h2 className="proposal-secTitle">Notes</h2>
+      {sec.type === "bullets" ? (
+        <ul className="proposal-bullets">
+          {bulletLines(sec.text).map((line, idx) => (
+            <li key={`${sec.id}_${idx}`}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
+          {sec.text || ""}
+        </p>
+      )}
+    </section>
+  );
+})}
 
-          {!readOnly && (
-            <div className="no-print">
-              <textarea
-                className="proposal-notes-input"
-                placeholder="Notes (optional)…"
-                value={proposalNotes}
-                onChange={(e) => setProposalNotes(e.target.value)}
-                rows={5}
-                spellCheck={true}
-                autoCorrect="on"
-                autoCapitalize="sentences"
-              />
-            </div>
-          )}
+<h2 className="proposal-secTitle">Notes</h2>
 
-          {proposalNotes?.trim() ? (
-            <p
-              className="proposal-text proposal-notes-print"
-              style={{ whiteSpace: "pre-wrap" }}
-            >
-              {proposalNotes}
-            </p>
-          ) : null}
-        </div>
+{!readOnly && (
+  <div className="no-print">
+    <textarea
+      className="proposal-notes-input"
+      placeholder="Notes (optional)…"
+      value={proposalNotes}
+      onChange={(e) => setProposalNotes(e.target.value)}
+      rows={5}
+      spellCheck={true}
+      autoCorrect="on"
+      autoCapitalize="sentences"
+    />
+  </div>
+)}
+
+{proposalNotes?.trim() ? (
+  <p className="proposal-text proposal-notes-print" style={{ whiteSpace: "pre-wrap" }}>
+    {proposalNotes}
+  </p>
+) : null}
+   </div>
       </article>
     </section>
   );
