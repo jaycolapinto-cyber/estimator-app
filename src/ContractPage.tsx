@@ -525,47 +525,55 @@ const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
 </div>
 
             </section>
-            <div className="contract-acceptance">
+  {/* Acceptance */}
+<section className="contract-section contract-acceptance">
+  <h3 className="contract-section-title">Acceptance</h3>
 
-  <div className="contract-acceptance-text">
-    <strong>Acceptance of Proposal</strong><br /><br />
-    I have read this document and accept the prices, specifications and conditions stated.
-    I understand that upon signing, this becomes a binding contract.
-    You are authorized to do the work as specified.
-    Payment will be made as outlined above.
-  </div>
+  <div className="acceptance-grid">
+    {/* LEFT: Client */}
+    <div className="acceptance-party">
+      <div className="sig-row">
+        <div className="sig-col">
+          <div className="sig-line" />
+          <div className="sig-label">Client Signature</div>
+        </div>
 
-  {/* Signatures */}
-  <div className="contract-signature-row">
-    <div className="contract-signature-block">
-      <div className="contract-signature-line"></div>
-      <div className="contract-signature-label">Client Signature</div>
+        <div className="sig-col sig-col-date">
+          <div className="sig-line" />
+          <div className="sig-label">Date</div>
+        </div>
+      </div>
     </div>
 
-    <div className="contract-signature-block">
-      <div className="contract-signature-line"></div>
-      <div className="contract-signature-label">Date</div>
+    {/* subtle divider */}
+    <div className="acceptance-divider" aria-hidden="true" />
+
+    {/* RIGHT: Authorized */}
+    <div className="acceptance-party">
+      <div className="sig-row">
+        <div className="sig-col">
+          <div className="sig-line" />
+          <div className="sig-label">Authorized Signature</div>
+        </div>
+
+        <div className="sig-col sig-col-date">
+          <div className="sig-line" />
+          <div className="sig-label">Date</div>
+        </div>
+      </div>
     </div>
   </div>
+</section>
+{/* Cancellation Policy */}
+<section className="contract-cancellation">
+  <h4 className="contract-cancellation-title">Notice of Cancellation</h4>
 
-  <div className="contract-signature-row">
-    <div className="contract-signature-block">
-      <div className="contract-signature-line"></div>
-      <div className="contract-signature-label">Decks Unique Representative</div>
-    </div>
-
-    <div className="contract-signature-block">
-      <div className="contract-signature-line"></div>
-      <div className="contract-signature-label">Date</div>
-    </div>
-  </div>
-
-  {/* 3-Day Right to Cancel */}
-  <div className="contract-cancel-note">
-    You, the buyer, may cancel at any time prior to midnight of the third business day after the date of this transaction.
-  </div>
-
-</div>
+  <p className="contract-cancellation-text">
+    You, the buyer, may cancel this transaction at any time prior to midnight of the third
+    business day after the date of this transaction. See the attached Notice of Cancellation
+    form for an explanation of this right.
+  </p>
+</section>
           </section>
 
           <footer className="contract-foot">
