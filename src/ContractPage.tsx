@@ -621,9 +621,9 @@ if (skirting) add(`Install ${skirting} skirting as specified.`);
 </section>
           </section>
 
-          {/* <footer className="contract-foot">
+          <footer className="contract-foot">
   <span>Nassau H18607600</span> <span>Suffolk 1614-H</span>
-</footer> */}
+</footer> 
         </div>
       </div>
     </div>
