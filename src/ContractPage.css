@@ -211,10 +211,9 @@ margin: 0 auto;
 
   /* Tell the browser we're printing a letter document */
   @page {
-    size: letter;
-    margin: 0.75in 0.6in 1.0in 0.6in;
-  }
-
+  size: letter;
+  margin: 0.25in;
+}
   html,
   body {
     background: #fff !important;
@@ -242,13 +241,18 @@ margin: 0 auto;
     background: #fff !important;
   }
 
-  .contract-doc {
-    box-shadow: none !important;
-    border: none !important;
-    margin: 0 !important;
-    max-width: none !important;
-    width: 100% !important;
-  }
+ .contract-doc {
+  box-shadow: none !important;
+  border: 0 !important;
+  margin: 0 auto !important;
+
+  /* ✅ consistent “proposal-like” printable column */
+  width: 7.25in !important;
+  max-width: 7.25in !important;
+
+  /* ✅ keep the same internal spacing for print */
+  padding: 0 !important;
+}
 
   /* Avoid awkward breaks */
   .contract-head,
@@ -404,17 +408,60 @@ margin: 0 auto;
 /* ============================= */
 /* Section Polish                */
 /* ============================= */
+/* ============================= */
+/* Contract Body (Proposal-style)*/
+/* ============================= */
 
-.contract-section {
- margin-bottom: 8px;
+.contract-body {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.contract-sectionCard {
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.contract-sectionTitle {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(15, 23, 42, 0.75);
+  margin-bottom: 10px;
+}
+
+.contract-textarea {
+  width: 100%;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #0b1220;
+  background: #fff;
+  resize: vertical;
+  min-height: 140px;
+}
+.contract-textarea:focus {
+  background: rgba(0, 0, 0, 0.03);
+}
+.contract-textarea::placeholder {
+  color: rgba(15, 23, 42, 0.45);
 }
 .contract-section > h2 {
-  font-size: 14px;
-  letter-spacing: 1px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  margin-bottom: 18px;
-  border-bottom: 1px solid #e5e7eb;
+  margin: 18px 0 10px;
   padding-bottom: 6px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  color: rgba(15, 23, 42, 0.85);
 }
 
 /* ============================= */
@@ -433,9 +480,22 @@ margin: 0 auto;
 /* ============================= */
 /* Contract Header (Framed Form) */
 /* ============================= */
+.contract-header {
+  padding: 32px 0 24px 0;
+  border: none;
+}
 
-.contract-head--frame {
-  margin: 0 0 26px 0;
+.contract-header-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1.15fr;
+  gap: 12px;
+
+  /* ✅ no outer box */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
 }
 
 .contract-frame {
@@ -460,7 +520,7 @@ flex-direction: column;
 
 .contract-frame-left {
   padding-right: 12px;
-  border-right: 1px solid rgba(47, 79, 47, 0.35);
+
 }
 .contract-frame-center {
   position: relative;
@@ -471,7 +531,7 @@ flex-direction: column;
 
 .contract-frame-right {
   padding-left: 12px;
-  border-left: 1px solid rgba(47, 79, 47, 0.35);
+
 }
 
 /* LEFT fields */
@@ -602,9 +662,8 @@ padding: 8px 10px;}
   color: #374151;
   white-space: nowrap;
 }
-
 .contract-inlineInput {
-  width: 100%;
+  width: 100px;              /* reduced width */
   border: 0;
   outline: none;
   background: transparent;
@@ -612,6 +671,7 @@ padding: 8px 10px;}
   font-size: 12px;
   padding: 0 0 3px 0;
   min-height: 16px;
+  text-align: center;        /* centers live text */
 }
 
 .contract-rightLine {
@@ -805,17 +865,17 @@ line-height: 20px;  /* ✅ exact match */  padding: 18px 16px;
 /* ============================= */
 
 .contract-acceptance {
-  margin-top: 60px;
-  border: 3px solid #2f4b2f;
-  border-radius: 22px;
-  padding: 18px 22px;
+  margin-top: 30px;
+  padding: 24px 28px;
+  border: 2px solid #2f4f2f;
+  border-radius: 18px;
   background: #fff;
 }
 
 .contract-acceptance-text {
-  font-size: 14px;
-  line-height: 1.6;
-  margin-bottom: 24px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-bottom: 28px;
 }
 
 .contract-acceptance-signRow {
@@ -991,4 +1051,663 @@ line-height: 20px;  /* ✅ exact match */  padding: 18px 16px;
 
 .contract-authorizedSigInline {
   text-align: right;
+}
+.contract-paragraph {
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+/* ✅ Print visibility hard override (must be last) */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
+/* ✅ FORCE: never show editable fields in print */
+@media print {
+  textarea.contract-textarea {
+    display: none !important;
+  }
+  .contract-paragraph {
+    display: block !important;
+  }
+}
+.contract-scopeList {
+  margin: 6px 0 0 18px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.contract-sumRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: 18px;
+  gap: 20px;
+}
+
+.contract-sumWords {
+  flex: 1;
+}
+.contract-sumRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.contract-sumLine {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.7);
+  min-height: 28px;
+  padding: 0 6px 6px 6px;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  color: rgba(15, 23, 42, 0.92);
+}
+
+.contract-sumInput {
+  width: 140px;
+  border: 1px solid rgba(15, 23, 42, 0.22);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+  background: #fff;
+}
+
+.contract-sumInput:focus {
+  outline: none;
+  border-color: rgba(15, 23, 42, 0.45);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+.contract-sumLabel {
+  font-size: 14px;
+}
+
+.contract-sumInput {
+  width: 120px;
+  border: 1px solid #ccc;
+  padding: 4px 6px;
+  font-size: 14px;
+}
+.contract-payScheduleRow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: end;
+  margin-top: 14px;
+}
+
+.contract-payScheduleLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.92);
+  white-space: nowrap;
+}
+
+.contract-payScheduleInput {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.7);
+  padding: 0 6px 6px 6px;
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.92);
+}
+
+.contract-payScheduleInput::placeholder {
+  color: rgba(15, 23, 42, 0.42);
+}
+
+@media print {
+  .contract-payScheduleInput {
+    border-bottom: 1px solid rgba(15, 23, 42, 0.7);
+  }
+}/* --- Contract "edit like text" override (wins over generic textarea styles) --- */
+.contract-doc textarea.contract-textarea {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+
+  width: 100%;
+  padding: 0 !important;
+  margin: 0 !important;
+
+  font-family: "Times New Roman", Times, serif;
+  font-size: 15px;
+  line-height: 1.65;
+
+  resize: vertical;
+}
+
+.contract-doc textarea.contract-textarea:focus {
+  background: rgba(0, 0, 0, 0.03) !important;
+}.contract-inlineEditable {
+  outline: none;
+  border: none;
+  background: transparent;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 15px;
+  line-height: 1.65;
+  min-width: 50px;
+}
+
+.contract-inlineEditable:focus {
+  background: rgba(0, 0, 0, 0.04);
+}/* Payment Schedule inline layout */
+.contract-payLine {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.contract-payLabel {
+  font-weight: 600;
+  white-space: nowrap;
+  margin-right: 6px;
+}.contract-inlineTextarea {
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  font: inherit;          /* matches the h2 */
+  font-weight: 400;
+  line-height: inherit;
+  resize: none;
+  overflow: hidden;
+}.contract-inlineRowHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.contract-inlineRowLabel {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.contract-inlineRowTextarea {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 15px;
+  line-height: 1.6;
+  resize: none;
+  overflow: hidden;
+}
+
+.contract-inlineRowText {
+  flex: 1;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 15px;
+  line-height: 1.6;
+}/* Payment Schedule row: match contract body font size */
+.contract-inlineRowHeader {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.contract-inlineRowTextarea,
+.contract-inlineRowText {
+  font-size: 15px;
+  line-height: 1.6;
+  font-family: "Times New Roman", Times, serif;
+}/* Payment Schedule inline header - match h2 styling */
+.contract-paymentInline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/* Make textarea inherit exact h2 font */
+.contract-paymentInlineTextarea {
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  resize: none;
+  overflow: hidden;
+  flex: 1;
+}
+/* Legal disclaimer outline only */
+.contract-legalBox {
+  margin: 22px auto 0;
+  padding: 10px 14px;
+  border: 1px solid #9ca3af;   /* thin grey outline */
+  background: transparent;     /* remove grey fill */
+  max-width: 760px;
+}
+.contract-legalText {
+  white-space: normal;
+  line-height: 1.35;
+  font-size: 12px;
+  text-align: left;
+  text-indent: 18px;       /* subtle “contract” paragraph feel */
+}
+
+@media print {
+  .contract-legalText {
+    font-size: 11.5px;
+    line-height: 1.35;
+    text-indent: 18px;
+  }
+}
+
+.contract-legalTextarea {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  resize: none;
+
+  font-size: 9px !important;
+  line-height: 1.0 !important;   /* tight single spacing */
+  text-align: left;
+  font-style: italic;
+  color: #374151;
+
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.contract-paymentLabel {
+  font-weight: 600;
+}
+
+.contract-paymentText {
+  font-weight: 400;   /* removes bold */
+}/* Payment Schedule inline row */
+.contract-payRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #1f2937; /* match dollar line */
+}
+
+.contract-payLabel {
+  font-weight: 600;
+  white-space: nowrap;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.contract-payValue {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Make textarea look like plain text */
+textarea.contract-payValue {
+  border: none;
+  outline: none;
+  background: transparent;
+  resize: none;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+}/* ================= ACCEPTANCE SECTION ================= */
+
+.contract-acceptance {
+  margin-top: 30px;
+}
+
+.contract-acceptance-text {
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+
+./* ================= INLINE SIGNATURE STYLE ================= */
+
+.contract-signature-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 40px;
+  gap: 40px;
+}
+
+.contract-signature-party {
+  width: 48%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.contract-signature-left {
+  justify-content: flex-start;
+}
+
+.contract-signature-right {
+  justify-content: flex-end;
+}
+
+.contract-signature-label-inline {
+  white-space: nowrap;
+}
+
+.contract-signature-line-inline {
+  flex: 1;
+  border-bottom: 1px solid #1f2937;
+  height: 20px;
+}
+
+.contract-date-line-inline {
+  width: 120px;
+  border-bottom: 1px solid #1f2937;
+  height: 20px;
+}
+
+.date-label {
+  margin-left: 12px;
+}
+.contract-cancel-note {
+  margin-top: 28px;
+  font-size: 10px;
+  font-style: italic;
+  text-align: center;
+  color: #374151;
+}/* ===== SINGLE ROW SIGNATURE FORMAT ===== */
+
+.contract-signRow-single {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 40px;
+  font-size: 12px;
+}
+
+.contract-signLabel {
+  white-space: nowrap;
+}
+
+.contract-signLine-long {
+  width: 220px;
+  border-bottom: 1px solid #1f2937;
+  height: 20px;
+}
+
+.contract-dateLine-short {
+  width: 110px;
+  border-bottom: 1px solid #1f2937;
+  height: 20px;
+}
+
+.contract-signDateLabel {
+  margin-left: 10px;
+}/* ===== CLASSIC SIGNATURE STYLE (line above, label below) ===== */
+
+.contract-signRow-classic {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 30px;
+  margin-top: 40px;
+}
+
+.contract-signGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 24%;
+}
+
+.contract-dateGroup {
+  width: 14%;
+}
+
+.contract-signLine-classic {
+  width: 100%;
+  border-bottom: 1px solid #1f2937; /* match your dollar line */
+  height: 24px;
+}
+
+.contract-dateLine-classic {
+  width: 100%;
+}
+
+.contract-signLabel-classic {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #374151;
+  text-align: center;
+}.contract-sectionHeading {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}/* Keep legal box width consistent on screen + print */
+.contract-legalWrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.contract-legalBox {
+  width: 100%;
+  max-width: 760px;  /* same as print */
+}
+.contract-acceptanceBox {
+  border: 1px solid #6b7280; /* dark grey outline */
+  border-radius: 10px;
+  background: transparent;   /* no fill */
+  padding: 16px 18px;
+  margin-top: 18px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.contract-acceptanceText {
+  margin: 8px 0 12px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.contract-signatureRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr 1fr;
+  gap: 24px;
+  align-items: end;
+  margin-bottom: 28px;
+}
+
+.contract-signatureLine {
+  border-bottom: 1px solid #000;
+  height: 28px;
+}
+
+.contract-signatureLine.small {
+  width: 100%;
+}
+
+.contract-signatureLabel {
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+.contract-cancelText {
+  font-size: 9px;
+  font-style: italic;
+  text-align: center;
+  margin-top: 18px;
+}/* ---------- LEGAL DISCLAIMER ---------- */
+.contract-legalWrap {
+  margin-top: 10px;
+}
+
+.contract-legalTextarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.contract-legalPrint {
+  border: 1px solid #9aa3b2; /* outline grey */
+  background: transparent;    /* no grey fill */
+  padding: 10px 12px;
+  font-size: 9pt;
+  line-height: 1.15;          /* single spaced */
+  font-style: italic;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+/* ---------- ACCEPTANCE BOX ---------- */
+.contract-acceptanceBox {
+  margin-top: 12px;
+  border: 2px solid #2f4b33; /* your green */
+  border-radius: 18px;
+  padding: 14px 16px 10px;
+}
+
+.contract-acceptanceTitle {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.contract-acceptanceText {
+  font-size: 12px;
+  line-height: 1.35;
+  margin-bottom: 14px;
+}
+
+/* signature grid: 4 columns */
+.contract-signGrid {
+  display: grid;
+  grid-template-columns: 1.6fr 0.7fr 1.6fr 0.7fr;
+  gap: 18px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+
+.sigLine {
+  border-bottom: 1px solid #1f2a44;
+  height: 16px;
+}
+
+.sigLabel {
+  font-size: 10px;
+  margin-top: 6px;
+  text-align: center;
+  color: #1f2a44;
+}
+
+.contract-cancelText {
+  font-size: 9.5px;
+  font-style: italic;
+  text-align: center;
+  margin-top: 6px;
+}/* ✅ Legal Disclaimer – clean formatting */
+.contract-legalText {
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.contract-legalText p {
+  margin: 0 0 10px 0;
+}
+
+@media print {
+  .contract-legalText {
+    white-space: normal;
+    line-height: 1.35;
+  }
+}/* Legal section split layout */
+.contract-legalBox {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.contract-legalDisplay {
+  font-size: 12px;
+  line-height: 1.4;
+  text-indent: 18px;
+}
+
+.contract-legalEditor textarea {
+  width: 100%;
+  border: 1px solid rgba(0,0,0,0.25);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.35;
+  resize: vertical;
+}
+
+/* Print: hide editor */
+@media print {
+  .contract-legalBox {
+    display: block;
+  }
+
+  .contract-legalEditor {
+    display: none;
+  }
+}/* ===============================
+   Contract v1 Typography System
+   (Step 1: consistent section headers)
+================================ */
+
+/* Base text for the contract body */
+.contract-body {
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  color: #111827;
+}
+
+/* Make ALL section titles consistent (matches proposal vibe) */
+.contract-sectionTitle,
+.contract-section h2 {
+  margin: 0 0 10px 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* Subtle divider under headings (clean + premium) */
+.contract-sectionTitle::after,
+.contract-section h2::after {
+  content: "";
+  display: block;
+  height: 1px;
+  background: rgba(17, 24, 39, 0.12);
+  margin-top: 8px;
+}
+/* Remove bottom divider for the "We Propose..." section */
+.contract-section--sum h2::after {
+  display: none;
+}/* Add divider ABOVE the "We Propose..." heading */
+.contract-section--sum h2 {
+  border-top: 1px solid rgba(17, 24, 39, 0.12);
+  padding-top: 10px;
 }
