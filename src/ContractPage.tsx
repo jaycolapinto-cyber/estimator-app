@@ -56,8 +56,8 @@ const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
   // Body
   const [constructionScopeText, setConstructionScopeText] = useState<string>("");
   const [projectSummaryText, setProjectSummaryText] = useState<string>("");
-  const [scopeOfWorkText, setScopeOfWorkText] = useState<string>("");
-
+const [scopeOfWorkText, setScopeOfWorkText] = useState<string>("");
+const [scopeTouched, setScopeTouched] = useState<boolean>(false);
   // Sum line
   const [contractSumNumerals, setContractSumNumerals] = useState<string>("");
   const [contractSumWords, setContractSumWords] = useState<string>("");
@@ -200,12 +200,49 @@ const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
     props.selectedSkirting,
     companyName,
   ]);
+  const autoScopeOfWork = useMemo(() => {
+    const lines: string[] = [];
 
+    const add = (s?: string | null) => {
+      const t = (s || "").trim();
+      if (t) lines.push(t);
+    };
+
+    // Basic scope defaults (safe + generic)
+    add("Furnish and install all materials and labor per approved plans.");
+    add("Layout and build structure per code and manufacturer specifications.");
+
+    // Pull from estimator selections when available
+    const decking = (props.selectedDecking?.name || props.selectedDecking?.label || "").trim();
+    const railing = (props.selectedRailing?.name || props.selectedRailing?.label || "").trim();
+    const stairs = (props.selectedStairOption?.name || props.selectedStairOption?.label || "").trim();
+    const fasteners = (props.selectedFastener?.name || props.selectedFastener?.label || "").trim();
+    const skirting = (props.selectedSkirting?.name || props.selectedSkirting?.label || "").trim();
+    const demo = (props.demoType || "").trim();
+
+    if (demo) add(`Demolition: ${demo}.`);
+   if (decking) add(`Install ${decking} decking (color to be selected).`);
+if (fasteners) add(`Secure decking using ${fasteners} per manufacturer requirements.`);
+if (railing) add(`Install ${railing} railing system (color to be selected).`);
+if (stairs) add(`Build and install ${stairs} per code and manufacturer specifications.`);
+if (skirting) add(`Install ${skirting} skirting as specified.`);
+    return lines.join("\n");
+  }, [
+    props.selectedDecking,
+    props.selectedRailing,
+    props.selectedStairOption,
+    props.selectedFastener,
+    props.selectedSkirting,
+    props.demoType,
+  ]);
   useEffect(() => {
     if (projectSummaryTouched) return;
     setProjectSummaryText(autoProjectSummary);
   }, [autoProjectSummary, projectSummaryTouched]);
-
+  useEffect(() => {
+    if (scopeTouched) return;
+    setScopeOfWorkText(autoScopeOfWork);
+  }, [autoScopeOfWork, scopeTouched]);
   useEffect(() => {
     try {
       const saved = (localStorage.getItem(PROJECT_SUMMARY_KEY) || "").trim();
@@ -448,7 +485,10 @@ const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
               <textarea
                 className="contract-textarea no-print"
                 value={scopeOfWorkText}
-                onChange={(e) => setScopeOfWorkText(e.target.value)}
+               onChange={(e) => {
+  setScopeTouched(true);
+  setScopeOfWorkText(e.target.value);
+}}
                 rows={8}
                 placeholder="Enter scope of work. One item per line."
               />
@@ -463,107 +503,112 @@ const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
               </ul>
             </div>
 
-            {/* Sum of + Amount + Payment Schedule */}
-<section className="contract-section contract-section--sum">              <h2>
-                We propose to hereby to furnish material and labor – complete in accordance with the above specifications, for the sum of:
-              </h2>
+       {/* Bottom stack: Payment + Legal + Acceptance (tight grouping) */}
+<div className="contract-bottom-stack">
+  {/* Sum of + Amount + Payment Schedule */}
+  <section className="contract-section contract-section--sum">
+    <h2>
+      We propose to hereby to furnish material and labor – complete in accordance with the above specifications, for the sum of:
+    </h2>
 
-              <div className="contract-sumRow">
-                <div className="contract-sumWords">
-                  <div className="contract-sumLine">
-                    {contractSumWords ? `${contractSumWords} USD 00/100` : "\u00A0"}
-                  </div>
-                </div>
+    <div className="contract-sumRow">
+      <div className="contract-sumWords">
+        <div className="contract-sumLine">
+          {contractSumWords ? `${contractSumWords} USD 00/100` : "\u00A0"}
+        </div>
+      </div>
 
-                <div className="contract-sumInputWrap">
-                  <label className="contract-sumLabel">($)</label>
-                  <input
-                    className="contract-sumInput"
-                    value={contractSumNumerals}
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/[^\d]/g, "");
-                      const formatted = raw ? Number(raw).toLocaleString("en-US") : "";
-                      setContractSumNumerals(formatted);
-                    }}
-                    placeholder="25,500"
-                    inputMode="decimal"
-                  />
-                </div>
-              </div>
+      <div className="contract-sumInputWrap">
+        <label className="contract-sumLabel">($)</label>
+        <input
+          className="contract-sumInput"
+          value={contractSumNumerals}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/[^\d]/g, "");
+            const formatted = raw ? Number(raw).toLocaleString("en-US") : "";
+            setContractSumNumerals(formatted);
+          }}
+          placeholder="25,500"
+          inputMode="decimal"
+        />
+      </div>
+    </div>
 
-             <div className="contract-payRow">
-  <div className="contract-payLabel">PAYMENT SCHEDULE:</div>
+    <div className="contract-payRow">
+      <div className="contract-payLabel">PAYMENT SCHEDULE:</div>
 
-  {/* ON SCREEN */}
-  <textarea
-    className="contract-payValue no-print"
-    value={paymentScheduleText}
-    onChange={(e) => setPaymentScheduleText(e.target.value)}
-    rows={1}
-    placeholder="$1,000 deposit with contract. Balance upon completion."
-  />
+      {/* ON SCREEN */}
+      <textarea
+        className="contract-payValue no-print"
+        value={paymentScheduleText}
+        onChange={(e) => setPaymentScheduleText(e.target.value)}
+        rows={1}
+        placeholder="$1,000 deposit with contract. Balance upon completion."
+      />
 
-  {/* PRINT */}
-  <div className="contract-payValue print-only" style={{ whiteSpace: "pre-wrap" }}>
-    {paymentScheduleText}
-  </div>
-</div>
+      {/* PRINT */}
+      <div className="contract-payValue print-only" style={{ whiteSpace: "pre-wrap" }}>
+        {paymentScheduleText}
+      </div>
+    </div>
 
-<textarea
-  className="contract-legalTextarea no-print"
-  value={legalDisclaimerText}
-  onChange={(e) =>
-    setLegalDisclaimerText(
-      e.target.value.replace(/\n\s*\n/g, "\n")
-    )
-  }
-  rows={6}
-/>
+    {/* Legal (editable) */}
+    <textarea
+      className="contract-legalTextarea no-print"
+      value={legalDisclaimerText}
+      onChange={(e) =>
+        setLegalDisclaimerText(e.target.value.replace(/\n\s*\n/g, "\n"))
+      }
+      rows={6}
+    />
 
-<div className="contract-legalText print-only">
-  {legalDisclaimerText.replace(/\n\s*\n/g, " ").replace(/\n/g, " ")}
-</div>
+    {/* Legal (print) */}
+    <div className="contract-legalText print-only">
+      {legalDisclaimerText.replace(/\n\s*\n/g, " ").replace(/\n/g, " ")}
+    </div>
+  </section>
 
-            </section>
   {/* Acceptance */}
-<section className="contract-section contract-acceptance">
-  <h3 className="contract-section-title">Acceptance</h3>
+  <section className="contract-section contract-acceptance">
+    <h2>Acceptance of Proposal</h2>
 
-  <div className="acceptance-grid">
-    {/* LEFT: Client */}
-    <div className="acceptance-party">
-      <div className="sig-row">
-        <div className="sig-col">
-          <div className="sig-line" />
-          <div className="sig-label">Client Signature</div>
+    <div className="acceptance-grid">
+      {/* LEFT: Client */}
+      <div className="acceptance-party">
+        <div className="sig-row">
+          <div className="sig-col">
+            <div className="sig-line" />
+            <div className="sig-label">Client Signature</div>
+          </div>
+
+          <div className="sig-col sig-col-date">
+            <div className="sig-line" />
+            <div className="sig-label">Date</div>
+          </div>
         </div>
+      </div>
 
-        <div className="sig-col sig-col-date">
-          <div className="sig-line" />
-          <div className="sig-label">Date</div>
+      {/* subtle divider */}
+      <div className="acceptance-divider" aria-hidden="true" />
+
+      {/* RIGHT: Authorized */}
+      <div className="acceptance-party">
+        <div className="sig-row">
+          <div className="sig-col">
+            <div className="sig-line" />
+            <div className="sig-label">Authorized Signature</div>
+          </div>
+
+          <div className="sig-col sig-col-date">
+            <div className="sig-line" />
+            <div className="sig-label">Date</div>
+          </div>
         </div>
       </div>
     </div>
+  </section>
+</div>
 
-    {/* subtle divider */}
-    <div className="acceptance-divider" aria-hidden="true" />
-
-    {/* RIGHT: Authorized */}
-    <div className="acceptance-party">
-      <div className="sig-row">
-        <div className="sig-col">
-          <div className="sig-line" />
-          <div className="sig-label">Authorized Signature</div>
-        </div>
-
-        <div className="sig-col sig-col-date">
-          <div className="sig-line" />
-          <div className="sig-label">Date</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
 {/* Cancellation Policy */}
 <section className="contract-cancellation">
   <h4 className="contract-cancellation-title">Notice of Cancellation</h4>
@@ -576,9 +621,9 @@ const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
 </section>
           </section>
 
-          <footer className="contract-foot">
-            <span>Nassau H18607600</span> <span>Suffolk 1614-H</span>
-          </footer>
+          {/* <footer className="contract-foot">
+  <span>Nassau H18607600</span> <span>Suffolk 1614-H</span>
+</footer> */}
         </div>
       </div>
     </div>

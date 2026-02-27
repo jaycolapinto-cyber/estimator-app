@@ -282,6 +282,8 @@
   flex-direction: column;
   gap: 18px;
   color: #111827;
+  display: block;
+height: auto;
 }
 
 /* Unified section header look (proposal-style) */
@@ -310,9 +312,9 @@
 .contract-section--sum h2::after {
   display: none;
 }
-.contract-section--sum h2 {
-  border-top: 1px solid rgba(17, 24, 39, 0.12);
-  padding-top: 10px;
+.contract-acceptance h2 {
+  border-top: none;
+  padding-top: 0;
 }
 
 /* Edit areas */
@@ -465,8 +467,7 @@ textarea.contract-payValue {
 .contract-acceptance {
   margin-top: 26px;
   padding-top: 18px;
-  border-top: 1px solid var(--line);
-}
+ border-top: none;}
 
 .contract-acceptance-text {
   font-size: 10px;
@@ -709,7 +710,10 @@ textarea.contract-payValue {
    Cancellation Policy
    ========================= */
 
-.contract-cancellation {
+.contract-cancellation 
+{
+  position: static;
+width: 100%;
   margin-top: auto;
   padding-top: 24px;
   border-top: 1px solid rgba(0, 0, 0, 0.15);
@@ -726,6 +730,27 @@ textarea.contract-payValue {
   line-height: 1.5;
   color: rgba(0, 0, 0, 0.85);
   max-width: 520px;
-}.contract-cancellation {
-  outline: 2px dashed red;
+}
+/* Scope of Work list (print) */
+.contract-scopeList {
+  margin: 10px 0 0 18px;
+  padding: 0;
+}
+
+.contract-scopeList li {
+  margin: 0 0 6px 0;
+  line-height: 1.35;
+}
+@media print {
+  .contract-container {
+    position: relative;
+    padding-bottom: 120px; /* space for cancellation */
+  }
+
+  .contract-cancellation {
+    position: absolute;
+    left: 40px;
+    right: 40px;
+    bottom: 40px;
+  }
 }
