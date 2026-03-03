@@ -1300,6 +1300,7 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
   };
 
   const buildSnapshot = () => ({
+    estimateId,
     savedAt: new Date().toISOString(),
     estimateName,
 
@@ -1332,6 +1333,7 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
 
   const applySnapshot = (snap: any) => {
     setEstimateName(snap.estimateName || "");
+    setEstimateId(snap.estimateId || uid());
 
     setClientTitle(snap.clientTitle || "");
     setClientLastName(snap.clientLastName || "");
@@ -4691,6 +4693,8 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
 {activeNav === "contract" && (
   <ContractPage
     orgId={orgId}
+    estimateId={estimateId}
+
     finalEstimate={finalEstimate}
     selectedDecking={selectedDecking}
     selectedRailing={selectedRailing}

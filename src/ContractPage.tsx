@@ -5,6 +5,7 @@ import { supabase } from "./supabaseClient";
 type PricingItemRow = any;
 
 type Props = {
+    estimateId: string;
   orgId: string | null;
   // Keep these loose so we don’t fight types while you’re building.
   finalEstimate: number;
@@ -26,7 +27,15 @@ demoDescription?: string | null;
 
 export default function ContractPage(props: Props) {
   const docRef = useRef<HTMLDivElement | null>(null);
+const CLIENT_KEY = useMemo(() => {
+    const id = (props.estimateId || "").trim();
+    return id ? `du_contract_hdr_client::${id}` : "";
+  }, [props.estimateId]);
 
+  const SCOPE_KEY = useMemo(() => {
+    const id = (props.estimateId || "").trim();
+    return id ? `du_contract_scope::${id}` : "";
+  }, [props.estimateId]);
   // Editable fields
   const [deposit, setDeposit] = useState<number>(1000);
   const [priceOverride, setPriceOverride] = useState<number | "">("");
@@ -50,13 +59,41 @@ const [paymentScheduleText, setPaymentScheduleText] = useState<string>(
 const [hdrEssence, setHdrEssence] = useState<"yes" | "not" | "">("not");
 const [constructionScopeText, setConstructionScopeText] = useState<string>("");
   const [projectSummaryText, setProjectSummaryText] = useState<string>("");
+  const [scopeOfWorkText, setScopeOfWorkText] = useState<string>("");
   const [projectSummaryTouched, setProjectSummaryTouched] = useState<boolean>(false);
 const PROJECT_SUMMARY_KEY = useMemo(() => {
   const oid = (props.orgId || "no-org").trim();
   return `du_contract_project_summary__${oid}`;
 }, [props.orgId]);
 
+// ✅ Per-estimate persistence (keyed by estimateId)
+// Load when switching files
+useEffect(() => {
+  if (!CLIENT_KEY || !SCOPE_KEY) return;
 
+  try {
+    setHdrClient(localStorage.getItem(CLIENT_KEY) || "");
+  } catch {}
+
+  try {
+    setScopeOfWorkText(localStorage.getItem(SCOPE_KEY) || "");
+  } catch {}
+}, [CLIENT_KEY, SCOPE_KEY]);
+
+// Save on change
+useEffect(() => {
+  if (!CLIENT_KEY) return;
+  try {
+    localStorage.setItem(CLIENT_KEY, hdrClient);
+  } catch {}
+}, [CLIENT_KEY, hdrClient]);
+
+useEffect(() => {
+  if (!SCOPE_KEY) return;
+  try {
+    localStorage.setItem(SCOPE_KEY, scopeOfWorkText);
+  } catch {}
+}, [SCOPE_KEY, scopeOfWorkText]);
 
   const contractPrice = useMemo(() => {
     const base = Number(props.finalEstimate) || 0;
@@ -402,6 +439,20 @@ if (!data?.body) {
   <div className="contract-linedPrint print-only">
     {projectSummaryText}
   </div>
+</div>
+{/* Scope of Work */}
+<div className="contract-linedBox" style={{ marginTop: 14 }}>
+  <div className="contract-linedHeader">SCOPE OF WORK</div>
+
+  <textarea
+    className="contract-linedTextarea no-print"
+    value={scopeOfWorkText}
+    onChange={(e) => setScopeOfWorkText(e.target.value)}
+    placeholder="Type scope of work…"
+    rows={6}
+  />
+
+  <div className="contract-linedPrint print-only">{scopeOfWorkText}</div>
 </div>
 {/* Payment Terms */}
 <div className="contract-paymentBox">
