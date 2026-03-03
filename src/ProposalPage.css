@@ -493,3 +493,16 @@ padding: 34px 40px 360px 40px !important;
 .proposal-headLine {
   white-space: nowrap;
 }
+
+/* ✅ Alert style when Refresh is needed (more specific to override .btn styles) */
+.proposal-actions .btn.btn-danger {
+  background-color: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #ffffff !important;
+}
+
+.proposal-actions .btn.btn-danger:hover {
+  background-color: #b91c1c !important;
+  border-color: #b91c1c !important;
+  color: #ffffff !important;
+}

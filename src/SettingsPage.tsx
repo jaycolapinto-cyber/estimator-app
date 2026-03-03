@@ -380,10 +380,13 @@ async function saveProposalSections() {
 
   try {
     // Save in current UI order
-    await upsertProposalSections(orgId, orderedSections);
+   await upsertProposalSections(orgId, orderedSections);
 
-    setSectionsDirty(false);
-    setSectionsSavedMsg("Saved.");
+// 🔥 Persist layout order as well
+update({ proposalLayoutOrder: mergedOrder });
+
+setSectionsDirty(false);
+setSectionsSavedMsg("Saved.");
     window.setTimeout(() => setSectionsSavedMsg(null), 2500);
 
     // Reload from DB so ids/order are confirmed

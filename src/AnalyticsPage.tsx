@@ -81,13 +81,24 @@ export default function AnalyticsPage({
 
     // Base + permit + small job
     const msrp = Math.round(basePrice + permitAmt + smallJobAmt);
+// ✅ Manual Index is based on miPercent (matches the pill)
+const miAmt = Math.round((basePrice * (Number(miPercent) || 0)) / 100);
 
-    // Force MI to be remainder so rows always sum EXACTLY to Final Estimate
-    let miAmt = final - basePrice - permitAmt - smallJobAmt - perceivedAmt - financeAmt;
-    if (!Number.isFinite(miAmt)) miAmt = 0;
+// ✅ Any leftover is an adjustment (rounding / missing items)
+let adjustmentAmt =
+  final -
+  basePrice -
+  permitAmt -
+  smallJobAmt -
+  perceivedAmt -
+  financeAmt -
+  miAmt;
 
+if (!Number.isFinite(adjustmentAmt)) adjustmentAmt = 0;
+
+const upliftSubtotal = perceivedAmt + financeAmt + miAmt + adjustmentAmt;
     const computedFromRows =
-      basePrice + permitAmt + smallJobAmt + perceivedAmt + financeAmt + miAmt;
+  basePrice + permitAmt + smallJobAmt + perceivedAmt + financeAmt + miAmt + adjustmentAmt;
 
     return {
       basePrice,
@@ -97,6 +108,8 @@ export default function AnalyticsPage({
       perceivedAmt,
       financeAmt,
       miAmt,
+        adjustmentAmt, 
+      upliftSubtotal,
       final,
       computedFromRows,
     };
@@ -149,11 +162,7 @@ export default function AnalyticsPage({
           <div className="an-muted">Base + Permit + Small Job</div>
         </div>
 
-        <div className="an-card an-card--kpi">
-          <div className="an-kicker">Base Price</div>
-          <div className="an-big">${money0(breakdown.basePrice)}</div>
-          <div className="an-muted">Before any uplifts</div>
-        </div>
+      
       </div>
 
       <div className="an-card an-card--panel">
@@ -205,8 +214,14 @@ export default function AnalyticsPage({
                 label={`Manual Index (${pct0(miPercent)})`}
                 value={`$${money0(breakdown.miAmt)}`}
               />
-
-              <Divider />
+              <div className="an-divider an-divider--soft" />
+<Row
+  label="Sub Total Uplift"
+  value={`$${money0(breakdown.upliftSubtotal)}`}
+  italic
+/>
+              <div className="an-divider an-divider--triple" />
+ <div className="an-divider an-divider--double" />
 
               <Row
                 label="Final Estimate"
@@ -228,18 +243,25 @@ export default function AnalyticsPage({
     </div>
   );
 }
-
 function Row({
   label,
   value,
   strong,
+  italic,
 }: {
   label: string;
   value: string;
   strong?: boolean;
+  italic?: boolean;
 }) {
   return (
-    <div className={"an-row " + (strong ? "an-row--strong" : "")}>
+    <div
+      className={
+        "an-row " +
+        (strong ? "an-row--strong " : "") +
+        (italic ? "an-row--italic" : "")
+      }
+    >
       <div className="an-row__label">{label}</div>
       <div className="an-row__value">{value}</div>
     </div>

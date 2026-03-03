@@ -9,6 +9,7 @@ import type { UserSettings, ProposalSection } from "./SettingsPage";
 import { fetchSowTemplatesRows } from "./sowTemplates";
 import { fetchProposalSections } from "./proposalSections";
 
+
 type AddItemRow = {
   rowId: string;
   qty?: number | null;
@@ -189,6 +190,84 @@ function bulletLines(text?: string | null) {
 }
 
 export default function ProposalPage(props: ProposalPageProps) {
+    // ============================
+  // ============================
+  // 🔒 Freeze proposal rendering (no live updates)
+  // ============================
+  const latestPropsRef = useRef<ProposalPageProps>(props);
+  latestPropsRef.current = props;
+
+  const [proposalSnapshot, setProposalSnapshot] = useState<ProposalPageProps>(() => props);
+
+  // 🔔 Track if proposal is out-of-date
+  const [needsRefresh, setNeedsRefresh] = useState(false);
+const liveUserSettings = props.userSettings;
+  // Re-fetch sections + re-render proposal ONLY when user clicks refresh
+  const [proposalRefreshKey, setProposalRefreshKey] = useState(0);
+const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(() => new Date());
+  const refreshProposal = () => {
+    setProposalSnapshot(latestPropsRef.current);
+    setProposalRefreshKey((k) => k + 1);
+    setNeedsRefresh(false);
+    setLastRefreshedAt(new Date());
+  };
+
+  // ✅ Auto-refresh when switching to a different estimate (fresh context)
+  useEffect(() => {
+    setProposalSnapshot(latestPropsRef.current);
+    setProposalRefreshKey((k) => k + 1);
+    setNeedsRefresh(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestPropsRef.current.estimateName]);
+  // ✅ Build a lightweight signature of the proposal inputs (so we can detect stale snapshot)
+  const liveSig = useMemo(() => {
+    return JSON.stringify({
+      finalEstimate: props.finalEstimate,
+      deckingType: props.deckingType,
+      railingType: props.railingType,
+      stairsType: props.stairsType,
+      fastenerType: props.fastenerType,
+      demoType: props.demoType,
+      skirtingType: props.skirtingType,
+      addItemsCount: (props.addItemsDetailed || []).length,
+    });
+  }, [
+    props.finalEstimate,
+    props.deckingType,
+    props.railingType,
+    props.stairsType,
+    props.fastenerType,
+    props.demoType,
+    props.skirtingType,
+    props.addItemsDetailed,
+  ]);
+
+  const snapSig = useMemo(() => {
+    return JSON.stringify({
+      finalEstimate: proposalSnapshot.finalEstimate,
+      deckingType: proposalSnapshot.deckingType,
+      railingType: proposalSnapshot.railingType,
+      stairsType: proposalSnapshot.stairsType,
+      fastenerType: proposalSnapshot.fastenerType,
+      demoType: proposalSnapshot.demoType,
+      skirtingType: proposalSnapshot.skirtingType,
+      addItemsCount: (proposalSnapshot.addItemsDetailed || []).length,
+    });
+  }, [
+    proposalSnapshot.finalEstimate,
+    proposalSnapshot.deckingType,
+    proposalSnapshot.railingType,
+    proposalSnapshot.stairsType,
+    proposalSnapshot.fastenerType,
+    proposalSnapshot.demoType,
+    proposalSnapshot.skirtingType,
+    proposalSnapshot.addItemsDetailed,
+  ]);
+    useEffect(() => {
+    setNeedsRefresh(liveSig !== snapSig);
+  }, [liveSig, snapSig]);
+
+  
   const {
     orgId,
     userSettings,
@@ -247,10 +326,11 @@ export default function ProposalPage(props: ProposalPageProps) {
     durationDaysSnapshot,
     showLineItemPricesSnapshot,
     proposalSectionsSnapshot,
+    
 
-  } = props;
-
+} = proposalSnapshot;
   const docRef = useRef<HTMLElement | null>(null);
+
   // PRINT: set total pages in footer ("Page 1 of Y")
   useEffect(() => {
     const onBeforePrint = () => {
@@ -275,6 +355,12 @@ export default function ProposalPage(props: ProposalPageProps) {
 
   const safeOrgId = orgId ?? null;
 
+// 🔔 Detect when estimator changes (mark proposal stale)
+useEffect(() => {
+  if (props.finalEstimate !== proposalSnapshot.finalEstimate) {
+    setNeedsRefresh(true);
+  }
+}, [props.finalEstimate, proposalSnapshot.finalEstimate]);
   const [dbProposalSections, setDbProposalSections] = useState<
     ProposalSection[]
   >([]);
@@ -308,8 +394,7 @@ export default function ProposalPage(props: ProposalPageProps) {
   return () => {
     alive = false;
   };
-}, [safeOrgId, readOnly]);
-
+}, [safeOrgId, readOnly, proposalRefreshKey]);
 
   const [showLineItemPrices, setShowLineItemPrices] = useState<boolean>(() => {
     if (readOnly && typeof showLineItemPricesSnapshot === "boolean") {
@@ -674,40 +759,43 @@ export default function ProposalPage(props: ProposalPageProps) {
 
 
   // ✅ Order from SettingsPage
-  const layoutOrder = useMemo<string[]>(() => {
-    const arr = (userSettings as any)?.proposalLayoutOrder;
-    return Array.isArray(arr)
-      ? arr
-          .map(normalizeLayoutId)
-          .map((x) => String(x).trim())
-          .filter(Boolean)
-      : [];
-  }, [userSettings]);
+const layoutOrder = useMemo<string[]>(() => {
+  const arr = (liveUserSettings as any)?.proposalLayoutOrder;
+  return Array.isArray(arr)
+    ? arr
+        .map(normalizeLayoutId)
+        .map((x) => String(x).trim())
+        .filter(Boolean)
+    : [];
+}, [liveUserSettings]);
 
-  // ✅ Final order (matches Settings order + appends missing enabled custom ids)
-  const effectiveOrder = useMemo<string[]>(() => {
-    const enabledCustomIds = enabledSections.map((s) => String(s.id).trim());
+const effectiveOrder = useMemo<string[]>(() => {
+  const enabledCustomIds = enabledSections.map((s) => String(s.id).trim());
 
-    const raw = layoutOrder.map((x) => String(x).trim()).filter(Boolean);
+  // saved order from Settings
+  const raw = (layoutOrder || []).map((x) => String(x).trim()).filter(Boolean);
 
-    // Keep only ids that are valid (system ids OR enabled custom ids)
-    const valid = raw.filter((id) => {
-      if (id === "__details__" || id === "__timeline__") return true;
-      return enabledCustomIds.includes(id);
-    });
+  // keep only enabled custom ids + system ids
+  const filtered = raw.filter(
+    (id) =>
+      id === "__details__" ||
+      id === "__timeline__" ||
+      enabledCustomIds.includes(id)
+  );
 
-    // Append any enabled custom ids missing from saved order
-    const missingCustomIds = enabledCustomIds.filter(
-      (id) => !valid.includes(id)
-    );
+  // append any enabled custom sections missing from saved order (DB order)
+  const missingCustom = enabledCustomIds.filter((id) => !filtered.includes(id));
+  let out = [...filtered, ...missingCustom];
 
-    // Ensure system ids exist, but DON'T move them to top/bottom — keep user’s order
-    const withMissing = [...valid, ...missingCustomIds];
-    if (!withMissing.includes("__details__")) withMissing.push("__details__");
-    if (!withMissing.includes("__timeline__")) withMissing.push("__timeline__");
+  // ensure system blocks exist exactly once
+  if (!out.includes("__details__")) out.push("__details__");
+  if (!out.includes("__timeline__")) out.push("__timeline__");
 
-    return withMissing;
-  }, [layoutOrder, enabledSections]);
+  // de-dupe preserving first occurrence
+  out = out.filter((v, i) => out.indexOf(v) === i);
+
+  return out;
+}, [layoutOrder, enabledSections]);
 
   useEffect(() => {
     console.log("✅ ProposalPage order check", {
@@ -894,12 +982,40 @@ export default function ProposalPage(props: ProposalPageProps) {
   return (
     <section className="proposal-page">
       {!readOnly && (
+        
         <div className="proposal-actions no-print">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => window.print()}
-          >
+
+  {needsRefresh && (
+    <div
+      style={{
+        marginBottom: 8,
+        padding: "8px 12px",
+        background: "#fff3f3",
+        border: "1px solid #f5c2c2",
+        borderRadius: 8,
+        color: "#b00020",
+        fontWeight: 600,
+        fontSize: 13,
+      }}
+    >
+      Changes made to Estimator. Proposal refresh required.
+    </div>
+  )}
+
+  <button
+    type="button"
+    className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}
+    onClick={refreshProposal}
+    title="Update proposal to latest estimator inputs"
+  >
+    Refresh Proposal
+  </button>
+
+  <button
+    type="button"
+    className="btn btn-primary"
+    onClick={() => window.print()}
+  >
             Print / Save PDF
           </button>
 
@@ -930,8 +1046,7 @@ export default function ProposalPage(props: ProposalPageProps) {
       {!readOnly && (
         <button
           type="button"
-          className="btn btn-secondary"
-          onClick={() => {
+className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onClick={() => {
             console.log("Email button clicked ✅", { onEmailProposal });
             onEmailProposal?.();
           }}
@@ -963,137 +1078,136 @@ export default function ProposalPage(props: ProposalPageProps) {
           </header>
 
           <h1 className="proposal-title">Project Estimate</h1>
+{!readOnly && (
+  <div
+    className="no-print"
+    style={{ fontSize: 12, opacity: 0.6, marginBottom: 8 }}
+  >
+    Last refreshed:{" "}
+    {lastRefreshedAt.toLocaleString([], {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })}
+  </div>
+)}
 
-          <section className="proposal-scope">
-            <div
-              className="proposal-clientBarTitle"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
-              <span>Scope of Work</span>
+<section className="proposal-scope">
+  <div
+    className="proposal-clientBarTitle"
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    }}
+  >
+    <span>Scope of Work</span>
 
-              {isAdmin ? (
-                <div className="no-print" style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    className={`btn ${
-                      sowMode === "auto" ? "btn-secondary" : "btn-outline"
-                    }`}
-                    onClick={() => setSowMode("auto")}
-                  >
-                    Auto
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn ${
-                      sowMode === "custom" ? "btn-secondary" : "btn-outline"
-                    }`}
-                    onClick={() => setSowMode("custom")}
-                  >
-                    Custom
-                  </button>
-                </div>
-              ) : null}
-            </div>
+    {isAdmin ? (
+      <div className="no-print" style={{ display: "flex", gap: 8 }}>
+        <button
+          type="button"
+          className={`btn ${sowMode === "auto" ? "btn-secondary" : "btn-outline"}`}
+          onClick={() => setSowMode("auto")}
+        >
+          Auto
+        </button>
+        <button
+          type="button"
+          className={`btn ${sowMode === "custom" ? "btn-secondary" : "btn-outline"}`}
+          onClick={() => setSowMode("custom")}
+        >
+          Custom
+        </button>
+      </div>
+    ) : null}
+  </div>
 
-            {!readOnly && sowMode === "custom" ? (
-              <div className="no-print">
-                <textarea
-                  className="proposal-notes-input"
-                  placeholder="Admin: type a custom Scope of Work..."
-                  value={sowCustomText}
-                  onChange={(e) => setSowCustomText(e.target.value)}
-                  rows={7}
-                  readOnly={!isAdmin}
-                  spellCheck={true}
-                  autoCorrect="on"
-                  autoCapitalize="sentences"
-                />
-              </div>
-            ) : null}
+  {!readOnly && sowMode === "custom" ? (
+    <div className="no-print">
+      <textarea
+        className="proposal-notes-input"
+        placeholder="Admin: type a custom Scope of Work..."
+        value={sowCustomText}
+        onChange={(e) => setSowCustomText(e.target.value)}
+        rows={7}
+        readOnly={!isAdmin}
+        spellCheck={true}
+        autoCorrect="on"
+        autoCapitalize="sentences"
+      />
+    </div>
+  ) : null}
 
-            <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
-              {finalScopeText?.trim()
-                ? finalScopeText
-                : "This project includes the construction of a custom outdoor deck designed to match the selected materials, layout, and site conditions. Final scope and details are based on the selections made during the estimate and are subject to on-site verification."}
-            </p>
-          </section>
+  <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
+    {finalScopeText?.trim()
+      ? finalScopeText
+      : "This project includes the construction of a custom outdoor deck designed to match the selected materials, layout, and site conditions. Final scope and details are based on the selections made during the estimate and are subject to on-site verification."}
+  </p>
+</section>
 
-          {/* ✅ Render in SettingsPage order */}
-          {effectiveOrder.map((idRaw) => {
-            const id = normalizeLayoutId(idRaw);
+{/* ✅ Render in SettingsPage order */}
+{effectiveOrder.map((idRaw) => {
+  const id = normalizeLayoutId(idRaw);
 
-            if (id === "__details__") {
-              return (
-                <React.Fragment key={id}>{renderDetailsBlock()}</React.Fragment>
-              );
-            }
-            if (id === "__timeline__") {
-              return (
-                <React.Fragment key={id}>
-                  {renderTimelineBlock()}
-                </React.Fragment>
-              );
-            }
+  if (id === "__details__") {
+    return <React.Fragment key={id}>{renderDetailsBlock()}</React.Fragment>;
+  }
+  if (id === "__timeline__") {
+    return <React.Fragment key={id}>{renderTimelineBlock()}</React.Fragment>;
+  }
 
-            const sec = enabledSections.find(
-              (s) => String(s.id).trim() === String(id).trim()
-            );
+  const sec = enabledSections.find(
+    (s) => String(s.id).trim() === String(id).trim()
+  );
 
-            if (!sec) return null;
+  if (!sec) return null;
 
-            return (
-              <section key={sec.id}>
-                <h2 className="proposal-secTitle">{sec.title}</h2>
+  return (
+    <section key={sec.id}>
+      <h2 className="proposal-secTitle">{sec.title}</h2>
 
-                {sec.type === "bullets" ? (
-                  <ul className="proposal-bullets">
-                    {bulletLines(sec.text).map((line, idx) => (
-                      <li key={`${sec.id}_${idx}`}>{line}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p
-                    className="proposal-text"
-                    style={{ whiteSpace: "pre-wrap" }}
-                  >
-                    {sec.text || ""}
-                  </p>
-                )}
-              </section>
-            );
-          })}
+      {sec.type === "bullets" ? (
+        <ul className="proposal-bullets">
+          {bulletLines(sec.text).map((line, idx) => (
+            <li key={`${sec.id}_${idx}`}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="proposal-text" style={{ whiteSpace: "pre-wrap" }}>
+          {sec.text || ""}
+        </p>
+      )}
+    </section>
+  );
+})}
 
-          <h2 className="proposal-secTitle">Notes</h2>
+<h2 className="proposal-secTitle">Notes</h2>
 
-          {!readOnly && (
-            <div className="no-print">
-              <textarea
-                className="proposal-notes-input"
-                placeholder="Notes (optional)…"
-                value={proposalNotes}
-                onChange={(e) => setProposalNotes(e.target.value)}
-                rows={5}
-                spellCheck={true}
-                autoCorrect="on"
-                autoCapitalize="sentences"
-              />
-            </div>
-          )}
+{!readOnly && (
+  <div className="no-print">
+    <textarea
+      className="proposal-notes-input"
+      placeholder="Notes (optional)…"
+      value={proposalNotes}
+      onChange={(e) => setProposalNotes(e.target.value)}
+      rows={5}
+      spellCheck={true}
+      autoCorrect="on"
+      autoCapitalize="sentences"
+    />
+  </div>
+)}
 
-          {proposalNotes?.trim() ? (
-            <p
-              className="proposal-text proposal-notes-print"
-              style={{ whiteSpace: "pre-wrap" }}
-            >
-              {proposalNotes}
-            </p>
-          ) : null}
-        </div>
+{proposalNotes?.trim() ? (
+  <p className="proposal-text proposal-notes-print" style={{ whiteSpace: "pre-wrap" }}>
+    {proposalNotes}
+  </p>
+) : null}
+   </div>
       </article>
     </section>
   );
