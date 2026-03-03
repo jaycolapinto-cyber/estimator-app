@@ -6,6 +6,7 @@ import { supabase } from "./supabaseClient";
 type PricingItemRow = any;
 
 type Props = {
+    estimateId: string;
   orgId: string | null;
   finalEstimate: number;
   selectedDecking: any;
@@ -26,8 +27,16 @@ type Props = {
 
 export default function ContractPage(props: Props) {
   const docRef = useRef<HTMLDivElement | null>(null);
+const CLIENT_KEY = useMemo(() => {
+    const id = (props.estimateId || "").trim();
+    return id ? `du_contract_hdr_client::${id}` : "";
+  }, [props.estimateId]);
 
-  // (kept from your file; not used yet but leaving as-is)
+  const SCOPE_KEY = useMemo(() => {
+    const id = (props.estimateId || "").trim();
+    return id ? `du_contract_scope::${id}` : "";
+  }, [props.estimateId]);
+  // Editable fields
   const [deposit, setDeposit] = useState<number>(1000);
   const [priceOverride, setPriceOverride] = useState<number | "">("");
   const [startDate, setStartDate] = useState<string>("");
@@ -56,70 +65,41 @@ const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
   // Body
   const [constructionScopeText, setConstructionScopeText] = useState<string>("");
   const [projectSummaryText, setProjectSummaryText] = useState<string>("");
-const [scopeOfWorkText, setScopeOfWorkText] = useState<string>("");
-const [scopeTouched, setScopeTouched] = useState<boolean>(false);
-  // Sum line
-  const [contractSumNumerals, setContractSumNumerals] = useState<string>("");
-  const [contractSumWords, setContractSumWords] = useState<string>("");
-
-  const dollarsToWords = (amount: string) => {
-    const digits = (amount || "").replace(/[^\d]/g, "");
-    if (!digits) return "";
-    const n = Number(digits);
-    if (!Number.isFinite(n) || n <= 0) return "";
-
-    const ones = [
-      "Zero","One","Two","Three","Four","Five","Six","Seven","Eight","Nine",
-      "Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"
-    ];
-    const tens = ["","", "Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
-
-    const chunkToWords = (num: number) => {
-      const parts: string[] = [];
-      if (num >= 100) {
-        parts.push(`${ones[Math.floor(num / 100)]} Hundred`);
-        num = num % 100;
-      }
-      if (num >= 20) {
-        parts.push(tens[Math.floor(num / 10)]);
-        num = num % 10;
-        if (num) parts.push(ones[num]);
-      } else if (num > 0) {
-        parts.push(ones[num]);
-      }
-      return parts.join(" ");
-    };
-
-    const toWords = (num: number) => {
-      if (num === 0) return "Zero";
-      const parts: string[] = [];
-
-      const billions = Math.floor(num / 1_000_000_000);
-      const millions = Math.floor((num % 1_000_000_000) / 1_000_000);
-      const thousands = Math.floor((num % 1_000_000) / 1_000);
-      const rest = num % 1_000;
-
-      if (billions) parts.push(`${chunkToWords(billions)} Billion`);
-      if (millions) parts.push(`${chunkToWords(millions)} Million`);
-      if (thousands) parts.push(`${chunkToWords(thousands)} Thousand`);
-      if (rest) parts.push(chunkToWords(rest));
-
-      return parts.join(" ").trim();
-    };
-
-    // ✅ no "Dollars" (USD is already shown)
-    return `${toWords(n)}`;
-  };
-
-  useEffect(() => {
-    setContractSumWords(dollarsToWords(contractSumNumerals));
-  }, [contractSumNumerals]);
-
+  const [scopeOfWorkText, setScopeOfWorkText] = useState<string>("");
   const [projectSummaryTouched, setProjectSummaryTouched] = useState<boolean>(false);
-  const PROJECT_SUMMARY_KEY = useMemo(() => {
-    const oid = (props.orgId || "no-org").trim();
-    return `du_contract_project_summary__${oid}`;
-  }, [props.orgId]);
+const PROJECT_SUMMARY_KEY = useMemo(() => {
+  const oid = (props.orgId || "no-org").trim();
+  return `du_contract_project_summary__${oid}`;
+}, [props.orgId]);
+
+// ✅ Per-estimate persistence (keyed by estimateId)
+// Load when switching files
+useEffect(() => {
+  if (!CLIENT_KEY || !SCOPE_KEY) return;
+
+  try {
+    setHdrClient(localStorage.getItem(CLIENT_KEY) || "");
+  } catch {}
+
+  try {
+    setScopeOfWorkText(localStorage.getItem(SCOPE_KEY) || "");
+  } catch {}
+}, [CLIENT_KEY, SCOPE_KEY]);
+
+// Save on change
+useEffect(() => {
+  if (!CLIENT_KEY) return;
+  try {
+    localStorage.setItem(CLIENT_KEY, hdrClient);
+  } catch {}
+}, [CLIENT_KEY, hdrClient]);
+
+useEffect(() => {
+  if (!SCOPE_KEY) return;
+  try {
+    localStorage.setItem(SCOPE_KEY, scopeOfWorkText);
+  } catch {}
+}, [SCOPE_KEY, scopeOfWorkText]);
 
   const contractPrice = useMemo(() => {
     const base = Number(props.finalEstimate) || 0;
@@ -559,7 +539,43 @@ if (skirting) add(`Install ${skirting} skirting as specified.`);
       onChange={(e) =>
         setLegalDisclaimerText(e.target.value.replace(/\n\s*\n/g, "\n"))
       }
-      rows={6}
+    }}
+  />
+
+  {/* Print rendering (no scrollbars, true text layout) */}
+  <div className="contract-linedPrint print-only">
+    {projectSummaryText}
+  </div>
+</div>
+{/* Scope of Work */}
+<div className="contract-linedBox" style={{ marginTop: 14 }}>
+  <div className="contract-linedHeader">SCOPE OF WORK</div>
+
+  <textarea
+    className="contract-linedTextarea no-print"
+    value={scopeOfWorkText}
+    onChange={(e) => setScopeOfWorkText(e.target.value)}
+    placeholder="Type scope of work…"
+    rows={6}
+  />
+
+  <div className="contract-linedPrint print-only">{scopeOfWorkText}</div>
+</div>
+{/* Payment Terms */}
+<div className="contract-paymentBox">
+  <div className="contract-paymentTitle">
+    We propose to hereby to furnish material and labor – complete in accordance with the above
+    specifications, for the sum of:
+  </div>
+
+ <div className="contract-paymentRow">
+  <div className="contract-paymentWords">
+    <div className="contract-paymentLabel">dollars</div>
+    <input
+      className="contract-paymentWordsInput"
+      value={paymentSumWords}
+      onChange={(e) => setPaymentSumWords(e.target.value)}
+      placeholder="Type amount in words"
     />
 
     {/* Legal (print) */}
