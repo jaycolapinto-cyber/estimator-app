@@ -16,6 +16,7 @@ type Props = {
   selectedConstruction: any;
   selectedDemo?: any;
   constructionKey?: string;
+  constructionType?: string;
   clientTitle?: string;
   selectedSkirting?: any;
   clientLastName?: string;
@@ -48,9 +49,11 @@ const CLIENT_KEY = useMemo(() => {
   const [paymentScheduleText, setPaymentScheduleText] = useState<string>(
     "$1,000 deposit with contract. Balance upon completion."
   );
-const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
-  "All material is guaranteed to be specified. All work to be completed in a work-manlike manner according to standard practices.\n\nThe buyer is responsible for all permits and C.O.’s unless otherwise specified. Decks Unique Inc. is not responsible for weathering, shrinkage or growth on materials, or any underground utilities that may be damaged.\n\nAll agreements contingent upon strikes, accidents or delays beyond our control. There will be a labor charge for any warrantee claim.\n\nIn the event of any litigation to enforce the terms of this contract the successful party will reimburse the other party for all costs, including reasonable attorney fees."
-);
+  const [contractSumWords, setContractSumWords] = useState<string>("");
+  const [contractSumNumerals, setContractSumNumerals] = useState<string>("");
+  const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
+    "All material is guaranteed to be specified. All work to be completed in a work-manlike manner according to standard practices.\n\nThe buyer is responsible for all permits and C.O.’s unless otherwise specified. Decks Unique Inc. is not responsible for weathering, shrinkage or growth on materials, or any underground utilities that may be damaged.\n\nAll agreements contingent upon strikes, accidents or delays beyond our control. There will be a labor charge for any warrantee claim.\n\nIn the event of any litigation to enforce the terms of this contract the successful party will reimburse the other party for all costs, including reasonable attorney fees."
+  );
   // Header (manual fill-in fields — NOT auto-populated)
   const [hdrClient, setHdrClient] = useState<string>("");
   const [hdrAddress, setHdrAddress] = useState<string>("");
@@ -67,6 +70,7 @@ const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
   const [projectSummaryText, setProjectSummaryText] = useState<string>("");
   const [scopeOfWorkText, setScopeOfWorkText] = useState<string>("");
   const [projectSummaryTouched, setProjectSummaryTouched] = useState<boolean>(false);
+  const [scopeTouched, setScopeTouched] = useState<boolean>(false);
 const PROJECT_SUMMARY_KEY = useMemo(() => {
   const oid = (props.orgId || "no-org").trim();
   return `du_contract_project_summary__${oid}`;
@@ -465,10 +469,10 @@ if (skirting) add(`Install ${skirting} skirting as specified.`);
               <textarea
                 className="contract-textarea no-print"
                 value={scopeOfWorkText}
-               onChange={(e) => {
-  setScopeTouched(true);
-  setScopeOfWorkText(e.target.value);
-}}
+                onChange={(e) => {
+                  setScopeTouched(true);
+                  setScopeOfWorkText(e.target.value);
+                }}
                 rows={8}
                 placeholder="Enter scope of work. One item per line."
               />
@@ -539,91 +543,54 @@ if (skirting) add(`Install ${skirting} skirting as specified.`);
       onChange={(e) =>
         setLegalDisclaimerText(e.target.value.replace(/\n\s*\n/g, "\n"))
       }
-    }}
-  />
-
-  {/* Print rendering (no scrollbars, true text layout) */}
-  <div className="contract-linedPrint print-only">
-    {projectSummaryText}
-  </div>
-</div>
-{/* Scope of Work */}
-<div className="contract-linedBox" style={{ marginTop: 14 }}>
-  <div className="contract-linedHeader">SCOPE OF WORK</div>
-
-  <textarea
-    className="contract-linedTextarea no-print"
-    value={scopeOfWorkText}
-    onChange={(e) => setScopeOfWorkText(e.target.value)}
-    placeholder="Type scope of work…"
-    rows={6}
-  />
-
-  <div className="contract-linedPrint print-only">{scopeOfWorkText}</div>
-</div>
-{/* Payment Terms */}
-<div className="contract-paymentBox">
-  <div className="contract-paymentTitle">
-    We propose to hereby to furnish material and labor – complete in accordance with the above
-    specifications, for the sum of:
-  </div>
-
- <div className="contract-paymentRow">
-  <div className="contract-paymentWords">
-    <div className="contract-paymentLabel">dollars</div>
-    <input
-      className="contract-paymentWordsInput"
-      value={paymentSumWords}
-      onChange={(e) => setPaymentSumWords(e.target.value)}
-      placeholder="Type amount in words"
     />
 
-    {/* Legal (print) */}
-    <div className="contract-legalText print-only">
-      {legalDisclaimerText.replace(/\n\s*\n/g, " ").replace(/\n/g, " ")}
-    </div>
-  </section>
-
-  {/* Acceptance */}
-  <section className="contract-section contract-acceptance">
-    <h2>Acceptance of Proposal</h2>
-
-    <div className="acceptance-grid">
-      {/* LEFT: Client */}
-      <div className="acceptance-party">
-        <div className="sig-row">
-          <div className="sig-col">
-            <div className="sig-line" />
-            <div className="sig-label">Client Signature</div>
-          </div>
-
-          <div className="sig-col sig-col-date">
-            <div className="sig-line" />
-            <div className="sig-label">Date</div>
-          </div>
-        </div>
-      </div>
-
-      {/* subtle divider */}
-      <div className="acceptance-divider" aria-hidden="true" />
-
-      {/* RIGHT: Authorized */}
-      <div className="acceptance-party">
-        <div className="sig-row">
-          <div className="sig-col">
-            <div className="sig-line" />
-            <div className="sig-label">Authorized Signature</div>
-          </div>
-
-          <div className="sig-col sig-col-date">
-            <div className="sig-line" />
-            <div className="sig-label">Date</div>
-          </div>
-        </div>
-      </div>
+    {/* Print rendering (no scrollbars, true text layout) */}
+    <div className="contract-linedPrint print-only">
+      {projectSummaryText}
     </div>
   </section>
 </div>
+
+{/* Acceptance */}
+<section className="contract-section contract-acceptance">
+  <h2>Acceptance of Proposal</h2>
+
+  <div className="acceptance-grid">
+    {/* LEFT: Client */}
+    <div className="acceptance-party">
+      <div className="sig-row">
+        <div className="sig-col">
+          <div className="sig-line" />
+          <div className="sig-label">Client Signature</div>
+        </div>
+
+        <div className="sig-col sig-col-date">
+          <div className="sig-line" />
+          <div className="sig-label">Date</div>
+        </div>
+      </div>
+    </div>
+
+    {/* subtle divider */}
+    <div className="acceptance-divider" aria-hidden="true" />
+
+    {/* RIGHT: Authorized */}
+    <div className="acceptance-party">
+      <div className="sig-row">
+        <div className="sig-col">
+          <div className="sig-line" />
+          <div className="sig-label">Authorized Signature</div>
+        </div>
+
+        <div className="sig-col sig-col-date">
+          <div className="sig-line" />
+          <div className="sig-label">Date</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
 {/* Cancellation Policy */}
 <section className="contract-cancellation">
@@ -635,9 +602,10 @@ if (skirting) add(`Install ${skirting} skirting as specified.`);
     form for an explanation of this right.
   </p>
 </section>
-          </section>
 
-          <footer className="contract-foot">
+</section>
+
+<footer className="contract-foot">
   <span>Nassau H18607600</span> <span>Suffolk 1614-H</span>
 </footer> 
         </div>
