@@ -24,6 +24,7 @@ type Props = {
   clientEmail?: string;
   demoType?: string | null;
   demoDescription?: string | null;
+  addItemsDetailed?: any;
 };
 
 export default function ContractPage(props: Props) {
