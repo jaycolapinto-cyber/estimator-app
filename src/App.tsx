@@ -1783,10 +1783,10 @@ const EST_EXT = ".DUest";
   const defaultFileName = () => {
     const town = (clientTown || "").trim();
     const last = (clientLastName || "").trim();
-    const base = [town, last].filter(Boolean).join(" ").trim() || "Estimate";
+    const base = [town, last].filter(Boolean).join("_").trim() || "Estimate";
     const name = (estimateName || "").trim();
     const file = `${name || base}${EST_EXT}`;
-    return file.replace(/\s+/g, " ");
+    return file.replace(/\s+/g, "_");
   };
 
   const normalizeFileName = (name: string) => {
@@ -1835,6 +1835,11 @@ const EST_EXT = ".DUest";
       handleFileSaveAs();
       return;
     }
+
+    const ok = confirm(
+      `Overwrite existing file?\n\n${lastSavedFileName}\n\nThis will replace the previous version.`
+    );
+    if (!ok) return;
 
     const snap = buildSnapshot();
 
@@ -4687,6 +4692,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
          <div style={{ display: activeNav === "proposals" ? "block" : "none" }}>
             <ProposalPage
               orgId={orgId}
+              proposalId={estimateId}
               constructionType={constructionType}
               userSettings={userSettings}
               estimateName={estimateName}

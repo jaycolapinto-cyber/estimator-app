@@ -312,6 +312,17 @@ grid-template-columns: 1fr 460px 1fr;
   .no-print {
     display: none !important;
   }
+
+  .proposal-page-number {
+    position: fixed;
+    top: 16px;
+    right: 24px;
+    font-size: 11px;
+    color: rgba(15, 23, 42, 0.75);
+  }
+  .proposal-page-number::after {
+    content: "Page " counter(page) " of " counter(pages);
+  }
   /* ✅ PRINT ONLY THE PROPOSAL DOCUMENT (hide the entire app chrome) */
   body * {
     visibility: hidden !important;
@@ -445,9 +456,23 @@ padding: 34px 40px 360px 40px !important;
    PRINT WATERMARK (SVG file)
    ========================= */
 
-/* never show on screen */
+/* never show on screen (unless readonly web view) */
 .du-print-watermark {
   display: none;
+}
+
+/* show watermark on web view for read-only proposal link */
+.proposal-page--readonly .du-print-watermark {
+  display: block;
+  position: absolute;
+  left: 50%;
+  bottom: 90px;
+  transform: translateX(-50%);
+  width: 7.0in;
+  height: auto;
+  opacity: 0.12;
+  pointer-events: none;
+  z-index: 2;
 }
 
 @media print {
@@ -482,6 +507,12 @@ padding: 34px 40px 360px 40px !important;
     position: relative;
     z-index: 3;
   }
+}
+
+/* keep content above watermark in readonly web view */
+.proposal-page--readonly #proposal-doc > * {
+  position: relative;
+  z-index: 3;
 }
 
 .proposal-headValue {

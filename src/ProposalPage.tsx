@@ -8,6 +8,7 @@ import "./ProposalPage.css";
 import type { UserSettings, ProposalSection } from "./SettingsPage";
 import { fetchSowTemplatesRows } from "./sowTemplates";
 import { fetchProposalSections } from "./proposalSections";
+import { supabase } from "./supabaseClient";
 
 
 type AddItemRow = {
@@ -108,6 +109,7 @@ export type ProposalPageProps = {
   readOnly?: boolean;
   proposalSectionsSnapshot?: ProposalSection[] | null;
 
+  proposalId?: string | null;
 
   proposalNotesSnapshot?: string | null;
   sowModeSnapshot?: "auto" | "custom" | null;
@@ -199,6 +201,48 @@ export default function ProposalPage(props: ProposalPageProps) {
 
   const [proposalSnapshot, setProposalSnapshot] = useState<ProposalPageProps>(() => props);
 
+  // 📬 Email tracking (opened / clicked)
+  const [emailTrackingLoading, setEmailTrackingLoading] = useState(false);
+  const [emailOpenedAt, setEmailOpenedAt] = useState<string | null>(null);
+  const [emailClickedAt, setEmailClickedAt] = useState<string | null>(null);
+  const [emailOpenedCount, setEmailOpenedCount] = useState(0);
+  const [emailClickedCount, setEmailClickedCount] = useState(0);
+  const [emailLastCheckedAt, setEmailLastCheckedAt] = useState<Date | null>(null);
+
+  const loadEmailTracking = async () => {
+    const pid = (props.proposalId || "").trim();
+    if (!pid) return;
+    setEmailTrackingLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("proposal_email_events")
+        .select("event_type, occurred_at")
+        .eq("proposal_id", pid)
+        .order("occurred_at", { ascending: false })
+        .limit(200);
+
+      if (error) throw error;
+
+      const events = Array.isArray(data) ? data : [];
+      const openedEvents = events.filter((e: any) =>
+        String(e?.event_type || "").includes("opened")
+      );
+      const clickedEvents = events.filter((e: any) =>
+        String(e?.event_type || "").includes("clicked")
+      );
+
+      setEmailOpenedCount(openedEvents.length);
+      setEmailClickedCount(clickedEvents.length);
+      setEmailOpenedAt(openedEvents[0]?.occurred_at || null);
+      setEmailClickedAt(clickedEvents[0]?.occurred_at || null);
+      setEmailLastCheckedAt(new Date());
+    } catch {
+      // silent fail; tracking depends on webhook delivery
+    } finally {
+      setEmailTrackingLoading(false);
+    }
+  };
+
   // 🔔 Track if proposal is out-of-date
   const [needsRefresh, setNeedsRefresh] = useState(false);
 const liveUserSettings = props.userSettings;
@@ -219,6 +263,13 @@ const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(() => new Date());
     setNeedsRefresh(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestPropsRef.current.estimateName]);
+
+  // ✅ Load email tracking for this proposal
+  useEffect(() => {
+    if (!props.proposalId) return;
+    loadEmailTracking();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.proposalId]);
   // ✅ Build a lightweight signature of the proposal inputs (so we can detect stale snapshot)
   const liveSig = useMemo(() => {
     return JSON.stringify({
@@ -866,6 +917,15 @@ const effectiveOrder = useMemo<string[]>(() => {
       <div className="proposal-headLine">
         <strong>Email:</strong> {clientEmail || "—"}
       </div>
+
+      <div className="proposal-headLine">
+        <strong>Date:</strong>{" "}
+        {new Date().toLocaleDateString([], {
+          month: "short",
+          day: "2-digit",
+          year: "numeric",
+        })}
+      </div>
     </div>
   );
 
@@ -980,7 +1040,7 @@ const effectiveOrder = useMemo<string[]>(() => {
   };
 
   return (
-    <section className="proposal-page">
+    <section className={`proposal-page ${readOnly ? "proposal-page--readonly" : ""}`}>
       {!readOnly && (
         
         <div className="proposal-actions no-print">
@@ -1054,7 +1114,49 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
           Email Proposal
         </button>
       )}
+
+      {!readOnly && props.proposalId && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: "8px 10px",
+            border: "1px solid rgba(15, 23, 42, 0.12)",
+            borderRadius: 8,
+            fontSize: 12,
+            display: "flex",
+            gap: 12,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <strong style={{ fontWeight: 700 }}>Email tracking</strong>
+          <span>
+            Opened: {emailOpenedAt ? new Date(emailOpenedAt).toLocaleString() : "—"}
+            {emailOpenedCount ? ` (${emailOpenedCount})` : ""}
+          </span>
+          <span>
+            Clicked: {emailClickedAt ? new Date(emailClickedAt).toLocaleString() : "—"}
+            {emailClickedCount ? ` (${emailClickedCount})` : ""}
+          </span>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={loadEmailTracking}
+            disabled={emailTrackingLoading}
+            style={{ padding: "6px 10px", fontSize: 12 }}
+          >
+            {emailTrackingLoading ? "Refreshing..." : "Refresh status"}
+          </button>
+          {emailLastCheckedAt && (
+            <span style={{ opacity: 0.6 }}>
+              Last checked: {emailLastCheckedAt.toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+      )}
+
       <article ref={docRef as any} className="proposal-doc" id="proposal-doc">
+        <div className="proposal-page-number only-print" aria-hidden="true" />
         <div className="du-print-page">
           {userSettings?.logoDataUrl ? (
             <img
