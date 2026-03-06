@@ -1222,7 +1222,7 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
       customName: "",
       customPrice: 0,
     };
-    setAddItems((prev) => [...prev, newRow]);
+    setAddItems((prev) => [newRow, ...prev]);
   };
   const removeAddItemRow = (rowId: string) => {
     setAddItems((prev) => prev.filter((r) => r.rowId !== rowId));
@@ -4570,7 +4570,6 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                                             updateAddItemRow(row.rowId, {
                                               benchType: e.target.value,
                                               itemId: "", // bench does not use itemId
-                                              qty: 0,
                                             })
                                           }
                                           disabled={!row.category}
@@ -4597,7 +4596,6 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                                           onChange={(e) =>
                                             updateAddItemRow(row.rowId, {
                                               itemId: e.target.value,
-                                              qty: 0,
                                               customName: "",
                                               customPrice: 0,
                                               constructionType: "",

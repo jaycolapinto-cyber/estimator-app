@@ -206,12 +206,12 @@ grid-template-columns: 1fr 460px 1fr;
 }
 
 .proposal-text {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
 .proposal-muted {
-  font-size: 11px;
+  font-size: 12px;
   opacity: 0.7;
 }
 
@@ -224,7 +224,7 @@ grid-template-columns: 1fr 460px 1fr;
 
 .proposal-table th,
 .proposal-table td {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 /* Total */
@@ -284,13 +284,13 @@ grid-template-columns: 1fr 460px 1fr;
 
 .proposal-timeline-field .proposal-text {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
 .proposal-timeline-select {
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.2;
   padding: 4px 8px;
   border: 1px solid rgba(15, 23, 42, 0.18);
@@ -420,14 +420,14 @@ padding: 34px 40px 360px 40px !important;
   margin: 6px 0 0;
   padding-left: 18px;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
 .proposal-bullets li {
   margin: 0 0 4px 0;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 /* Timeline edit controls should inherit the same font */
@@ -435,7 +435,7 @@ padding: 34px 40px 360px 40px !important;
 .proposal-timeline select,
 .proposal-timeline option {
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12px;
 }
 @page {
   size: letter;
