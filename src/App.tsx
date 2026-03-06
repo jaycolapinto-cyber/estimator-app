@@ -91,6 +91,90 @@ function BootScreen({ label = "Loading…" }: { label?: string }) {
   );
 }
 
+const EXPRESSION_ALLOWED = /^[0-9+\-*/().\s]+$/;
+
+function parseExpression(input: string): number | null {
+  let raw = (input || "").trim();
+  if (!raw) return null;
+  if (raw.startsWith("=")) raw = raw.slice(1).trim();
+  if (!raw) return null;
+  if (!EXPRESSION_ALLOWED.test(raw)) return null;
+  try {
+    const result = Function(`"use strict"; return (${raw});`)();
+    if (typeof result !== "number" || !Number.isFinite(result)) return null;
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+function ExpressionNumberInput({
+  value,
+  onValueChange,
+  placeholder,
+  className,
+  ariaLabel,
+  readOnly,
+}: {
+  value: number;
+  onValueChange: (value: number) => void;
+  placeholder?: string;
+  className?: string;
+  ariaLabel?: string;
+  readOnly?: boolean;
+}) {
+  const [text, setText] = useState(value === 0 ? "" : String(value));
+  const isEditing = useRef(false);
+
+  useEffect(() => {
+    if (!isEditing.current) {
+      setText(value === 0 ? "" : String(value));
+    }
+  }, [value]);
+
+  const commit = () => {
+    const trimmed = text.trim();
+    if (trimmed === "") {
+      onValueChange(0);
+      setText("");
+      return;
+    }
+    const parsed = parseExpression(trimmed);
+    if (parsed !== null) {
+      onValueChange(parsed);
+      setText(parsed === 0 ? "" : String(parsed));
+    } else {
+      setText(value === 0 ? "" : String(value));
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      pattern="[0-9+\-*/().=\s]*"
+      className={className}
+      placeholder={placeholder}
+      value={text}
+      readOnly={readOnly}
+      aria-label={ariaLabel}
+      onFocus={() => {
+        isEditing.current = true;
+      }}
+      onBlur={() => {
+        isEditing.current = false;
+        commit();
+      }}
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          (e.currentTarget as HTMLInputElement).blur();
+        }
+      }}
+    />
+  );
+}
+
 // ================================
 // ADD ITEM – CATEGORY MASTER LIST
 type AddItemRow = {
@@ -1111,7 +1195,7 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     "" | "Skirting" | "Lattice"
   >("");
 
-  const [miValue, setMiValue] = useState<string>("");
+  const [miValue, setMiValue] = useState<number>(0);
   const [emailSugOpen, setEmailSugOpen] = useState(false);
   const emailSuggestions = useMemo(
     () => getEmailSuggestions(clientEmail),
@@ -1270,7 +1354,7 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     setSelectedSkirtingId("");
     setSkirtingSf(0);
 
-    setMiValue("");
+    setMiValue(0);
     setAddItems([]);
 
     setEstimateName("");
@@ -1362,7 +1446,7 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     setSelectedSkirtingId(snap.selectedSkirtingId || "");
     setSkirtingSf(Number(snap.skirtingSf || 0));
 
-    setMiValue(snap.miValue || "");
+    setMiValue(Number(snap.miValue || 0));
     setAddItems(Array.isArray(snap.addItems) ? snap.addItems : []);
 
     setIsDirty(false);
@@ -2948,7 +3032,7 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
   const financePercent = msrpMode ? 0 : rawFinancePercent;
   const perceivedPercent = msrpMode ? 0 : rawPerceivedPercent;
 
-  const miPercent = miValue ? Number(miValue) : 0;
+  const miPercent = miValue || 0;
 
   const smallJobPercent = (smallProjectMultiplier - 1) * 100;
   const permitPercent = (permitMultiplier - 1) * 100;
@@ -3950,27 +4034,22 @@ const altBaseTotal =
 
                           {/* MI */}
                           <div className="form-field">
-                            <input
-                              type="number"
+                            <ExpressionNumberInput
                               className="form-input no-spinner mi-input"
                               placeholder="MI"
                               value={miValue}
-                              onChange={(e) => setMiValue(e.target.value)}
-                              aria-label="Manual uplift index"
+                              onValueChange={setMiValue}
+                              ariaLabel="Manual uplift index"
                             />
                           </div>
 
                           {/* SF + tooltip */}
                           <div className="tooltip-wrapper">
-                            <input
-                              type="number"
+                            <ExpressionNumberInput
                               className="form-input no-spinner"
                               placeholder="SF"
-                              value={deckingSqFt === 0 ? "" : deckingSqFt}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setDeckingSqFt(v === "" ? 0 : Number(v));
-                              }}
+                              value={deckingSqFt}
+                              onValueChange={setDeckingSqFt}
                             />
 
                             <div className="tooltip-box">
@@ -4018,18 +4097,11 @@ const altBaseTotal =
                           </div>
 
                           <div className="tooltip-wrapper">
-                            <input
-                              type="number"
+                            <ExpressionNumberInput
                               className="form-input no-spinner"
                               placeholder="LF"
-                              value={railingLf === 0 ? "" : railingLf}
-                              onChange={(e) =>
-                                setRailingLf(
-                                  e.target.value === ""
-                                    ? 0
-                                    : Number(e.target.value)
-                                )
-                              }
+                              value={railingLf}
+                              onValueChange={setRailingLf}
                             />
                             <div className="tooltip-box">
                               <div>
@@ -4074,18 +4146,11 @@ const altBaseTotal =
                           </div>
 
                           <div className="tooltip-wrapper">
-                            <input
-                              type="number"
+                            <ExpressionNumberInput
                               className="form-input no-spinner"
                               placeholder="lf of treads"
-                              value={stairsCount === 0 ? "" : stairsCount}
-                              onChange={(e) =>
-                                setStairsCount(
-                                  e.target.value === ""
-                                    ? 0
-                                    : Number(e.target.value)
-                                )
-                              }
+                              value={stairsCount}
+                              onValueChange={setStairsCount}
                             />
                             <div className="tooltip-box">
                               <div>
@@ -4180,18 +4245,11 @@ const altBaseTotal =
                           </div>
 
                           <div className="tooltip-wrapper">
-                            <input
-                              type="number"
+                            <ExpressionNumberInput
                               className="form-input no-spinner"
                               placeholder="Qty"
-                              value={demoQty === 0 ? "" : demoQty}
-                              onChange={(e) =>
-                                setDemoQty(
-                                  e.target.value === ""
-                                    ? 0
-                                    : Number(e.target.value)
-                                )
-                              }
+                              value={demoQty}
+                              onValueChange={setDemoQty}
                             />
                             <div className="tooltip-box">
                               <div>
@@ -4261,18 +4319,11 @@ const altBaseTotal =
                           </div>
 
                           <div className="tooltip-wrapper">
-                            <input
-                              type="number"
+                            <ExpressionNumberInput
                               className="form-input no-spinner"
                               placeholder="SF"
-                              value={skirtingSf === 0 ? "" : skirtingSf}
-                              onChange={(e) =>
-                                setSkirtingSf(
-                                  e.target.value === ""
-                                    ? 0
-                                    : Number(e.target.value)
-                                )
-                              }
+                              value={skirtingSf}
+                              onValueChange={setSkirtingSf}
                             />
                             <div className="tooltip-box">
                               <div>
@@ -4397,17 +4448,13 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                                       className="additem-qty-wrap"
                                       data-tooltip={row.tooltip || ""}
                                     >
-                                      <input
-                                        type="number"
+                                      <ExpressionNumberInput
                                         className="form-input no-spinner"
                                         placeholder="SF"
-                                        value={row.qty === 0 ? "" : row.qty}
-                                        onChange={(e) =>
+                                        value={row.qty || 0}
+                                        onValueChange={(val) =>
                                           updateAddItemRow(row.rowId, {
-                                            qty:
-                                              e.target.value === ""
-                                                ? 0
-                                                : Number(e.target.value),
+                                            qty: val,
                                           })
                                         }
                                       />
@@ -4492,18 +4539,13 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
 
     {/* Price (col 3) */}
     <div className="form-field" style={{ gridColumn: "3 / 4" }}>
-      <input
-        type="number"
+      <ExpressionNumberInput
         className="form-input no-spinner additem-qty-input"
         placeholder="$ Price"
-        value={
-          row.customPrice === 0 || row.customPrice == null
-            ? ""
-            : String(row.customPrice)
-        }
-        onChange={(e) =>
+        value={row.customPrice || 0}
+        onValueChange={(val) =>
           updateAddItemRow(row.rowId, {
-            customPrice: e.target.value === "" ? 0 : Number(e.target.value),
+            customPrice: val,
             qty: 1,
           })
         }
@@ -4586,17 +4628,13 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                                         row.tooltip || "Enter quantity"
                                       }
                                     >
-                                      <input
-                                        type="number"
+                                      <ExpressionNumberInput
                                         className="form-input no-spinner"
                                         placeholder="Qty"
-                                        value={row.qty === 0 ? "" : row.qty}
-                                        onChange={(e) =>
+                                        value={row.qty || 0}
+                                        onValueChange={(val) =>
                                           updateAddItemRow(row.rowId, {
-                                            qty:
-                                              e.target.value === ""
-                                                ? 0
-                                                : Number(e.target.value),
+                                            qty: val,
                                           })
                                         }
                                       />
