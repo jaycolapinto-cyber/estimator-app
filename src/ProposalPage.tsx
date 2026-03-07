@@ -1115,7 +1115,7 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
         </button>
       )}
 
-      {!readOnly && props.proposalId && (
+      {!readOnly && (
         <div
           style={{
             marginTop: 8,
@@ -1130,19 +1130,56 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
           }}
         >
           <strong style={{ fontWeight: 700 }}>Email tracking</strong>
-          <span>
-            Opened: {emailOpenedAt ? new Date(emailOpenedAt).toLocaleString() : "—"}
-            {emailOpenedCount ? ` (${emailOpenedCount})` : ""}
-          </span>
-          <span>
-            Clicked: {emailClickedAt ? new Date(emailClickedAt).toLocaleString() : "—"}
-            {emailClickedCount ? ` (${emailClickedCount})` : ""}
-          </span>
+
+          {!props.proposalId ? (
+            <span style={{ opacity: 0.7 }}>
+              Not sent yet (save the estimate and email the proposal to start tracking)
+            </span>
+          ) : (
+            <>
+              <span
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  background: emailOpenedAt ? "#dcfce7" : "#f1f5f9",
+                  color: emailOpenedAt ? "#166534" : "#475569",
+                  fontWeight: 700,
+                }}
+              >
+                Opened
+              </span>
+              <span>
+                {emailOpenedAt
+                  ? new Date(emailOpenedAt).toLocaleString()
+                  : "—"}
+                {emailOpenedCount ? ` (${emailOpenedCount})` : ""}
+              </span>
+
+              <span
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  background: emailClickedAt ? "#dcfce7" : "#f1f5f9",
+                  color: emailClickedAt ? "#166534" : "#475569",
+                  fontWeight: 700,
+                }}
+              >
+                Clicked
+              </span>
+              <span>
+                {emailClickedAt
+                  ? new Date(emailClickedAt).toLocaleString()
+                  : "—"}
+                {emailClickedCount ? ` (${emailClickedCount})` : ""}
+              </span>
+            </>
+          )}
+
           <button
             type="button"
             className="btn btn-outline"
             onClick={loadEmailTracking}
-            disabled={emailTrackingLoading}
+            disabled={emailTrackingLoading || !props.proposalId}
             style={{ padding: "6px 10px", fontSize: 12 }}
           >
             {emailTrackingLoading ? "Refreshing..." : "Refresh status"}
