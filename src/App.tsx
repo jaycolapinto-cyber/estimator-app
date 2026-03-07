@@ -1506,6 +1506,10 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     }
 
     try {
+      // Ensure we have an estimateId for tracking
+      const ensuredEstimateId = estimateId || uid();
+      if (!estimateId) setEstimateId(ensuredEstimateId);
+
       // 1) Save proposal to Supabase
       const findItem = (id: string) =>
         pricingItems.find((p: any) => String(p.id) === String(id));
@@ -1818,7 +1822,10 @@ const EST_EXT = ".DUest";
     const filename = normalizeFileName(input);
     if (!filename) return;
 
-    const snap = buildSnapshot();
+    const ensuredEstimateId = estimateId || uid();
+    if (!estimateId) setEstimateId(ensuredEstimateId);
+
+    const snap = { ...buildSnapshot(), estimateId: ensuredEstimateId };
 
     const recentLabel = filename.replace(new RegExp(`${EST_EXT}$`, "i"), "");
     pushRecent(recentLabel, snap);
@@ -1836,7 +1843,7 @@ const EST_EXT = ".DUest";
       return;
     }
 
-    const ok = confirm(
+    const ok = window.confirm(
       `Overwrite existing file?\n\n${lastSavedFileName}\n\nThis will replace the previous version.`
     );
     if (!ok) return;
