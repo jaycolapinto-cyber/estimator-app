@@ -733,13 +733,26 @@ useEffect(() => {
           const typeText =
             customName || r.picked?.name || (isMisc ? "Misc Item" : "");
 
-          const description =
+          const baseDesc =
             customDesc ||
             (r.picked as any)?.proposal_description?.toString().trim() ||
             (r.picked as any)?.description?.toString().trim() ||
             (isMisc
               ? ""
               : "Additional feature included as selected in the project scope.");
+
+          const benchType = (r as any)?.benchType || "";
+          const benchSuffix =
+            benchType.includes("_back")
+              ? " Includes backrest."
+              : benchType.includes("_storage")
+              ? " Includes integrated storage."
+              : "";
+
+          const description =
+            (r.category || "").toLowerCase().trim() === "bench" && baseDesc
+              ? baseDesc + benchSuffix
+              : baseDesc;
 
           return {
             key: `add-${r.rowId}`,
