@@ -1193,7 +1193,6 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
       )}
 
       <article ref={docRef as any} className="proposal-doc" id="proposal-doc">
-        <div className="proposal-page-number only-print" aria-hidden="true" />
         <div className="du-print-page">
           {userSettings?.logoDataUrl ? (
             <img
@@ -1215,6 +1214,8 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
               {ClientBlock}
             </div>
           </header>
+
+          <div className="proposal-page-number only-print" aria-hidden="true" />
 
           <h1 className="proposal-title">Project Estimate</h1>
 {!readOnly && (

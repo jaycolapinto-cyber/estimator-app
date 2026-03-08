@@ -314,7 +314,7 @@ grid-template-columns: 1fr 460px 1fr;
   }
 
   .proposal-page-number {
-    position: fixed;
+    position: absolute;
     bottom: 0.45in;
     right: 0.55in;
     font-size: 11px;
