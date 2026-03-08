@@ -4651,12 +4651,20 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                                         <select
                                           className="form-select"
                                           value={row.benchType || "12_flat"}
-                                          onChange={(e) =>
+                                          onChange={(e) => {
+                                            const next = e.target.value;
+                                            const benchLabel =
+                                              BENCH_TYPES.find((x) => x.value === next)?.label || "";
+                                            const benchId = pricingItems.find((p) =>
+                                              normalizeCat(p.category || "") === "bench" &&
+                                              String(p.name || "").trim() === benchLabel
+                                            )?.id;
+
                                             updateAddItemRow(row.rowId, {
-                                              benchType: e.target.value,
-                                              itemId: "", // bench does not use itemId
-                                            })
-                                          }
+                                              benchType: next,
+                                              itemId: benchId ? String(benchId) : "", // map to Pricing Admin bench row
+                                            });
+                                          }}
                                           disabled={!row.category}
                                         >
                                           <option value="" disabled hidden>

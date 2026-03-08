@@ -733,29 +733,8 @@ useEffect(() => {
           const typeText =
             customName || r.picked?.name || (isMisc ? "Misc Item" : "");
 
-          const benchDescMap: Record<string, string> = {
-            "12_flat":
-              "Built-in 12-inch bench framed with pressure-treated pine and finished with two decking boards.",
-            "12_back":
-              "Built-in 12-inch bench with backrest, framed with pressure-treated pine and finished with two decking boards.",
-            "12_storage":
-              "Built-in 12-inch bench with integrated storage, framed with pressure-treated pine and finished with two decking boards.",
-            "18_flat":
-              "Built-in 18-inch bench framed with pressure-treated pine and finished with three decking boards.",
-            "18_back":
-              "Built-in 18-inch bench with backrest, framed with pressure-treated pine and finished with three decking boards.",
-            "18_storage":
-              "Built-in 18-inch bench with integrated storage, framed with pressure-treated pine and finished with three decking boards.",
-          };
-
-          const benchDesc =
-            (r.category || "").toLowerCase().trim() === "bench"
-              ? benchDescMap[(r as any)?.benchType || ""] || ""
-              : "";
-
           const description =
             customDesc ||
-            benchDesc ||
             (r.picked as any)?.proposal_description?.toString().trim() ||
             (isMisc
               ? ""
