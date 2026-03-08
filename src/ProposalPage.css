@@ -313,25 +313,6 @@ grid-template-columns: 1fr 460px 1fr;
     display: none !important;
   }
 
-  .proposal-page-number {
-    position: fixed;
-    bottom: 0.45in;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 11px;
-    color: rgba(15, 23, 42, 0.85);
-    z-index: 99999;
-    background: #fff;
-    padding: 2px 6px;
-    border-radius: 6px;
-    pointer-events: none;
-    display: block !important;
-    visibility: visible !important;
-  }
-
-  .proposal-page-number::before {
-    content: "Page " counter(page) " of " attr(data-total);
-  }
   /* ✅ PRINT ONLY THE PROPOSAL DOCUMENT (hide the entire app chrome) */
   body * {
     visibility: hidden !important;

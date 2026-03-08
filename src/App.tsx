@@ -2530,28 +2530,33 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
 
       const exactBenchName = benchLabel.trim();
 
+      // Try exact match against Pricing Admin bench names
       pickedRow = pricingItems.find((p) => {
         const cat = normalizeCat(p.category || "");
         if (cat !== "bench") return false;
         const name = String(p.name || "").trim();
-        const nameLc = name.toLowerCase();
-
-        // Exact name match first (Pricing Admin names)
-        if (exactBenchName && name === exactBenchName) return true;
-
-        // Try direct label match next
-        if (benchLabelLc && (nameLc.includes(benchLabelLc) || benchLabelLc.includes(nameLc))) {
-          return true;
-        }
-
-        // Fallback: match by dimensions + features
-        if (wants12 && !nameLc.includes("12")) return false;
-        if (wants18 && !nameLc.includes("18")) return false;
-        if (wantsBack && !nameLc.includes("back")) return false;
-        if (wantsStorage && !nameLc.includes("storage")) return false;
-
-        return nameLc.includes("bench");
+        return exactBenchName && name === exactBenchName;
       }) as any;
+
+      // If exact match fails, try label/feature matching
+      if (!pickedRow) {
+        pickedRow = pricingItems.find((p) => {
+          const cat = normalizeCat(p.category || "");
+          if (cat !== "bench") return false;
+          const name = String(p.name || "").trim();
+          const nameLc = name.toLowerCase();
+
+          if (benchLabelLc && (nameLc.includes(benchLabelLc) || benchLabelLc.includes(nameLc))) {
+            return true;
+          }
+          if (wants12 && !nameLc.includes("12")) return false;
+          if (wants18 && !nameLc.includes("18")) return false;
+          if (wantsBack && !nameLc.includes("back")) return false;
+          if (wantsStorage && !nameLc.includes("storage")) return false;
+
+          return nameLc.includes("bench");
+        }) as any;
+      }
     }
 
     // ✅ unify naming so the rest of your logic can use `picked`

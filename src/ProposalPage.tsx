@@ -1213,7 +1213,6 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
             </div>
           </header>
 
-          <div id="du-page-num" className="proposal-page-number only-print" aria-hidden="true" />
 
           <h1 className="proposal-title">Project Estimate</h1>
 {!readOnly && (
