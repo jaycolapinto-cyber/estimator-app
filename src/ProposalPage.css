@@ -319,11 +319,12 @@ grid-template-columns: 1fr 460px 1fr;
     right: 0.55in;
     font-size: 11px;
     color: rgba(15, 23, 42, 0.85);
-    z-index: 9999;
+    z-index: 99999;
     background: #fff;
     padding: 2px 6px;
     border-radius: 6px;
     pointer-events: none;
+    display: block !important;
   }
   .proposal-page-number::after {
     content: "Page " counter(page) " of " counter(pages);
