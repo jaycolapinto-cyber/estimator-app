@@ -1121,7 +1121,8 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
   );
 
   useEffect(() => {
-    setProposalId(getProposalIdForEstimate(estimateName));
+    const next = getProposalIdForEstimate(estimateName);
+    if (next) setProposalId(next);
   }, [estimateName]);
 
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
@@ -2505,7 +2506,7 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
     const isMisc = rowCat === "misc";
     let baseRow: any = null;
     // ✅ DB pricing row (use this for unit/cost math)
-    const pickedRow = pricingItems.find(
+    let pickedRow = pricingItems.find(
       (p) => String(p.id) === String(row.itemId)
     );
 
@@ -2514,6 +2515,22 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
     const pickedOpt = opts.find(
       (o) => String((o as any).id) === String(row.itemId)
     );
+
+    // ✅ Bench: match pricing item by benchType label if itemId is blank
+    if (!pickedRow && rowCat === "bench") {
+      const bt = (row as any)?.benchType || "";
+      const benchLabel =
+        BENCH_TYPES.find((x) => x.value === bt)?.label || "";
+      if (benchLabel) {
+        const benchLabelLc = benchLabel.toLowerCase();
+        pickedRow = pricingItems.find((p) => {
+          const cat = normalizeCat(p.category || "");
+          if (cat !== "bench") return false;
+          const nameLc = String(p.name || "").toLowerCase();
+          return nameLc.includes(benchLabelLc) || benchLabelLc.includes(nameLc);
+        }) as any;
+      }
+    }
 
     // ✅ unify naming so the rest of your logic can use `picked`
     const picked: any = pickedRow || pickedOpt || null;

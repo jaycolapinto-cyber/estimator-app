@@ -1215,7 +1215,9 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
             </div>
           </header>
 
-          <div className="proposal-page-number only-print" aria-hidden="true" />
+          <div className="proposal-page-number only-print" aria-hidden="true">
+            Page <span id="du-page-cur">1</span> of <span id="du-page-total">1</span>
+          </div>
 
           <h1 className="proposal-title">Project Estimate</h1>
 {!readOnly && (
