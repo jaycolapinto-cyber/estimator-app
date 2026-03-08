@@ -1867,9 +1867,9 @@ const EST_EXT = ".DUest";
   };
 
   const handleFileSave = () => {
-    // If we don't yet have a saved filename, fall back to Save As behavior
+    // If we don't yet have a saved filename, guide the user to Save As first
     if (!lastSavedFileName) {
-      handleFileSaveAs();
+      alert("Please use 'Save As' first to choose a file name.");
       return;
     }
 
