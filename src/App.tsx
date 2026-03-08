@@ -2751,6 +2751,11 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
         };
       }
 
+      const pickedBench = baseRow
+        ? ({ ...baseRow, name: prettyType } as any)
+        : ({ name: prettyType } as any);
+
+
       // ✅ Add-ons:
       // 12" uses % from Supabase helper
       // 18" uses flat $ add-ons: +40 back, +10 storage (can stack if both)
@@ -2802,7 +2807,7 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
       return {
         ...row,
         qty: qtyLf,
-        picked: { name: prettyType } as any,
+        picked: pickedBench as any,
         unitCost,
         lineBase,
         unitLabel: "lf",
