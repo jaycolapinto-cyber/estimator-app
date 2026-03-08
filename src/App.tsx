@@ -2528,12 +2528,18 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
       const wantsBack = bt.includes("back");
       const wantsStorage = bt.includes("storage");
 
+      const exactBenchName = benchLabel.trim();
+
       pickedRow = pricingItems.find((p) => {
         const cat = normalizeCat(p.category || "");
         if (cat !== "bench") return false;
-        const nameLc = String(p.name || "").toLowerCase();
+        const name = String(p.name || "").trim();
+        const nameLc = name.toLowerCase();
 
-        // Try direct label match first
+        // Exact name match first (Pricing Admin names)
+        if (exactBenchName && name === exactBenchName) return true;
+
+        // Try direct label match next
         if (benchLabelLc && (nameLc.includes(benchLabelLc) || benchLabelLc.includes(nameLc))) {
           return true;
         }

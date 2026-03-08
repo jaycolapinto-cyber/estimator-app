@@ -394,10 +394,11 @@ const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(() => new Date());
       const pagePx = 1056; // ~11in * 96dpi
       const total = Math.max(1, Math.ceil(el.scrollHeight / pagePx));
 
-      const curEl = document.getElementById("du-page-cur");
       const totalEl = document.getElementById("du-page-total");
-      if (curEl) curEl.textContent = "1";
       if (totalEl) totalEl.textContent = String(total);
+
+      const pageBox = document.getElementById("du-page-num");
+      if (pageBox) pageBox.setAttribute("data-total", String(total));
     };
 
     window.addEventListener("beforeprint", onBeforePrint);
@@ -1215,8 +1216,8 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
             </div>
           </header>
 
-          <div className="proposal-page-number only-print" aria-hidden="true">
-            Page <span id="du-page-cur">1</span> of <span id="du-page-total">1</span>
+          <div id="du-page-num" className="proposal-page-number only-print" aria-hidden="true" data-total="1">
+            Page <span className="du-page-cur" /> of <span id="du-page-total">1</span>
           </div>
 
           <h1 className="proposal-title">Project Estimate</h1>

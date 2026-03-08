@@ -328,6 +328,14 @@ grid-template-columns: 1fr 460px 1fr;
     display: block !important;
     visibility: visible !important;
   }
+
+  .proposal-page-number::before {
+    content: "Page " counter(page) " of " attr(data-total);
+  }
+
+  .proposal-page-number > * {
+    display: none;
+  }
   /* ✅ PRINT ONLY THE PROPOSAL DOCUMENT (hide the entire app chrome) */
   body * {
     visibility: hidden !important;
