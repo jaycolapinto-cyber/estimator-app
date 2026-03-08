@@ -2752,7 +2752,15 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
       }
 
       const pickedBench = baseRow
-        ? ({ ...baseRow, name: prettyType } as any)
+        ? ({
+            ...baseRow,
+            name: prettyType,
+            proposal_description:
+              (baseRow as any)?.proposal_description ||
+              (baseRow as any)?.description ||
+              (baseRow as any)?.details ||
+              "",
+          } as any)
         : ({ name: prettyType } as any);
 
 

@@ -736,6 +736,7 @@ useEffect(() => {
           const description =
             customDesc ||
             (r.picked as any)?.proposal_description?.toString().trim() ||
+            (r.picked as any)?.description?.toString().trim() ||
             (isMisc
               ? ""
               : "Additional feature included as selected in the project scope.");
