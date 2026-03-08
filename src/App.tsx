@@ -1103,6 +1103,27 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
       return "";
     }
   });
+
+  const getProposalIdForEstimate = (name: string) => {
+    try {
+      return (
+        localStorage.getItem(
+          `du_proposal_id::${name || "Untitled Estimate"}`
+        ) || ""
+      );
+    } catch {
+      return "";
+    }
+  };
+
+  const [proposalId, setProposalId] = useState<string>(() =>
+    getProposalIdForEstimate(estimateName)
+  );
+
+  useEffect(() => {
+    setProposalId(getProposalIdForEstimate(estimateName));
+  }, [estimateName]);
+
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1668,7 +1689,10 @@ if (existingId) {
 
   savedId = ins?.id ?? null;
 
-  if (savedId) localStorage.setItem(storageKey, savedId);
+  if (savedId) {
+    localStorage.setItem(storageKey, savedId);
+    setProposalId(savedId);
+  }
 }
 
      function getPublicBaseUrl() {
@@ -4704,7 +4728,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
          <div style={{ display: activeNav === "proposals" ? "block" : "none" }}>
             <ProposalPage
               orgId={orgId}
-              proposalId={estimateId}
+              proposalId={proposalId || undefined}
               constructionType={constructionType}
               userSettings={userSettings}
               estimateName={estimateName}

@@ -57,6 +57,7 @@ const orgId = proposal?.orgId ?? null;
         // So we DO NOT fetch proposal_sections here (RLS will often block it).
         setProposalData({
           ...proposal,
+          proposalId: id,
           orgId,
           userSettings: settings ?? proposal?.userSettings ?? null,
           proposalSectionsSnapshot: proposal?.proposalSectionsSnapshot ?? null,
