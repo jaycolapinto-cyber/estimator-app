@@ -325,6 +325,7 @@ grid-template-columns: 1fr 460px 1fr;
     border-radius: 6px;
     pointer-events: none;
     display: block !important;
+    visibility: visible !important;
   }
   .proposal-page-number::after {
     content: "Page " counter(page) " of " counter(pages);

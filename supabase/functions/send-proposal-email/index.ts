@@ -68,6 +68,9 @@ Deno.serve(async (req) => {
     // IMPORTANT: do NOT brand this as Decks Unique — this is your platform sender identity.
     const from = "Estimator <send@estimator.trade>";
 
+    const proposalIdTag =
+      (body as any)?.proposalId || (body as any)?.proposal_id || "unknown";
+
     const resendPayload: any = {
       from,
 
@@ -78,9 +81,7 @@ Deno.serve(async (req) => {
       subject: body.subject,
       html: body.html,
 
-      ...(body.proposalId
-        ? { tags: [{ name: "proposal_id", value: body.proposalId }] }
-        : {}),
+      tags: [{ name: "proposal_id", value: String(proposalIdTag) }],
 
       // plain text fallback helps deliverability
       text: body.html
