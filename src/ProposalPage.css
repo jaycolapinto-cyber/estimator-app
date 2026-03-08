@@ -315,10 +315,15 @@ grid-template-columns: 1fr 460px 1fr;
 
   .proposal-page-number {
     position: fixed;
-    top: 16px;
-    right: 24px;
+    top: 0.35in;
+    right: 0.55in;
     font-size: 11px;
-    color: rgba(15, 23, 42, 0.75);
+    color: rgba(15, 23, 42, 0.85);
+    z-index: 9999;
+    background: #fff;
+    padding: 2px 6px;
+    border-radius: 6px;
+    pointer-events: none;
   }
   .proposal-page-number::after {
     content: "Page " counter(page) " of " counter(pages);

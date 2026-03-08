@@ -1687,6 +1687,11 @@ if (existingId) {
 }
 
 
+      if (!savedId) {
+        alert("Could not generate proposal link. Please try again.");
+        return;
+      }
+
       const proposalId = savedId;
       const link = `${getPublicBaseUrl()}/review/${proposalId}`;
 
