@@ -394,7 +394,8 @@ const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(() => new Date());
       const pagePx = 1056; // ~11in * 96dpi
       const total = Math.max(1, Math.ceil(el.scrollHeight / pagePx));
 
-      // No-op: page/total handled via CSS counters in print
+      const pageBox = document.getElementById("du-page-num");
+      if (pageBox) pageBox.setAttribute("data-total", String(total));
     };
 
     window.addEventListener("beforeprint", onBeforePrint);
