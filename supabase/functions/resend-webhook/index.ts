@@ -45,7 +45,16 @@ Deno.serve(async (req) => {
     const data: any = evt?.data ?? {};
 
     // Tags are optional. We'll add proposal_id tags when sending.
-    const tags: Array<{ name: string; value: string }> = Array.isArray(data?.tags) ? data.tags : [];
+    let tags: Array<{ name: string; value: string }> = [];
+    if (Array.isArray(data?.tags)) {
+      tags = data.tags as any;
+    } else if (data?.tags && typeof data.tags === "object") {
+      tags = Object.entries(data.tags).map(([name, value]) => ({
+        name,
+        value: String(value),
+      }));
+    }
+
     const proposalId =
       tags.find((t) => t.name === "proposal_id")?.value ??
       tags.find((t) => t.name === "proposalId")?.value ??

@@ -2521,15 +2521,31 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
       const bt = (row as any)?.benchType || "";
       const benchLabel =
         BENCH_TYPES.find((x) => x.value === bt)?.label || "";
-      if (benchLabel) {
-        const benchLabelLc = benchLabel.toLowerCase();
-        pickedRow = pricingItems.find((p) => {
-          const cat = normalizeCat(p.category || "");
-          if (cat !== "bench") return false;
-          const nameLc = String(p.name || "").toLowerCase();
-          return nameLc.includes(benchLabelLc) || benchLabelLc.includes(nameLc);
-        }) as any;
-      }
+      const benchLabelLc = benchLabel.toLowerCase();
+
+      const wants12 = bt.includes("12");
+      const wants18 = bt.includes("18");
+      const wantsBack = bt.includes("back");
+      const wantsStorage = bt.includes("storage");
+
+      pickedRow = pricingItems.find((p) => {
+        const cat = normalizeCat(p.category || "");
+        if (cat !== "bench") return false;
+        const nameLc = String(p.name || "").toLowerCase();
+
+        // Try direct label match first
+        if (benchLabelLc && (nameLc.includes(benchLabelLc) || benchLabelLc.includes(nameLc))) {
+          return true;
+        }
+
+        // Fallback: match by dimensions + features
+        if (wants12 && !nameLc.includes("12")) return false;
+        if (wants18 && !nameLc.includes("18")) return false;
+        if (wantsBack && !nameLc.includes("back")) return false;
+        if (wantsStorage && !nameLc.includes("storage")) return false;
+
+        return nameLc.includes("bench");
+      }) as any;
     }
 
     // ✅ unify naming so the rest of your logic can use `picked`
