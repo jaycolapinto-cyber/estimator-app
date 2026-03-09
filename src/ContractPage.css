@@ -450,6 +450,13 @@
   gap: 8px;
 }
 
+.contract-sumPrint {
+  display: none;
+  font-size: 14px;
+  font-weight: 700;
+  margin-left: 8px;
+}
+
 .contract-sumLabel {
   font-size: 14px;
   color: rgba(15, 23, 42, 0.92);
@@ -756,21 +763,19 @@ textarea.contract-payValue {
     margin: 0 !important;
     padding: 0 !important;
   }
-/* ✅ Center the printed contract reliably (no shrink) */
+/* Allow print to flow across pages */
 #contract-doc {
-  position: fixed !important;
-  inset: 0 !important;
-  display: flex !important;
-  justify-content: center !important;
-  align-items: flex-start !important;
-  padding-top: 0.25in !important; /* matches @page margin feel */
+  position: static !important;
+  display: block !important;
+  padding: 0 !important;
 }
 
 .contract-doc {
-  max-width: 920px;
-  margin: 0 auto;
+  max-width: none !important;
+  width: 100% !important;
+  margin: 0 !important;
   background: #fff;
-  padding: 16px 18px;  /* slightly tighter than before */
+  padding: 0.3in 0.3in;
   border: 1.5px solid #1f2937;
   border-radius: 6px;
 }
@@ -788,20 +793,24 @@ textarea.contract-payValue {
 
   .contract-doc {
     box-shadow: none !important;
-    border: 0 !important;
-    padding: 0 !important;
-    width: 7.25in !important;
-    max-width: 7.25in !important;
-    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
   }
 
   .print-only {
     display: block !important;
   }
 
-  /* Keep key blocks together */
-  .contract-header-inner,
-  .contract-section,
+  /* Keep header together; allow sections to flow across pages */
+  .contract-header-inner {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .contract-section {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
   .contract-acceptance {
     break-inside: avoid;
     page-break-inside: avoid;
@@ -838,6 +847,9 @@ textarea.contract-payValue {
     border: none !important;
     box-shadow: none !important;
   }
+  .contract-sumPrint {
+    display: inline-block !important;
+  }
 
   .contract-foot {
     display: flex !important;
@@ -855,17 +867,7 @@ textarea.contract-payValue {
     margin: 0.2in !important;       /* closer to paper edge */
   }
 }/* Print: push Acceptance section lower on the page */
-@media print {
-  .contract-acceptance {
-    margin-top: 0 !important;
-  }
-
-  .contract-acceptance::before {
-    content: "";
-    display: block;
-    height: 60px; /* adjust this number */
-  }
-}/* =========================
+/* =========================
    Cancellation Policy
    ========================= */
 

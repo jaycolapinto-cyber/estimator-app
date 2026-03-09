@@ -590,6 +590,7 @@ useEffect(() => {
           inputMode="decimal"
         />
       </div>
+      <div className="contract-sumPrint print-only">${contractSumNumerals || ""}</div>
     </div>
 
     <div className="contract-payRow">

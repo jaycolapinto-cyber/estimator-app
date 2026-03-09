@@ -1221,7 +1221,7 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
       gap: 12,
     }}
   >
-    <span>Scope of Work</span>
+    <span className="proposal-secTitle" style={{ margin: 0 }}>Scope of Work</span>
 
     {isAdmin ? (
       <div className="no-print" style={{ display: "flex", gap: 8 }}>
