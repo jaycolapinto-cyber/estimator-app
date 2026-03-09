@@ -202,44 +202,30 @@ export default function ProposalPage(props: ProposalPageProps) {
   const [proposalSnapshot, setProposalSnapshot] = useState<ProposalPageProps>(() => props);
 
   // 📬 Email tracking (opened / clicked)
-  const [emailTrackingLoading, setEmailTrackingLoading] = useState(false);
   const [emailOpenedAt, setEmailOpenedAt] = useState<string | null>(null);
   const [emailClickedAt, setEmailClickedAt] = useState<string | null>(null);
-  const [emailOpenedCount, setEmailOpenedCount] = useState(0);
-  const [emailClickedCount, setEmailClickedCount] = useState(0);
-  const [emailLastCheckedAt, setEmailLastCheckedAt] = useState<Date | null>(null);
 
   const loadEmailTracking = async () => {
     const pid = (props.proposalId || "").trim();
     if (!pid) return;
-    setEmailTrackingLoading(true);
     try {
       const { data, error } = await supabase
-        .from("proposal_email_events")
-        .select("event_type, occurred_at")
+        .from("proposal_tracking_events")
+        .select("event_type, created_at")
         .eq("proposal_id", pid)
-        .order("occurred_at", { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(200);
 
       if (error) throw error;
 
       const events = Array.isArray(data) ? data : [];
-      const openedEvents = events.filter((e: any) =>
-        String(e?.event_type || "").includes("opened")
-      );
-      const clickedEvents = events.filter((e: any) =>
-        String(e?.event_type || "").includes("clicked")
-      );
+      const openedEvents = events.filter((e: any) => e.event_type === "open");
+      const clickedEvents = events.filter((e: any) => e.event_type === "click");
 
-      setEmailOpenedCount(openedEvents.length);
-      setEmailClickedCount(clickedEvents.length);
-      setEmailOpenedAt(openedEvents[0]?.occurred_at || null);
-      setEmailClickedAt(clickedEvents[0]?.occurred_at || null);
-      setEmailLastCheckedAt(new Date());
+      setEmailOpenedAt(openedEvents[0]?.created_at || null);
+      setEmailClickedAt(clickedEvents[0]?.created_at || null);
     } catch {
-      // silent fail; tracking depends on webhook delivery
-    } finally {
-      setEmailTrackingLoading(false);
+      // silent fail
     }
   };
 
@@ -264,10 +250,12 @@ const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(() => new Date());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestPropsRef.current.estimateName]);
 
-  // ✅ Load email tracking for this proposal
+  // ✅ Load email tracking for this proposal (auto-refresh)
   useEffect(() => {
     if (!props.proposalId) return;
     loadEmailTracking();
+    const id = setInterval(loadEmailTracking, 15000);
+    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.proposalId]);
   // ✅ Build a lightweight signature of the proposal inputs (so we can detect stale snapshot)
@@ -1136,7 +1124,7 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
             borderRadius: 8,
             fontSize: 12,
             display: "flex",
-            gap: 12,
+            gap: 10,
             alignItems: "center",
             flexWrap: "wrap",
           }}
@@ -1145,61 +1133,35 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
 
           {!props.proposalId ? (
             <span style={{ opacity: 0.7 }}>
-              Not sent yet (save the estimate and email the proposal to start tracking)
+              Not sent yet
             </span>
           ) : (
             <>
               <span
                 style={{
-                  padding: "2px 8px",
+                  padding: "3px 10px",
                   borderRadius: 999,
-                  background: emailOpenedAt ? "#dcfce7" : "#f1f5f9",
-                  color: emailOpenedAt ? "#166534" : "#475569",
+                  background: emailOpenedAt ? "#16a34a" : "#e2e8f0",
+                  color: emailOpenedAt ? "#fff" : "#475569",
                   fontWeight: 700,
+                  fontSize: 12,
                 }}
               >
                 Opened
               </span>
-              <span>
-                {emailOpenedAt
-                  ? new Date(emailOpenedAt).toLocaleString()
-                  : "—"}
-                {emailOpenedCount ? ` (${emailOpenedCount})` : ""}
-              </span>
-
               <span
                 style={{
-                  padding: "2px 8px",
+                  padding: "3px 10px",
                   borderRadius: 999,
-                  background: emailClickedAt ? "#dcfce7" : "#f1f5f9",
-                  color: emailClickedAt ? "#166534" : "#475569",
+                  background: emailClickedAt ? "#16a34a" : "#e2e8f0",
+                  color: emailClickedAt ? "#fff" : "#475569",
                   fontWeight: 700,
+                  fontSize: 12,
                 }}
               >
                 Clicked
               </span>
-              <span>
-                {emailClickedAt
-                  ? new Date(emailClickedAt).toLocaleString()
-                  : "—"}
-                {emailClickedCount ? ` (${emailClickedCount})` : ""}
-              </span>
             </>
-          )}
-
-          <button
-            type="button"
-            className="btn btn-outline"
-            onClick={loadEmailTracking}
-            disabled={emailTrackingLoading || !props.proposalId}
-            style={{ padding: "6px 10px", fontSize: 12 }}
-          >
-            {emailTrackingLoading ? "Refreshing..." : "Refresh status"}
-          </button>
-          {emailLastCheckedAt && (
-            <span style={{ opacity: 0.6 }}>
-              Last checked: {emailLastCheckedAt.toLocaleTimeString()}
-            </span>
           )}
         </div>
       )}

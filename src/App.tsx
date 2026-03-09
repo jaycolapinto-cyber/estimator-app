@@ -882,6 +882,20 @@ function AppShell({
 
       // ✅ Button link (your review URL)
       const proposalLink = (emailDraft as any)?.link || "";
+      const trackingId = (emailDraft as any)?.proposalId || "";
+      const functionsBase = SUPABASE_URL.replace(
+        /\.supabase\.co$/,
+        ".functions.supabase.co"
+      );
+      const trackOpenUrl = trackingId
+        ? `${functionsBase}/track-open?tid=${trackingId}`
+        : "";
+      const trackClickUrl =
+        trackingId && proposalLink
+          ? `${functionsBase}/track-click?tid=${trackingId}&url=${encodeURIComponent(
+              proposalLink
+            )}`
+          : proposalLink;
 
       // ✅ Email HTML (includes a real "View Proposal" button)
       const html = `
@@ -895,7 +909,7 @@ function AppShell({
             proposalLink
               ? `
             <div style="margin-top:18px;">
-              <a href="${proposalLink}"
+              <a href="${trackClickUrl}"
                 style="display:inline-block; background:#16a34a; color:#fff; text-decoration:none; padding:12px 16px; border-radius:10px; font-weight:700;">
                 View Proposal
               </a>
@@ -905,6 +919,11 @@ function AppShell({
               <span>${proposalLink}</span>
             </div>
           `
+              : ""
+          }
+          ${
+            trackOpenUrl
+              ? `<img src="${trackOpenUrl}" width="1" height="1" style="display:none" alt="" />`
               : ""
           }
         </div>
