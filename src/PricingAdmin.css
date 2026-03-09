@@ -97,6 +97,39 @@ body.pa-wide .main-grid {
   background: #0f172a;
 }
 
+.paPage[data-theme="dark"] .paHeader,
+.paPage[data-theme="dark"] .paBar,
+.paPage[data-theme="dark"] .paTableWrap {
+  background: var(--pa-panel);
+}
+
+.paPage[data-theme="dark"] .paTable thead th {
+  background: #0b1220;
+  color: #e5e7eb;
+  border-bottom-color: var(--pa-border);
+}
+
+.paPage[data-theme="dark"] .paTable tbody td {
+  color: #e5e7eb;
+  border-bottom-color: var(--pa-border);
+}
+
+.paPage[data-theme="dark"] .paTable tbody tr:hover {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.paPage[data-theme="dark"] .paCellInput,
+.paPage[data-theme="dark"] .paCellArea {
+  background: #0b1220;
+  color: #e5e7eb;
+  border-color: var(--pa-border);
+}
+
+.paPage[data-theme="dark"] .paCellInput::placeholder,
+.paPage[data-theme="dark"] .paCellArea::placeholder {
+  color: rgba(226, 232, 240, 0.5);
+}
+
 /* =========================================================
      4) HEADER (top toolbar vibe)
      ========================================================= */

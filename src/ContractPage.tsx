@@ -91,12 +91,12 @@ export default function ContractPage(props: Props) {
   const docRef = useRef<HTMLDivElement | null>(null);
   const HEADER_KEY = useMemo(() => {
     const id = (props.estimateId || "").trim();
-    return id ? `du_contract_header::${id}` : "";
+    return id ? `du_contract_header::${id}` : "du_contract_header::default";
   }, [props.estimateId]);
 
   const SPEC_KEY = useMemo(() => {
     const id = (props.estimateId || "").trim();
-    return id ? `du_contract_spec::${id}` : "";
+    return id ? `du_contract_spec::${id}` : "du_contract_spec::default";
   }, [props.estimateId]);
   // Editable fields
   const [deposit, setDeposit] = useState<number>(1000);
@@ -140,8 +140,6 @@ export default function ContractPage(props: Props) {
 // ✅ Per-estimate persistence (keyed by estimateId)
 // Load when switching files
 useEffect(() => {
-  if (!HEADER_KEY) return;
-
   try {
     const raw = localStorage.getItem(HEADER_KEY);
     if (raw) {
@@ -160,7 +158,6 @@ useEffect(() => {
 }, [HEADER_KEY]);
 
 useEffect(() => {
-  if (!SPEC_KEY) return;
   try {
     const raw = localStorage.getItem(SPEC_KEY) || "";
     if (raw) {
@@ -526,6 +523,9 @@ useEffect(() => {
                 }}
                 rows={10}
                 placeholder="Specifications will auto‑populate here. You can edit each line."
+                spellCheck={true}
+                autoCorrect="on"
+                autoCapitalize="sentences"
               />
 
               <ul className="contract-scopeList print-only">
