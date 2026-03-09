@@ -164,7 +164,8 @@ useEffect(() => {
       const saved = JSON.parse(raw);
       if (saved?.text !== undefined) {
         setSpecificationText(saved.text || "");
-        setSpecificationTouched(!!saved.touched);
+        // If there's any saved text, treat as touched to prevent auto-overwrite
+        setSpecificationTouched(!!saved.touched || !!saved.text);
       }
     }
   } catch {}
@@ -325,6 +326,13 @@ useEffect(() => {
     if (specificationTouched) return;
     setSpecificationText(autoSpecification);
   }, [autoSpecification, specificationTouched]);
+
+  // Guard: if user text exists, lock as touched (prevents re-seeding)
+  useEffect(() => {
+    if (specificationText && !specificationTouched) {
+      setSpecificationTouched(true);
+    }
+  }, [specificationText, specificationTouched]);
 
 
   const printContract = () => window.print();
