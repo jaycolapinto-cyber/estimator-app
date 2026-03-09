@@ -757,7 +757,7 @@ textarea.contract-payValue {
 
   @page {
     size: letter;
-    margin: 0.25in;
+    margin: 0.5in;
   }
 
   html,
@@ -768,38 +768,32 @@ textarea.contract-payValue {
     margin: 0 !important;
     padding: 0 !important;
   }
-/* Allow print to flow across pages */
-#contract-doc {
-  position: static !important;
-  display: block !important;
-  padding: 0 !important;
-}
 
-.contract-doc {
-  max-width: none !important;
-  width: 100% !important;
-  margin: 0 !important;
-  background: #fff;
-  padding: 0.3in 0.3in;
-  border: 1.5px solid #1f2937;
-  border-radius: 6px;
-}
+  /* Allow print to flow across pages */
+  #contract-doc {
+    position: static !important;
+    display: block !important;
+    padding: 0 !important;
+  }
+
+  .contract-doc {
+    box-shadow: none !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    background: #fff;
+    padding: 0 !important;
+    border: none !important;
+  }
+
   .no-print,
   .contract-actions,
   button {
     display: none !important;
   }
 
-
   .contract-page {
     padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  .contract-doc {
-    box-shadow: none !important;
-    width: 100% !important;
-    max-width: none !important;
     margin: 0 !important;
   }
 
