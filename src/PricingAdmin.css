@@ -36,21 +36,36 @@ body.pa-wide .main-grid {
      ========================================================= */
 
 :root {
-  --pa-bg: #f3f4f6; /* outlook-ish canvas */
+  --pa-bg: #f3f4f6; /* light canvas */
   --pa-panel: #ffffff; /* cards/bars */
   --pa-border: rgba(15, 23, 42, 0.14);
   --pa-border-soft: rgba(15, 23, 42, 0.1);
   --pa-text: #0f172a;
   --pa-muted: rgba(15, 23, 42, 0.62);
 
-  --pa-blue: #0f6cbd; /* Outlook-ish blue */
+  --pa-blue: #0f6cbd; /* accent */
   --pa-blue-weak: rgba(15, 108, 189, 0.1);
 
-  --pa-danger: #d13438; /* Office red */
+  --pa-danger: #d13438; /* red */
   --pa-danger-weak: rgba(209, 52, 56, 0.1);
 
   --pa-radius: 12px;
   --pa-shadow: 0 8px 22px rgba(2, 6, 23, 0.06);
+}
+
+/* Dark theme overrides */
+.paPage[data-theme="dark"] {
+  --pa-bg: #0b1220;
+  --pa-panel: #0f172a;
+  --pa-border: rgba(148, 163, 184, 0.18);
+  --pa-border-soft: rgba(148, 163, 184, 0.12);
+  --pa-text: #e5e7eb;
+  --pa-muted: rgba(226, 232, 240, 0.7);
+  --pa-blue: #60a5fa;
+  --pa-blue-weak: rgba(96, 165, 250, 0.15);
+  --pa-danger: #f87171;
+  --pa-danger-weak: rgba(248, 113, 113, 0.12);
+  --pa-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
 }
 
 /* =========================================================
@@ -67,6 +82,19 @@ body.pa-wide .main-grid {
   max-width: 1320px;
   margin: 0 auto;
   padding: 16px 16px 22px;
+}
+
+/* dark tweaks */
+.paPage[data-theme="dark"] .paSelect,
+.paPage[data-theme="dark"] .paInput,
+.paPage[data-theme="dark"] .paBtn {
+  background: #0b1220;
+  color: var(--pa-text);
+  border-color: var(--pa-border);
+}
+
+.paPage[data-theme="dark"] .paNotice {
+  background: #0f172a;
 }
 
 /* =========================================================
@@ -97,6 +125,63 @@ body.pa-wide .main-grid {
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.paThemeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--pa-border-soft);
+  border-radius: 999px;
+  background: var(--pa-panel);
+}
+
+.paThemeLabel {
+  font-size: 12px;
+  color: var(--pa-muted);
+}
+
+.paSwitch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.paSwitch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.paSlider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.15);
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.paSlider:before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  top: 2px;
+  background: #fff;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.paSwitch input:checked + .paSlider {
+  background: var(--pa-blue);
+}
+
+.paSwitch input:checked + .paSlider:before {
+  transform: translateX(16px);
 }
 
 /* =========================================================

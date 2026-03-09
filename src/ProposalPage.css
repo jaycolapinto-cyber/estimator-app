@@ -305,6 +305,92 @@ grid-template-columns: 1fr 460px 1fr;
 }
 
 /* =========================
+   MOBILE
+   ========================= */
+
+@media (max-width: 768px) {
+  .proposal-page {
+    padding: 10px;
+  }
+
+  .proposal-doc {
+    padding: 16px 16px;
+    max-width: 100%;
+    border-radius: 10px;
+  }
+
+  .proposal-head {
+    grid-template-columns: 1fr;
+    row-gap: 12px;
+    min-height: auto;
+    padding-bottom: 8px;
+  }
+
+  .proposal-headSlot-right {
+    justify-content: flex-start;
+  }
+
+  .proposal-clientInfo {
+    text-align: left;
+    min-width: 0;
+  }
+
+  .proposal-logoBlock {
+    position: static;
+    transform: none;
+    margin: 6px 0;
+  }
+
+  .proposal-logoImg {
+    max-width: 240px;
+    max-height: 120px;
+    transform: none;
+  }
+
+  .proposal-headTitle,
+  .proposal-clientBarTitle,
+  .proposal-secTitle,
+  .proposal-totalLabel {
+    letter-spacing: 0.08em;
+  }
+
+  .proposal-headLine,
+  .proposal-metaRow,
+  .proposal-text,
+  .proposal-muted,
+  .proposal-bullets,
+  .proposal-table th,
+  .proposal-table td {
+    font-size: 13px;
+  }
+
+  .proposal-table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .proposal-totalRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .proposal-totalNumber {
+    font-size: 20px;
+  }
+
+  .proposal-clientBar {
+    margin-top: 12px;
+    padding: 10px 12px;
+  }
+
+  .proposal-timeline {
+    gap: 10px;
+  }
+}
+
+/* =========================
    PRINT
    ========================= */
 

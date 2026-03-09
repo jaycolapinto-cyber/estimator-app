@@ -124,6 +124,15 @@ export default function ContractPage(props: Props) {
   const [hdrApproxEnd, setHdrApproxEnd] = useState<string>("");
   const [hdrEssence, setHdrEssence] = useState<"yes" | "not" | "">("not");
 
+  // Capital Improvement (ST-124)
+  const [includeCapitalImprovement, setIncludeCapitalImprovement] = useState<boolean>(false);
+  const [ciDescription, setCiDescription] = useState<string>("Build new deck and railings.");
+  const [ciProjectName, setCiProjectName] = useState<string>("");
+  const [ciWorkAddress, setCiWorkAddress] = useState<string>("");
+  const [ciCity, setCiCity] = useState<string>("");
+  const [ciState, setCiState] = useState<string>("");
+  const [ciZip, setCiZip] = useState<string>("");
+
   // Body
   const [specificationText, setSpecificationText] = useState<string>("");
   const [specificationTouched, setSpecificationTouched] = useState<boolean>(false);
@@ -163,6 +172,16 @@ useEffect(() => {
     }
   } catch {}
 }, [SPEC_KEY]);
+
+// Auto-fill CI form from header (lightweight)
+useEffect(() => {
+  if (hdrClient) {
+    // no state change needed; uses hdrClient directly in render
+  }
+  if (!ciWorkAddress && hdrAddress) {
+    setCiWorkAddress(hdrAddress);
+  }
+}, [hdrClient, hdrAddress]);
 
 // Save on change
 useEffect(() => {
@@ -319,7 +338,47 @@ useEffect(() => {
         <button className="du-btn" onClick={printContract}>
           Print Contract
         </button>
+        <label className="contract-ci-toggle">
+          <input
+            type="checkbox"
+            checked={includeCapitalImprovement}
+            onChange={(e) => setIncludeCapitalImprovement(e.target.checked)}
+          />
+          <span>Include Capital Improvement (ST‑124)</span>
+        </label>
       </div>
+
+      {includeCapitalImprovement && (
+        <div className="ci-edit no-print">
+          <div className="ci-edit-title">Capital Improvement (ST‑124) Details</div>
+          <div className="ci-edit-grid">
+            <label>
+              Project name
+              <input value={ciProjectName} onChange={(e) => setCiProjectName(e.target.value)} />
+            </label>
+            <label>
+              Work address
+              <input value={ciWorkAddress} onChange={(e) => setCiWorkAddress(e.target.value)} />
+            </label>
+            <label>
+              City
+              <input value={ciCity} onChange={(e) => setCiCity(e.target.value)} />
+            </label>
+            <label>
+              State
+              <input value={ciState} onChange={(e) => setCiState(e.target.value)} />
+            </label>
+            <label>
+              ZIP
+              <input value={ciZip} onChange={(e) => setCiZip(e.target.value)} />
+            </label>
+          </div>
+          <label className="ci-edit-desc">
+            Description
+            <textarea value={ciDescription} onChange={(e) => setCiDescription(e.target.value)} rows={2} />
+          </label>
+        </div>
+      )}
 
       <div id="contract-doc" className="contract-doc" ref={docRef}>
         <div className="contract-container">
@@ -598,6 +657,98 @@ useEffect(() => {
     <span>Nassau H18607600</span>
     <span>Suffolk 1614-H</span>
   </footer>
+
+  {/* Capital Improvement Form (ST-124) */}
+  {includeCapitalImprovement && (
+    <section className="contract-ci print-only">
+      <div className="ci-title">New York State and Local Sales and Use Tax — Certificate of Capital Improvement (ST‑124)</div>
+
+      <div className="ci-grid">
+        <div className="ci-box">
+          <div className="ci-label">Name of contractor (print or type)</div>
+          <div className="ci-value">Decks Unique</div>
+          <div className="ci-label">Address (number and street)</div>
+          <div className="ci-value">119 Commack Road</div>
+          <div className="ci-row">
+            <div>
+              <div className="ci-label">City</div>
+              <div className="ci-value">Commack</div>
+            </div>
+            <div>
+              <div className="ci-label">State</div>
+              <div className="ci-value">NY</div>
+            </div>
+            <div>
+              <div className="ci-label">ZIP code</div>
+              <div className="ci-value">11725</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="ci-box">
+          <div className="ci-label">Name of customer (print or type)</div>
+          <div className="ci-value">{hdrClient || ""}</div>
+          <div className="ci-label">Address (number and street)</div>
+          <div className="ci-value">{hdrAddress || ""}</div>
+          <div className="ci-row">
+            <div>
+              <div className="ci-label">City</div>
+              <div className="ci-value">{ciCity}</div>
+            </div>
+            <div>
+              <div className="ci-label">State</div>
+              <div className="ci-value">{ciState}</div>
+            </div>
+            <div>
+              <div className="ci-label">ZIP code</div>
+              <div className="ci-value">{ciZip}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="ci-section">
+        <div className="ci-label">Describe capital improvement to be performed</div>
+        <div className="ci-value">{ciDescription}</div>
+      </div>
+
+      <div className="ci-grid">
+        <div className="ci-box">
+          <div className="ci-label">Project name</div>
+          <div className="ci-value">{ciProjectName}</div>
+        </div>
+        <div className="ci-box">
+          <div className="ci-label">Street address (where the work is to be performed)</div>
+          <div className="ci-value">{ciWorkAddress}</div>
+          <div className="ci-row">
+            <div>
+              <div className="ci-label">City</div>
+              <div className="ci-value">{ciCity}</div>
+            </div>
+            <div>
+              <div className="ci-label">State</div>
+              <div className="ci-value">{ciState}</div>
+            </div>
+            <div>
+              <div className="ci-label">ZIP code</div>
+              <div className="ci-value">{ciZip}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="ci-sign">
+        <div className="ci-sign-row">
+          <div className="ci-sign-line" />
+          <div className="ci-sign-label">Signature of customer</div>
+        </div>
+        <div className="ci-sign-row">
+          <div className="ci-sign-line" />
+          <div className="ci-sign-label">Signature of contractor or officer</div>
+        </div>
+      </div>
+    </section>
+  )}
 </div>
 
 </section>

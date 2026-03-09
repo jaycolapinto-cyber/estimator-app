@@ -27,6 +27,7 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
   readOnly = false,
 }) => {
   console.log("PricingAdmin readOnly =", readOnly);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [categories, setCategories] = useState<PricingCategory[]>([]);
   const [items, setItems] = useState<PricingItem[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
@@ -511,7 +512,7 @@ await Promise.all([handleSaveCategories(), handleSaveItems()]);
   };
 
   return (
-    <div className="paPage">
+    <div className="paPage" data-theme={theme}>
     {readOnly && (
   <div
     style={{
@@ -542,6 +543,18 @@ await Promise.all([handleSaveCategories(), handleSaveItems()]);
         </div>
 
         <div className="paHeaderActions">
+          <div className="paThemeToggle">
+            <span className="paThemeLabel">Light</span>
+            <label className="paSwitch">
+              <input
+                type="checkbox"
+                checked={theme === "dark"}
+                onChange={(e) => setTheme(e.target.checked ? "dark" : "light")}
+              />
+              <span className="paSlider" />
+            </label>
+            <span className="paThemeLabel">Dark</span>
+          </div>
           <button className="paBtn" onClick={loadAll} disabled={loading}>
             Refresh
           </button>
