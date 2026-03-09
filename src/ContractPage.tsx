@@ -1,7 +1,6 @@
 // src/ContractPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./ContractPage.css";
-import { supabase } from "./supabaseClient";
 
 type PricingItemRow = any;
 
@@ -27,21 +26,77 @@ type Props = {
   addItemsDetailed?: any;
 };
 
+const numberToWords = (num: number): string => {
+  if (!Number.isFinite(num) || num <= 0) return "";
+  const belowTwenty = [
+    "",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+    "Sixteen",
+    "Seventeen",
+    "Eighteen",
+    "Nineteen",
+  ];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const thousandPowers = ["", "Thousand", "Million", "Billion"];
+
+  const chunkToWords = (n: number) => {
+    let out = "";
+    const hundred = Math.floor(n / 100);
+    const rest = n % 100;
+    if (hundred) out += `${belowTwenty[hundred]} Hundred`;
+    if (rest) {
+      if (out) out += " ";
+      if (rest < 20) out += belowTwenty[rest];
+      else {
+        const t = Math.floor(rest / 10);
+        const u = rest % 10;
+        out += tens[t];
+        if (u) out += ` ${belowTwenty[u]}`;
+      }
+    }
+    return out;
+  };
+
+  let n = Math.floor(num);
+  let power = 0;
+  let words: string[] = [];
+  while (n > 0) {
+    const chunk = n % 1000;
+    if (chunk) {
+      const chunkWords = chunkToWords(chunk);
+      const label = thousandPowers[power];
+      words.unshift(label ? `${chunkWords} ${label}` : chunkWords);
+    }
+    n = Math.floor(n / 1000);
+    power += 1;
+  }
+  return words.join(" ").trim();
+};
+
 export default function ContractPage(props: Props) {
   const docRef = useRef<HTMLDivElement | null>(null);
-const CLIENT_KEY = useMemo(() => {
-    const id = (props.estimateId || "").trim();
-    return id ? `du_contract_hdr_client::${id}` : "";
-  }, [props.estimateId]);
-
   const HEADER_KEY = useMemo(() => {
     const id = (props.estimateId || "").trim();
     return id ? `du_contract_header::${id}` : "";
   }, [props.estimateId]);
 
-  const SCOPE_KEY = useMemo(() => {
+  const SPEC_KEY = useMemo(() => {
     const id = (props.estimateId || "").trim();
-    return id ? `du_contract_scope::${id}` : "";
+    return id ? `du_contract_spec::${id}` : "";
   }, [props.estimateId]);
   // Editable fields
   const [deposit, setDeposit] = useState<number>(1000);
@@ -50,8 +105,6 @@ const CLIENT_KEY = useMemo(() => {
   const [duration, setDuration] = useState<string>("");
 
   // Payment Terms (editable)
-  const [paymentSumWords, setPaymentSumWords] = useState<string>("");
-  const [paymentSumNumerals, setPaymentSumNumerals] = useState<string>("");
   const [paymentScheduleText, setPaymentScheduleText] = useState<string>(
     "$1,000 deposit with contract. Balance upon completion."
   );
@@ -72,29 +125,19 @@ const CLIENT_KEY = useMemo(() => {
   const [hdrEssence, setHdrEssence] = useState<"yes" | "not" | "">("not");
 
   // Body
-  const [constructionScopeText, setConstructionScopeText] = useState<string>("");
-  const [projectSummaryText, setProjectSummaryText] = useState<string>("");
-  const [scopeOfWorkText, setScopeOfWorkText] = useState<string>("");
-  const [projectSummaryTouched, setProjectSummaryTouched] = useState<boolean>(false);
-  const [scopeTouched, setScopeTouched] = useState<boolean>(false);
-const PROJECT_SUMMARY_KEY = useMemo(() => {
-  const id = (props.estimateId || "").trim();
-  return id ? `du_contract_project_summary__${id}` : "";
-}, [props.estimateId]);
+  const [specificationText, setSpecificationText] = useState<string>("");
+  const [specificationTouched, setSpecificationTouched] = useState<boolean>(false);
 
 // ✅ Per-estimate persistence (keyed by estimateId)
 // Load when switching files
 useEffect(() => {
-  if (!CLIENT_KEY || !SCOPE_KEY || !HEADER_KEY) return;
-
-  try {
-    setHdrClient(localStorage.getItem(CLIENT_KEY) || "");
-  } catch {}
+  if (!HEADER_KEY) return;
 
   try {
     const raw = localStorage.getItem(HEADER_KEY);
     if (raw) {
       const saved = JSON.parse(raw);
+      setHdrClient(saved?.hdrClient || "");
       setHdrAddress(saved?.hdrAddress || "");
       setHdrPhone(saved?.hdrPhone || "");
       setHdrDate(saved?.hdrDate || new Date().toLocaleDateString());
@@ -105,26 +148,30 @@ useEffect(() => {
       setHdrEssence(saved?.hdrEssence || "not");
     }
   } catch {}
+}, [HEADER_KEY]);
 
+useEffect(() => {
+  if (!SPEC_KEY) return;
   try {
-    setScopeOfWorkText(localStorage.getItem(SCOPE_KEY) || "");
+    const raw = localStorage.getItem(SPEC_KEY) || "";
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved?.text !== undefined) {
+        setSpecificationText(saved.text || "");
+        setSpecificationTouched(!!saved.touched);
+      }
+    }
   } catch {}
-}, [CLIENT_KEY, SCOPE_KEY, HEADER_KEY]);
+}, [SPEC_KEY]);
 
 // Save on change
-useEffect(() => {
-  if (!CLIENT_KEY) return;
-  try {
-    localStorage.setItem(CLIENT_KEY, hdrClient);
-  } catch {}
-}, [CLIENT_KEY, hdrClient]);
-
 useEffect(() => {
   if (!HEADER_KEY) return;
   try {
     localStorage.setItem(
       HEADER_KEY,
       JSON.stringify({
+        hdrClient,
         hdrAddress,
         hdrPhone,
         hdrDate,
@@ -138,6 +185,7 @@ useEffect(() => {
   } catch {}
 }, [
   HEADER_KEY,
+  hdrClient,
   hdrAddress,
   hdrPhone,
   hdrDate,
@@ -149,11 +197,14 @@ useEffect(() => {
 ]);
 
 useEffect(() => {
-  if (!SCOPE_KEY) return;
+  if (!SPEC_KEY) return;
   try {
-    localStorage.setItem(SCOPE_KEY, scopeOfWorkText);
+    localStorage.setItem(
+      SPEC_KEY,
+      JSON.stringify({ text: specificationText || "", touched: specificationTouched })
+    );
   } catch {}
-}, [SCOPE_KEY, scopeOfWorkText]);
+}, [SPEC_KEY, specificationText, specificationTouched]);
 
   const contractPrice = useMemo(() => {
     const base = Number(props.finalEstimate) || 0;
@@ -181,66 +232,47 @@ useEffect(() => {
     );
   }, []);
 
-  const autoProjectSummary = useMemo(() => {
-    const lines: string[] = [];
-
-    const pushLine = (s?: string | null) => {
-      const t = (s || "").trim();
-      if (t) lines.push(`- ${t}`);
-    };
-
-    pushLine(
-      "New deck will be built as per the sketch plans and 3D renderings that will be emailed prior for approval."
-    );
-
-    const demoName = (props.demoType || "").trim();
-    const demoBlurb = (props.demoDescription || "").trim();
-    if (demoBlurb) pushLine(`Demolition: ${demoBlurb}`);
-    else if (demoName) pushLine(`Demolition: ${demoName}.`);
-
-    const deckingName = (props.selectedDecking?.name || props.selectedDecking?.label || "").trim();
-    const fastenerName = (props.selectedFastener?.name || props.selectedFastener?.label || "").trim();
-    if (deckingName && fastenerName) {
-      pushLine(
-        `${companyName} will supply and install ${deckingName} secured with ${fastenerName}. Decking color to be selected (TBD).`
-      );
-    } else if (deckingName) {
-      pushLine(`${companyName} will supply and install ${deckingName}. Decking color to be selected (TBD).`);
-    }
-
-    const railingName = (props.selectedRailing?.name || props.selectedRailing?.label || "").trim();
-    if (railingName) {
-      pushLine(`${companyName} will supply and install ${railingName} railing system. Railing color to be selected (TBD).`);
-    }
-
-    const stairName = (props.selectedStairOption?.name || props.selectedStairOption?.label || "").trim();
-    const stairBlurb = (props.selectedStairOption?.proposal_description || "").trim();
-    if (stairBlurb) pushLine(`Stairs: ${stairBlurb}`);
-    else if (stairName) pushLine(`${companyName} will supply and install ${stairName}.`);
-
-    const skirtingName = (props.selectedSkirting?.name || props.selectedSkirting?.label || "").trim();
-    const skirtingBlurb = (props.selectedSkirting?.proposal_description || "").trim();
-    if (skirtingBlurb) pushLine(`Skirting: ${skirtingBlurb}`);
-    else if (skirtingName) pushLine(`${companyName} will supply and install ${skirtingName}.`);
-
-    return lines.join("\n");
-  }, [
-    props.demoType,
-    props.demoDescription,
-    props.selectedDecking,
-    props.selectedFastener,
-    props.selectedRailing,
-    props.selectedStairOption,
-    props.selectedSkirting,
-    companyName,
-  ]);
-  const autoScopeOfWork = useMemo(() => {
+  const autoSpecification = useMemo(() => {
     const lines: string[] = [];
 
     const add = (s?: string | null) => {
       const t = (s || "").trim();
       if (t) lines.push(t);
     };
+
+    add(
+      "New deck will be built as per the sketch plans and 3D renderings that will be emailed prior for approval."
+    );
+
+    const demoName = (props.demoType || "").trim();
+    const demoBlurb = (props.demoDescription || "").trim();
+    if (demoBlurb) add(`Demolition: ${demoBlurb}`);
+    else if (demoName) add(`Demolition: ${demoName}.`);
+
+    const deckingName = (props.selectedDecking?.name || props.selectedDecking?.label || "").trim();
+    const fastenerName = (props.selectedFastener?.name || props.selectedFastener?.label || "").trim();
+    if (deckingName && fastenerName) {
+      add(
+        `${companyName} will supply and install ${deckingName} secured with ${fastenerName}. Decking color to be selected (TBD).`
+      );
+    } else if (deckingName) {
+      add(`${companyName} will supply and install ${deckingName}. Decking color to be selected (TBD).`);
+    }
+
+    const railingName = (props.selectedRailing?.name || props.selectedRailing?.label || "").trim();
+    if (railingName) {
+      add(`${companyName} will supply and install ${railingName} railing system. Railing color to be selected (TBD).`);
+    }
+
+    const stairName = (props.selectedStairOption?.name || props.selectedStairOption?.label || "").trim();
+    const stairBlurb = (props.selectedStairOption?.proposal_description || "").trim();
+    if (stairBlurb) add(`Stairs: ${stairBlurb}`);
+    else if (stairName) add(`${companyName} will supply and install ${stairName}.`);
+
+    const skirtingName = (props.selectedSkirting?.name || props.selectedSkirting?.label || "").trim();
+    const skirtingBlurb = (props.selectedSkirting?.proposal_description || "").trim();
+    if (skirtingBlurb) add(`Skirting: ${skirtingBlurb}`);
+    else if (skirtingName) add(`${companyName} will supply and install ${skirtingName}.`);
 
     // Basic scope defaults (safe + generic)
     add("Furnish and install all materials and labor per approved plans.");
@@ -255,99 +287,29 @@ useEffect(() => {
     const demo = (props.demoType || "").trim();
 
     if (demo) add(`Demolition: ${demo}.`);
-   if (decking) add(`Install ${decking} decking (color to be selected).`);
-if (fasteners) add(`Secure decking using ${fasteners} per manufacturer requirements.`);
-if (railing) add(`Install ${railing} railing system (color to be selected).`);
-if (stairs) add(`Build and install ${stairs} per code and manufacturer specifications.`);
-if (skirting) add(`Install ${skirting} skirting as specified.`);
-    return lines.join("\n");
+    if (decking) add(`Install ${decking} decking (color to be selected).`);
+    if (fasteners) add(`Secure decking using ${fasteners} per manufacturer requirements.`);
+    if (railing) add(`Install ${railing} railing system (color to be selected).`);
+    if (stairs) add(`Build and install ${stairs} per code and manufacturer specifications.`);
+    if (skirting) add(`Install ${skirting} skirting as specified.`);
+
+    return Array.from(new Set(lines)).join("\n");
   }, [
+    props.demoType,
+    props.demoDescription,
     props.selectedDecking,
+    props.selectedFastener,
     props.selectedRailing,
     props.selectedStairOption,
-    props.selectedFastener,
     props.selectedSkirting,
-    props.demoType,
+    companyName,
   ]);
-  useEffect(() => {
-    if (projectSummaryTouched) return;
-    setProjectSummaryText(autoProjectSummary);
-  }, [autoProjectSummary, projectSummaryTouched]);
-  useEffect(() => {
-    if (scopeTouched) return;
-    setScopeOfWorkText(autoScopeOfWork);
-  }, [autoScopeOfWork, scopeTouched]);
-  useEffect(() => {
-    if (!PROJECT_SUMMARY_KEY) return;
-    try {
-      const raw = localStorage.getItem(PROJECT_SUMMARY_KEY) || "";
-      if (raw) {
-        const saved = JSON.parse(raw);
-        if (saved?.text) {
-          setProjectSummaryText(saved.text);
-          setProjectSummaryTouched(!!saved.touched);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, [PROJECT_SUMMARY_KEY]);
-
-  // Persist project summary when user edits it
-  useEffect(() => {
-    if (!PROJECT_SUMMARY_KEY) return;
-    try {
-      localStorage.setItem(
-        PROJECT_SUMMARY_KEY,
-        JSON.stringify({ text: projectSummaryText || "", touched: projectSummaryTouched })
-      );
-    } catch {
-      // ignore
-    }
-  }, [projectSummaryText, projectSummaryTouched, PROJECT_SUMMARY_KEY]);
 
   useEffect(() => {
-    const key = (props.constructionKey || "").trim();
-    if (!key) {
-      setConstructionScopeText("");
-      return;
-    }
+    if (specificationTouched) return;
+    setSpecificationText(autoSpecification);
+  }, [autoSpecification, specificationTouched]);
 
-    let cancelled = false;
-
-    (async () => {
-      let { data, error } = await supabase
-        .from("sow_templates")
-        .select("body")
-        .eq("label", key)
-        .maybeSingle();
-
-      if (!data?.body) {
-        const resp = await supabase
-          .from("sow_templates")
-          .select("body")
-          .eq("construction_key", key)
-          .maybeSingle();
-
-        data = resp.data;
-        error = resp.error;
-      }
-
-      if (cancelled) return;
-
-      if (error) {
-        console.warn("Failed to load sow template:", error.message);
-        setConstructionScopeText("");
-        return;
-      }
-
-      setConstructionScopeText((data?.body || "").trim());
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [props.constructionKey]);
 
   const printContract = () => window.print();
 
@@ -492,41 +454,23 @@ if (skirting) add(`Install ${skirting} skirting as specified.`);
 
           {/* ✅ Contract body */}
           <section className="contract-body">
-            {/* Project Summary */}
-            <div className="contract-sectionCard">
-              <div className="contract-sectionTitle">Project Summary</div>
-
-              <textarea
-                className="contract-textarea no-print"
-                value={projectSummaryText}
-                onChange={(e) => {
-                  setProjectSummaryTouched(true);
-                  setProjectSummaryText(e.target.value);
-                }}
-                placeholder="Auto-filled from estimator. You can edit this for the contract."
-                rows={6}
-              />
-
-              <div className="contract-paragraph print-only">{projectSummaryText}</div>
-            </div>
-
-            {/* Scope of Work */}
+            {/* Specifications */}
             <div className="contract-section">
-              <h2>Scope of Work</h2>
+              <h2>We hereby submit specification for:</h2>
 
               <textarea
                 className="contract-textarea no-print"
-                value={scopeOfWorkText}
+                value={specificationText}
                 onChange={(e) => {
-                  setScopeTouched(true);
-                  setScopeOfWorkText(e.target.value);
+                  setSpecificationTouched(true);
+                  setSpecificationText(e.target.value);
                 }}
-                rows={8}
-                placeholder="Enter scope of work. One item per line."
+                rows={10}
+                placeholder="Specifications will auto‑populate here. You can edit each line."
               />
 
               <ul className="contract-scopeList print-only">
-                {scopeOfWorkText
+                {specificationText
                   .split("\n")
                   .filter((line) => line.trim() !== "")
                   .map((line, index) => (
@@ -557,8 +501,10 @@ if (skirting) add(`Install ${skirting} skirting as specified.`);
           value={contractSumNumerals}
           onChange={(e) => {
             const raw = e.target.value.replace(/[^\d]/g, "");
-            const formatted = raw ? Number(raw).toLocaleString("en-US") : "";
+            const num = raw ? Number(raw) : 0;
+            const formatted = raw ? num.toLocaleString("en-US") : "";
             setContractSumNumerals(formatted);
+            setContractSumWords(numberToWords(num));
           }}
           placeholder="25,500"
           inputMode="decimal"
@@ -595,7 +541,7 @@ if (skirting) add(`Install ${skirting} skirting as specified.`);
 
     {/* Print rendering (no scrollbars, true text layout) */}
     <div className="contract-linedPrint print-only">
-      {projectSummaryText}
+      {specificationText}
     </div>
   </section>
 </div>
