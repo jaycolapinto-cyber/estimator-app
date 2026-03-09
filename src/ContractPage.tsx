@@ -479,7 +479,7 @@ useEffect(() => {
               </ul>
             </div>
 
-       {/* Bottom stack: Payment + Legal + Acceptance (tight grouping) */}
+       {/* Bottom stack: Payment + Legal + Acceptance + Cancellation + Licenses */}
 <div className="contract-bottom-stack">
   {/* Sum of + Amount + Payment Schedule */}
   <section className="contract-section contract-section--sum">
@@ -539,69 +539,68 @@ useEffect(() => {
       }
     />
 
-    {/* Print rendering (no scrollbars, true text layout) */}
-    <div className="contract-linedPrint print-only">
-      {specificationText}
+    {/* Legal print */}
+    <div className="contract-legalText print-only">{legalDisclaimerText}</div>
+  </section>
+
+  {/* Acceptance */}
+  <section className="contract-section contract-acceptance">
+    <h2>Acceptance of Proposal</h2>
+
+    <div className="acceptance-grid">
+      {/* LEFT: Client */}
+      <div className="acceptance-party">
+        <div className="sig-row">
+          <div className="sig-col">
+            <div className="sig-line" />
+            <div className="sig-label">Client Signature</div>
+          </div>
+
+          <div className="sig-col sig-col-date">
+            <div className="sig-line" />
+            <div className="sig-label">Date</div>
+          </div>
+        </div>
+      </div>
+
+      {/* subtle divider */}
+      <div className="acceptance-divider" aria-hidden="true" />
+
+      {/* RIGHT: Authorized */}
+      <div className="acceptance-party">
+        <div className="sig-row">
+          <div className="sig-col">
+            <div className="sig-line" />
+            <div className="sig-label">Authorized Signature</div>
+          </div>
+
+          <div className="sig-col sig-col-date">
+            <div className="sig-line" />
+            <div className="sig-label">Date</div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
+
+  {/* Cancellation Policy */}
+  <section className="contract-cancellation">
+    <h4 className="contract-cancellation-title">Notice of Cancellation</h4>
+
+    <p className="contract-cancellation-text">
+      You, the buyer, may cancel this transaction at any time prior to midnight of the third
+      business day after the date of this transaction. See the attached Notice of Cancellation
+      form for an explanation of this right.
+    </p>
+  </section>
+
+  <footer className="contract-foot">
+    <span>Nassau H18607600</span>
+    <span>Suffolk 1614-H</span>
+  </footer>
 </div>
 
-{/* Acceptance */}
-<section className="contract-section contract-acceptance">
-  <h2>Acceptance of Proposal</h2>
-
-  <div className="acceptance-grid">
-    {/* LEFT: Client */}
-    <div className="acceptance-party">
-      <div className="sig-row">
-        <div className="sig-col">
-          <div className="sig-line" />
-          <div className="sig-label">Client Signature</div>
-        </div>
-
-        <div className="sig-col sig-col-date">
-          <div className="sig-line" />
-          <div className="sig-label">Date</div>
-        </div>
-      </div>
-    </div>
-
-    {/* subtle divider */}
-    <div className="acceptance-divider" aria-hidden="true" />
-
-    {/* RIGHT: Authorized */}
-    <div className="acceptance-party">
-      <div className="sig-row">
-        <div className="sig-col">
-          <div className="sig-line" />
-          <div className="sig-label">Authorized Signature</div>
-        </div>
-
-        <div className="sig-col sig-col-date">
-          <div className="sig-line" />
-          <div className="sig-label">Date</div>
-        </div>
-      </div>
-    </div>
-  </div>
 </section>
-
-{/* Cancellation Policy */}
-<section className="contract-cancellation">
-  <h4 className="contract-cancellation-title">Notice of Cancellation</h4>
-
-  <p className="contract-cancellation-text">
-    You, the buyer, may cancel this transaction at any time prior to midnight of the third
-    business day after the date of this transaction. See the attached Notice of Cancellation
-    form for an explanation of this right.
-  </p>
-</section>
-
-</section>
-
-<footer className="contract-foot">
-  <span>Nassau H18607600</span> <span>Suffolk 1614-H</span>
-</footer> 
         </div>
       </div>
     </div>
