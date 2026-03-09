@@ -191,10 +191,10 @@
 }
 
 .contract-frame-title {
-  font-family: "Palatino Linotype", "Book Antiqua", Palatino, "URW Palladio L", "Times New Roman", serif;
-  font-size: 30px;
+  font-family: inherit !important;
+  font-size: 26px;
   line-height: 1;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.2px;
   font-weight: 600;
   margin-top: -10px;
 }
@@ -392,8 +392,8 @@
   border: 1px solid rgba(15, 23, 42, 0.18);
   border-radius: 12px;
   padding: 10px 12px;
-  font-size: 11px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--ink);
   background: #fff;
   resize: vertical;
@@ -487,8 +487,8 @@
 
 .contract-payValue {
   flex: 1;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* Make the payment textarea look like plain text */
@@ -829,7 +829,22 @@ textarea.contract-payValue {
     border: 1.5px solid #1f2937 !important;
     border-radius: 6px !important;
   }
-}@media print {
+
+  /* Hide payment input box + border on print */
+  .contract-sumInputWrap {
+    display: none !important;
+  }
+  .contract-sumInput {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .contract-foot {
+    display: flex !important;
+    justify-content: space-between;
+  }
+}
+@media print {
   .contract-doc {
     width: 7.85in !important;       /* wider = border closer to edge */
     max-width: 7.85in !important;

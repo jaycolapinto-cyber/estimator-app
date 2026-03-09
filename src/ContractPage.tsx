@@ -1,5 +1,5 @@
 // src/ContractPage.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./ContractPage.css";
 
 type PricingItemRow = any;
@@ -136,6 +136,7 @@ export default function ContractPage(props: Props) {
   // Body
   const [specificationText, setSpecificationText] = useState<string>("");
   const [specificationTouched, setSpecificationTouched] = useState<boolean>(false);
+  const specHasSavedRef = useRef<boolean>(false);
 
 // ✅ Per-estimate persistence (keyed by estimateId)
 // Load when switching files
@@ -165,7 +166,9 @@ useEffect(() => {
       if (saved?.text !== undefined) {
         setSpecificationText(saved.text || "");
         // If there's any saved text, treat as touched to prevent auto-overwrite
-        setSpecificationTouched(!!saved.touched || !!saved.text);
+        const hasSaved = !!saved.text;
+        specHasSavedRef.current = hasSaved;
+        setSpecificationTouched(!!saved.touched || hasSaved);
       }
     }
   } catch {}
@@ -213,15 +216,22 @@ useEffect(() => {
   hdrEssence,
 ]);
 
+const persistSpecification = useCallback(
+  (text: string, touched: boolean) => {
+    if (!SPEC_KEY) return;
+    try {
+      localStorage.setItem(
+        SPEC_KEY,
+        JSON.stringify({ text: text || "", touched })
+      );
+    } catch {}
+  },
+  [SPEC_KEY]
+);
+
 useEffect(() => {
-  if (!SPEC_KEY) return;
-  try {
-    localStorage.setItem(
-      SPEC_KEY,
-      JSON.stringify({ text: specificationText || "", touched: specificationTouched })
-    );
-  } catch {}
-}, [SPEC_KEY, specificationText, specificationTouched]);
+  persistSpecification(specificationText, specificationTouched);
+}, [persistSpecification, specificationText, specificationTouched]);
 
   const contractPrice = useMemo(() => {
     const base = Number(props.finalEstimate) || 0;
@@ -324,6 +334,7 @@ useEffect(() => {
 
   useEffect(() => {
     if (specificationTouched) return;
+    if (specHasSavedRef.current) return;
     setSpecificationText(autoSpecification);
   }, [autoSpecification, specificationTouched]);
 
@@ -526,8 +537,10 @@ useEffect(() => {
                 className="contract-textarea no-print"
                 value={specificationText}
                 onChange={(e) => {
+                  const next = e.target.value;
                   setSpecificationTouched(true);
-                  setSpecificationText(e.target.value);
+                  setSpecificationText(next);
+                  persistSpecification(next, true);
                 }}
                 rows={10}
                 placeholder="Specifications will auto‑populate here. You can edit each line."
@@ -607,7 +620,9 @@ useEffect(() => {
     />
 
     {/* Legal print */}
-    <div className="contract-legalText print-only">{legalDisclaimerText}</div>
+    <div className="contract-legalText print-only">
+      {legalDisclaimerText.replace(/\n+/g, " ").trim()}
+    </div>
   </section>
 
   {/* Acceptance */}
@@ -668,7 +683,7 @@ useEffect(() => {
 
   {/* Capital Improvement Form (ST-124) */}
   {includeCapitalImprovement && (
-    <section className="contract-ci print-only">
+    <section className="contract-ci">
       <div className="ci-title">New York State and Local Sales and Use Tax — Certificate of Capital Improvement (ST‑124)</div>
 
       <div className="ci-grid">
