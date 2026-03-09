@@ -99,6 +99,11 @@
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Enforce same font everywhere */
+.contract-doc, .contract-doc * {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
 .print-only {
   display: none;
 }
@@ -856,17 +861,6 @@ textarea.contract-payValue {
     justify-content: space-between;
   }
 }
-@media print {
-  .contract-doc {
-    width: 7.85in !important;       /* wider = border closer to edge */
-    max-width: 7.85in !important;
-    padding: 0.18in !important;     /* tighter inside border */
-  }
-
-  @page {
-    margin: 0.2in !important;       /* closer to paper edge */
-  }
-}/* Print: push Acceptance section lower on the page */
 /* =========================
    Cancellation Policy
    ========================= */
