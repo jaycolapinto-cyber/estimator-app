@@ -547,6 +547,8 @@ useEffect(() => {
                 spellCheck={true}
                 autoCorrect="on"
                 autoCapitalize="sentences"
+                autoComplete="on"
+                lang="en"
               />
 
               <ul className="contract-scopeList print-only">
