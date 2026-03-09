@@ -252,7 +252,11 @@ const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(() => new Date());
 
   // ✅ Load email tracking for this proposal (auto-refresh)
   useEffect(() => {
-    if (!props.proposalId) return;
+    if (!props.proposalId) {
+      setEmailOpenedAt(null);
+      setEmailClickedAt(null);
+      return;
+    }
     loadEmailTracking();
     const id = setInterval(loadEmailTracking, 15000);
     return () => clearInterval(id);

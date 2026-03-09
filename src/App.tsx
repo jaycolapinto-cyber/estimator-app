@@ -1402,6 +1402,7 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
 
     setEstimateName("");
     setEstimateId("");
+    setProposalId("");
     setEstimateNameLocked(false);
 
     try {
@@ -1768,10 +1769,7 @@ if (existingId) {
 
      // Add the link at the bottom (always)
 
-const body =
-  (bodyBase || "").trim() + "\n\nView proposal here:\n" + link + "\n";
-
-
+const body = (bodyBase || "").trim();
 
       // helpful: copy link to clipboard
       try {
