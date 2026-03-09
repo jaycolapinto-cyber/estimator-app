@@ -34,6 +34,11 @@ const CLIENT_KEY = useMemo(() => {
     return id ? `du_contract_hdr_client::${id}` : "";
   }, [props.estimateId]);
 
+  const HEADER_KEY = useMemo(() => {
+    const id = (props.estimateId || "").trim();
+    return id ? `du_contract_header::${id}` : "";
+  }, [props.estimateId]);
+
   const SCOPE_KEY = useMemo(() => {
     const id = (props.estimateId || "").trim();
     return id ? `du_contract_scope::${id}` : "";
@@ -73,23 +78,38 @@ const CLIENT_KEY = useMemo(() => {
   const [projectSummaryTouched, setProjectSummaryTouched] = useState<boolean>(false);
   const [scopeTouched, setScopeTouched] = useState<boolean>(false);
 const PROJECT_SUMMARY_KEY = useMemo(() => {
-  const oid = (props.orgId || "no-org").trim();
-  return `du_contract_project_summary__${oid}`;
-}, [props.orgId]);
+  const id = (props.estimateId || "").trim();
+  return id ? `du_contract_project_summary__${id}` : "";
+}, [props.estimateId]);
 
 // ✅ Per-estimate persistence (keyed by estimateId)
 // Load when switching files
 useEffect(() => {
-  if (!CLIENT_KEY || !SCOPE_KEY) return;
+  if (!CLIENT_KEY || !SCOPE_KEY || !HEADER_KEY) return;
 
   try {
     setHdrClient(localStorage.getItem(CLIENT_KEY) || "");
   } catch {}
 
   try {
+    const raw = localStorage.getItem(HEADER_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      setHdrAddress(saved?.hdrAddress || "");
+      setHdrPhone(saved?.hdrPhone || "");
+      setHdrDate(saved?.hdrDate || new Date().toLocaleDateString());
+      setHdrPageNum(saved?.hdrPageNum || "1");
+      setHdrPageOf(saved?.hdrPageOf || "1");
+      setHdrApproxStart(saved?.hdrApproxStart || "");
+      setHdrApproxEnd(saved?.hdrApproxEnd || "");
+      setHdrEssence(saved?.hdrEssence || "not");
+    }
+  } catch {}
+
+  try {
     setScopeOfWorkText(localStorage.getItem(SCOPE_KEY) || "");
   } catch {}
-}, [CLIENT_KEY, SCOPE_KEY]);
+}, [CLIENT_KEY, SCOPE_KEY, HEADER_KEY]);
 
 // Save on change
 useEffect(() => {
@@ -98,6 +118,35 @@ useEffect(() => {
     localStorage.setItem(CLIENT_KEY, hdrClient);
   } catch {}
 }, [CLIENT_KEY, hdrClient]);
+
+useEffect(() => {
+  if (!HEADER_KEY) return;
+  try {
+    localStorage.setItem(
+      HEADER_KEY,
+      JSON.stringify({
+        hdrAddress,
+        hdrPhone,
+        hdrDate,
+        hdrPageNum,
+        hdrPageOf,
+        hdrApproxStart,
+        hdrApproxEnd,
+        hdrEssence,
+      })
+    );
+  } catch {}
+}, [
+  HEADER_KEY,
+  hdrAddress,
+  hdrPhone,
+  hdrDate,
+  hdrPageNum,
+  hdrPageOf,
+  hdrApproxStart,
+  hdrApproxEnd,
+  hdrEssence,
+]);
 
 useEffect(() => {
   if (!SCOPE_KEY) return;
@@ -229,11 +278,15 @@ if (skirting) add(`Install ${skirting} skirting as specified.`);
     setScopeOfWorkText(autoScopeOfWork);
   }, [autoScopeOfWork, scopeTouched]);
   useEffect(() => {
+    if (!PROJECT_SUMMARY_KEY) return;
     try {
-      const saved = (localStorage.getItem(PROJECT_SUMMARY_KEY) || "").trim();
-      if (saved) {
-        setProjectSummaryTouched(true);
-        setProjectSummaryText(saved);
+      const raw = localStorage.getItem(PROJECT_SUMMARY_KEY) || "";
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved?.text) {
+          setProjectSummaryText(saved.text);
+          setProjectSummaryTouched(!!saved.touched);
+        }
       }
     } catch {
       // ignore
@@ -242,21 +295,12 @@ if (skirting) add(`Install ${skirting} skirting as specified.`);
 
   // Persist project summary when user edits it
   useEffect(() => {
+    if (!PROJECT_SUMMARY_KEY) return;
     try {
-      if (projectSummaryTouched) {
-        localStorage.setItem(PROJECT_SUMMARY_KEY, projectSummaryText || "");
-      }
-    } catch {
-      // ignore
-    }
-  }, [projectSummaryText, projectSummaryTouched, PROJECT_SUMMARY_KEY]);
-
-  // Persist project summary when user edits it
-  useEffect(() => {
-    try {
-      if (projectSummaryTouched) {
-        localStorage.setItem(PROJECT_SUMMARY_KEY, projectSummaryText || "");
-      }
+      localStorage.setItem(
+        PROJECT_SUMMARY_KEY,
+        JSON.stringify({ text: projectSummaryText || "", touched: projectSummaryTouched })
+      );
     } catch {
       // ignore
     }
@@ -454,13 +498,16 @@ if (skirting) add(`Install ${skirting} skirting as specified.`);
 
               <textarea
                 className="contract-textarea no-print"
-                value={constructionScopeText || ""}
-                onChange={(e) => setConstructionScopeText(e.target.value)}
-                placeholder="Auto-filled from Construction Type template. You can edit this for the contract."
+                value={projectSummaryText}
+                onChange={(e) => {
+                  setProjectSummaryTouched(true);
+                  setProjectSummaryText(e.target.value);
+                }}
+                placeholder="Auto-filled from estimator. You can edit this for the contract."
                 rows={6}
               />
 
-              <div className="contract-paragraph print-only">{constructionScopeText}</div>
+              <div className="contract-paragraph print-only">{projectSummaryText}</div>
             </div>
 
             {/* Scope of Work */}
