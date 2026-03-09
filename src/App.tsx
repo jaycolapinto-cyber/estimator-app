@@ -868,6 +868,8 @@ function AppShell({
     await sendEmailNow();
   };
 
+  const supabaseUrl = (supabase as any)?.supabaseUrl || "";
+
   const sendEmailNow = async () => {
     if (!emailDraft) return;
 
@@ -883,7 +885,7 @@ function AppShell({
       // ✅ Button link (your review URL)
       const proposalLink = (emailDraft as any)?.link || "";
       const trackingId = (emailDraft as any)?.proposalId || "";
-      const functionsBase = SUPABASE_URL.replace(
+      const functionsBase = supabaseUrl.replace(
         /\.supabase\.co$/,
         ".functions.supabase.co"
       );
