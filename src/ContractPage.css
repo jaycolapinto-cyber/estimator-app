@@ -757,7 +757,7 @@ textarea.contract-payValue {
 
   @page {
     size: letter;
-    margin: 0.5in;
+    margin: 0.3in;
   }
 
   html,
@@ -778,11 +778,11 @@ textarea.contract-payValue {
 
   .contract-doc {
     box-shadow: none !important;
-    width: auto !important;
-    max-width: none !important;
-    margin: 0 !important;
+    width: 7.5in !important;
+    max-width: 7.5in !important;
+    margin: 0 auto !important;
     background: #fff;
-    padding: 0.35in 0.45in !important;
+    padding: 0.2in !important;
     border: 1px solid #1f2937 !important;
     border-radius: 0 !important;
   }
