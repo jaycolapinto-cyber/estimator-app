@@ -110,6 +110,7 @@ export default function ContractPage(props: Props) {
   );
   const [contractSumWords, setContractSumWords] = useState<string>("");
   const [contractSumNumerals, setContractSumNumerals] = useState<string>("");
+  const [contractSumTouched, setContractSumTouched] = useState<boolean>(false);
   const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
     "All material is guaranteed to be specified. All work to be completed in a work-manlike manner according to standard practices.\n\nThe buyer is responsible for all permits and C.O.’s unless otherwise specified. Decks Unique Inc. is not responsible for weathering, shrinkage or growth on materials, or any underground utilities that may be damaged.\n\nAll agreements contingent upon strikes, accidents or delays beyond our control. There will be a labor charge for any warrantee claim.\n\nIn the event of any litigation to enforce the terms of this contract the successful party will reimburse the other party for all costs, including reasonable attorney fees."
   );
@@ -238,6 +239,14 @@ useEffect(() => {
     const override = priceOverride === "" ? null : Number(priceOverride);
     return override != null && !Number.isNaN(override) ? override : base;
   }, [props.finalEstimate, priceOverride]);
+
+  useEffect(() => {
+    if (contractSumTouched) return;
+    if (!Number.isFinite(contractPrice) || contractPrice <= 0) return;
+    const whole = Math.round(contractPrice);
+    setContractSumNumerals(whole.toLocaleString("en-US"));
+    setContractSumWords(numberToWords(whole));
+  }, [contractPrice, contractSumTouched]);
 
   const companyName = useMemo(() => {
     const tryRead = (key: string) => {
@@ -534,6 +543,8 @@ useEffect(() => {
               <h2>We hereby submit specification for:</h2>
 
               <textarea
+                id="contract-specification"
+                name="contractSpecification"
                 className="contract-textarea no-print"
                 value={specificationText}
                 onChange={(e) => {
@@ -582,6 +593,7 @@ useEffect(() => {
           className="contract-sumInput"
           value={contractSumNumerals}
           onChange={(e) => {
+            setContractSumTouched(true);
             const raw = e.target.value.replace(/[^\d]/g, "");
             const num = raw ? Number(raw) : 0;
             const formatted = raw ? num.toLocaleString("en-US") : "";
@@ -623,8 +635,8 @@ useEffect(() => {
     />
 
     {/* Legal print */}
-    <div className="contract-legalText print-only">
-      {legalDisclaimerText.replace(/\n+/g, " ").trim()}
+    <div className="contract-legalText print-only" style={{ whiteSpace: "pre-wrap" }}>
+      {legalDisclaimerText}
     </div>
   </section>
 

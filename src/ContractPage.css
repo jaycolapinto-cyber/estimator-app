@@ -391,13 +391,13 @@
   width: 100%;
   border: 1px solid rgba(15, 23, 42, 0.18);
   border-radius: 12px;
-  padding: 10px 12px;
-  font-size: 12px;
-  line-height: 1.5;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
   color: var(--ink);
   background: #fff;
   resize: vertical;
-  min-height: 120px;
+  min-height: 140px;
 }
 
 .contract-textarea:focus {
@@ -421,6 +421,22 @@
   padding: 0;
   font-size: 11px;
   line-height: 1.7;
+}
+
+@media print {
+  .contract-scopeList {
+    margin-top: 6px;
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+
+  .contract-section {
+    margin-bottom: 12px;
+  }
+
+  .contract-legalText {
+    line-height: 1.4;
+  }
 }
 
 /* =========================
