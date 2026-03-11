@@ -3937,7 +3937,7 @@ const altBaseTotal =
                 )}
 
                 {pricingError && (
-                  <div className="banner banner-error">{pricingError}</div>
+                  <div className="banner banner-info">{pricingError}</div>
                 )}
 
                 {pricingLoaded && (
