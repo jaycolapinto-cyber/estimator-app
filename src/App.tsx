@@ -589,6 +589,7 @@ function AuthedApp() {
 
   useEffect(() => {
     let cancelled = false;
+    const OFFLINE_ORG_KEY = "du_offline_org_id";
 
     async function loadOrgForUser() {
       // If not logged in yet, don’t resolve anything.
@@ -611,6 +612,9 @@ function AuthedApp() {
         if (!q1.error && q1.data?.org_id) {
           if (cancelled) return;
           setOrgId(q1.data.org_id);
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(OFFLINE_ORG_KEY, q1.data.org_id);
+          }
           console.log("APP_ORG_ID", q1.data.org_id);
           setIsAdmin(String(q1.data.role || "").toLowerCase() === "admin");
           return;
@@ -637,6 +641,9 @@ function AuthedApp() {
         if (!q2.error && q2.data?.account_id) {
           if (cancelled) return;
           setOrgId(q2.data.account_id);
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(OFFLINE_ORG_KEY, q2.data.account_id);
+          }
           setIsAdmin(String(q2.data.role || "").toLowerCase() === "admin");
           return;
         }
@@ -650,6 +657,13 @@ function AuthedApp() {
         if (cancelled) return;
         setOrgLoading(false);
         setOrgResolved(true); // ✅ this is the key fix
+
+        if (typeof window !== "undefined" && !navigator.onLine) {
+          const cached = window.localStorage.getItem(OFFLINE_ORG_KEY);
+          if (cached) {
+            setOrgId(cached);
+          }
+        }
       }
     }
 
