@@ -682,6 +682,19 @@ function AuthedApp() {
   if (orgLoading) return <BootScreen label="Loading your organization…" />;
   // ✅ Guard: user has no org
   if (orgResolved && !orgId) {
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+      const cached = window.localStorage.getItem("du_offline_org_id");
+      if (cached) {
+        return (
+          <AppShell
+            isAdmin={false}
+            orgId={cached}
+            onLogout={async () => {}}
+            userEmail={email}
+          />
+        );
+      }
+    }
     // Only admins are allowed to create an org
     if (isAdmin) {
       return (
