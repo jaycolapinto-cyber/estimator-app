@@ -4,6 +4,32 @@ import "./ContractPage.css";
 
 type PricingItemRow = any;
 
+type ConstructionSowKey =
+  | "new_construction"
+  | "resurface"
+  | "second_story"
+  | "second_story_resurface"
+  | "sleeper_system"
+  | "second_story_sleeper";
+
+function toSowKey(raw: string): ConstructionSowKey | "" {
+  const v = (raw || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/-+/g, "_");
+
+  if (v.includes("second") && v.includes("resurface"))
+    return "second_story_resurface";
+  if (v.includes("second") && v.includes("sleeper"))
+    return "second_story_sleeper";
+  if (v.includes("second")) return "second_story";
+  if (v.includes("sleeper")) return "sleeper_system";
+  if (v.includes("resurface") || v.includes("redeck")) return "resurface";
+  if (v.includes("new")) return "new_construction";
+  return "";
+}
+
 type Props = {
     estimateId: string;
   orgId: string | null;
@@ -89,14 +115,45 @@ const numberToWords = (num: number): string => {
 
 export default function ContractPage(props: Props) {
   const docRef = useRef<HTMLDivElement | null>(null);
+  const prevEstimateIdRef = useRef<string>("");
+  const prevAutoSpecRef = useRef<string>("");
   const HEADER_KEY = useMemo(() => {
     const id = (props.estimateId || "").trim();
-    return id ? `du_contract_header::${id}` : "du_contract_header::default";
+    if (id) return `du_contract_header::${id}`;
+    if (typeof window !== "undefined") {
+      const temp = window.sessionStorage.getItem("du_contract_temp_key") || "";
+      if (temp) return `du_contract_header::${temp}`;
+      const generated = `temp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      window.sessionStorage.setItem("du_contract_temp_key", generated);
+      return `du_contract_header::${generated}`;
+    }
+    return "du_contract_header::default";
   }, [props.estimateId]);
 
   const SPEC_KEY = useMemo(() => {
     const id = (props.estimateId || "").trim();
-    return id ? `du_contract_spec::${id}` : "du_contract_spec::default";
+    if (id) return `du_contract_spec::${id}`;
+    if (typeof window !== "undefined") {
+      const temp = window.sessionStorage.getItem("du_contract_temp_key") || "";
+      if (temp) return `du_contract_spec::${temp}`;
+      const generated = `temp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      window.sessionStorage.setItem("du_contract_temp_key", generated);
+      return `du_contract_spec::${generated}`;
+    }
+    return "du_contract_spec::default";
+  }, [props.estimateId]);
+
+  const STATE_KEY = useMemo(() => {
+    const id = (props.estimateId || "").trim();
+    if (id) return `du_contract_state::${id}`;
+    if (typeof window !== "undefined") {
+      const temp = window.sessionStorage.getItem("du_contract_temp_key") || "";
+      if (temp) return `du_contract_state::${temp}`;
+      const generated = `temp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      window.sessionStorage.setItem("du_contract_temp_key", generated);
+      return `du_contract_state::${generated}`;
+    }
+    return "du_contract_state::default";
   }, [props.estimateId]);
   // Editable fields
   const [deposit, setDeposit] = useState<number>(1000);
@@ -108,15 +165,32 @@ export default function ContractPage(props: Props) {
   const [paymentScheduleText, setPaymentScheduleText] = useState<string>(
     "$1,000 deposit with contract. Balance upon completion."
   );
+  const [paymentMode, setPaymentMode] = useState<"basic" | "staged">("basic");
+  const [paymentPercents, setPaymentPercents] = useState({
+    deposit: 10,
+    dayOne: 30,
+    afterDecking: 30,
+    holdback: 0,
+  });
+  const [paymentLabels, setPaymentLabels] = useState({
+    deposit: "Deposit",
+    dayOne: "Day one",
+    afterDecking: "After decking completed",
+    holdback: "Holdback after final inspection",
+    balance: "Balance upon completion",
+  });
+  const [forcePageBreak, setForcePageBreak] = useState(false);
   const [contractSumWords, setContractSumWords] = useState<string>("");
   const [contractSumNumerals, setContractSumNumerals] = useState<string>("");
-  const [contractSumTouched, setContractSumTouched] = useState<boolean>(false);
   const [legalDisclaimerText, setLegalDisclaimerText] = useState<string>(
     "All material is guaranteed to be specified. All work to be completed in a work-manlike manner according to standard practices.\n\nThe buyer is responsible for all permits and C.O.’s unless otherwise specified. Decks Unique Inc. is not responsible for weathering, shrinkage or growth on materials, or any underground utilities that may be damaged.\n\nAll agreements contingent upon strikes, accidents or delays beyond our control. There will be a labor charge for any warrantee claim.\n\nIn the event of any litigation to enforce the terms of this contract the successful party will reimburse the other party for all costs, including reasonable attorney fees."
   );
   // Header (manual fill-in fields — NOT auto-populated)
   const [hdrClient, setHdrClient] = useState<string>("");
   const [hdrAddress, setHdrAddress] = useState<string>("");
+  const [hdrCity, setHdrCity] = useState<string>("");
+  const [hdrState, setHdrState] = useState<string>("");
+  const [hdrZip, setHdrZip] = useState<string>("");
   const [hdrPhone, setHdrPhone] = useState<string>("");
   const [hdrDate, setHdrDate] = useState<string>(new Date().toLocaleDateString());
   const [hdrPageNum, setHdrPageNum] = useState<string>("1");
@@ -148,6 +222,9 @@ useEffect(() => {
       const saved = JSON.parse(raw);
       setHdrClient(saved?.hdrClient || "");
       setHdrAddress(saved?.hdrAddress || "");
+      setHdrCity(saved?.hdrCity || "");
+      setHdrState(saved?.hdrState || "");
+      setHdrZip(saved?.hdrZip || "");
       setHdrPhone(saved?.hdrPhone || "");
       setHdrDate(saved?.hdrDate || new Date().toLocaleDateString());
       setHdrPageNum(saved?.hdrPageNum || "1");
@@ -161,13 +238,81 @@ useEffect(() => {
 
 useEffect(() => {
   try {
+    const raw = localStorage.getItem(STATE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved?.paymentScheduleText !== undefined) {
+      setPaymentScheduleText(saved.paymentScheduleText || "");
+    }
+    if (saved?.paymentMode === "basic" || saved?.paymentMode === "staged") {
+      setPaymentMode(saved.paymentMode);
+    }
+    if (saved?.paymentPercents) {
+      setPaymentPercents((prev) => ({
+        ...prev,
+        ...saved.paymentPercents,
+      }));
+    }
+    if (saved?.paymentLabels) {
+      setPaymentLabels((prev) => ({
+        ...prev,
+        ...saved.paymentLabels,
+      }));
+    }
+    if (saved?.contractSumNumerals !== undefined) {
+      setContractSumNumerals(saved.contractSumNumerals || "");
+    }
+    if (saved?.contractSumWords !== undefined) {
+      setContractSumWords(saved.contractSumWords || "");
+    }
+    if (saved?.legalDisclaimerText !== undefined) {
+      setLegalDisclaimerText(saved.legalDisclaimerText || "");
+    }
+  } catch {}
+}, [STATE_KEY]);
+
+useEffect(() => {
+  try {
+    localStorage.setItem(
+      STATE_KEY,
+      JSON.stringify({
+        paymentScheduleText,
+        paymentMode,
+        paymentPercents,
+        paymentLabels,
+        contractSumNumerals,
+        contractSumWords,
+        legalDisclaimerText,
+      })
+    );
+  } catch {}
+}, [
+  STATE_KEY,
+  paymentScheduleText,
+  paymentMode,
+  paymentPercents,
+  contractSumNumerals,
+  contractSumWords,
+  legalDisclaimerText,
+]);
+
+useEffect(() => {
+  try {
     const raw = localStorage.getItem(SPEC_KEY) || "";
     if (raw) {
       const saved = JSON.parse(raw);
       if (saved?.text !== undefined) {
-        setSpecificationText(saved.text || "");
+        const text = String(saved.text || "");
+        if (text.toLowerCase().includes("asdsada") || text.toLowerCase().includes("asdad")) {
+          localStorage.removeItem(SPEC_KEY);
+          setSpecificationText("");
+          setSpecificationTouched(false);
+          specHasSavedRef.current = false;
+          return;
+        }
+        setSpecificationText(text);
         // If there's any saved text, treat as touched to prevent auto-overwrite
-        const hasSaved = !!saved.text;
+        const hasSaved = !!text;
         specHasSavedRef.current = hasSaved;
         setSpecificationTouched(!!saved.touched || hasSaved);
       }
@@ -194,6 +339,9 @@ useEffect(() => {
       JSON.stringify({
         hdrClient,
         hdrAddress,
+        hdrCity,
+        hdrState,
+        hdrZip,
         hdrPhone,
         hdrDate,
         hdrPageNum,
@@ -240,14 +388,6 @@ useEffect(() => {
     return override != null && !Number.isNaN(override) ? override : base;
   }, [props.finalEstimate, priceOverride]);
 
-  useEffect(() => {
-    if (contractSumTouched) return;
-    if (!Number.isFinite(contractPrice) || contractPrice <= 0) return;
-    const whole = Math.round(contractPrice);
-    setContractSumNumerals(whole.toLocaleString("en-US"));
-    setContractSumWords(numberToWords(whole));
-  }, [contractPrice, contractSumTouched]);
-
   const companyName = useMemo(() => {
     const tryRead = (key: string) => {
       try {
@@ -268,8 +408,52 @@ useEffect(() => {
     );
   }, []);
 
+  const addOnLabels = useMemo(() => {
+    const items = (props.addItemsDetailed || [])
+      .map((row: any) => {
+        const pickedDesc = row?.picked?.proposal_description || "";
+        const picked = row?.picked?.name || row?.picked?.label || "";
+        const customName = row?.customName || "";
+        const customDesc = row?.customDescription || "";
+        const qty = Number(row?.qty ?? row?.quantity ?? row?.lineQty ?? 0);
+        const lineBase = Number(row?.lineBase || 0);
+        const customPrice = Number(row?.customPrice || 0);
+
+        const label = (pickedDesc || customDesc || customName || picked || "").toString().trim();
+        if (!label) return "";
+
+        // Only include add-ons that were actually selected
+        if (qty <= 0 && lineBase <= 0 && customPrice <= 0) return "";
+
+        const qtyText = qty ? ` (x${qty})` : "";
+        return `${label}${qtyText}`;
+      })
+      .filter((item: string) => item.trim() !== "");
+
+    return Array.from(new Set(items));
+  }, [props.addItemsDetailed]);
+
   const autoSpecification = useMemo(() => {
     const lines: string[] = [];
+
+    const getSowTemplateBody = (key: ConstructionSowKey | "") => {
+      if (!key || typeof window === "undefined") return "";
+      try {
+        const raw = window.localStorage.getItem("du_sow_templates_v1") || "";
+        if (!raw) return "";
+        const map = JSON.parse(raw) as Record<string, string>;
+        return map?.[key] || "";
+      } catch {
+        return "";
+      }
+    };
+
+    const extractStairsLine = (body: string) => {
+      if (!body) return "";
+      const lines = body.split("\n").map((line) => line.trim());
+      const match = lines.find((line) => line.toLowerCase().startsWith("stairs"));
+      return match || "";
+    };
 
     const add = (s?: string | null) => {
       const t = (s || "").trim();
@@ -277,57 +461,79 @@ useEffect(() => {
     };
 
     add(
-      "New deck will be built as per the sketch plans and 3D renderings that will be emailed prior for approval."
+      "New deck to be built as per the sketch plans and 3D renderings that will be emailed prior for approval"
     );
 
     const demoName = (props.demoType || "").trim();
     const demoBlurb = (props.demoDescription || "").trim();
-    if (demoBlurb) add(`Demolition: ${demoBlurb}`);
-    else if (demoName) add(`Demolition: ${demoName}.`);
-
-    const deckingName = (props.selectedDecking?.name || props.selectedDecking?.label || "").trim();
-    const fastenerName = (props.selectedFastener?.name || props.selectedFastener?.label || "").trim();
-    if (deckingName && fastenerName) {
-      add(
-        `${companyName} will supply and install ${deckingName} secured with ${fastenerName}. Decking color to be selected (TBD).`
-      );
-    } else if (deckingName) {
-      add(`${companyName} will supply and install ${deckingName}. Decking color to be selected (TBD).`);
+    if (demoBlurb) {
+      add(`Demolition: ${demoBlurb}`);
+    } else if (demoName) {
+      add(`Demolition: ${demoName} — Removal and disposal of existing materials as required.`);
     }
 
-    const railingName = (props.selectedRailing?.name || props.selectedRailing?.label || "").trim();
-    if (railingName) {
-      add(`${companyName} will supply and install ${railingName} railing system. Railing color to be selected (TBD).`);
-    }
-
-    const stairName = (props.selectedStairOption?.name || props.selectedStairOption?.label || "").trim();
-    const stairBlurb = (props.selectedStairOption?.proposal_description || "").trim();
-    if (stairBlurb) add(`Stairs: ${stairBlurb}`);
-    else if (stairName) add(`${companyName} will supply and install ${stairName}.`);
-
-    const skirtingName = (props.selectedSkirting?.name || props.selectedSkirting?.label || "").trim();
-    const skirtingBlurb = (props.selectedSkirting?.proposal_description || "").trim();
-    if (skirtingBlurb) add(`Skirting: ${skirtingBlurb}`);
-    else if (skirtingName) add(`${companyName} will supply and install ${skirtingName}.`);
-
-    // Basic scope defaults (safe + generic)
-    add("Furnish and install all materials and labor per approved plans.");
-    add("Layout and build structure per code and manufacturer specifications.");
-
-    // Pull from estimator selections when available
+    // Ordered scope lines (Decking → Fasteners → Railing → Skirting)
     const decking = (props.selectedDecking?.name || props.selectedDecking?.label || "").trim();
+    const fastener = (props.selectedFastener?.name || props.selectedFastener?.label || "").trim();
     const railing = (props.selectedRailing?.name || props.selectedRailing?.label || "").trim();
-    const stairs = (props.selectedStairOption?.name || props.selectedStairOption?.label || "").trim();
-    const fasteners = (props.selectedFastener?.name || props.selectedFastener?.label || "").trim();
     const skirting = (props.selectedSkirting?.name || props.selectedSkirting?.label || "").trim();
-    const demo = (props.demoType || "").trim();
+    const stairs = (props.selectedStairOption?.name || props.selectedStairOption?.label || "").trim();
 
-    if (demo) add(`Demolition: ${demo}.`);
-    if (decking) add(`Install ${decking} decking (color to be selected).`);
-    if (fasteners) add(`Secure decking using ${fasteners} per manufacturer requirements.`);
-    if (railing) add(`Install ${railing} railing system (color to be selected).`);
-    if (stairs) add(`Build and install ${stairs} per code and manufacturer specifications.`);
-    if (skirting) add(`Install ${skirting} skirting as specified.`);
+    const construction = (props.constructionType || "").trim().toLowerCase();
+    let deckStructureLine = "";
+    if (construction === "new construction" || construction === "second story") {
+      deckStructureLine =
+        'Deck Structure: 14"x36" poured concrete footings with KDAT 4x4 support posts and 2x8 floor joists installed 16" on center. All hardware (tecos, bolts, strapping) to be hot-dipped galvanized.';
+    } else if (construction === "resurface" || construction === "second story resurface") {
+      deckStructureLine =
+        "Deck Structure: Existing deck framing to remain. Any compromised framing will be repaired or replaced as needed. All new decking/railing will be installed per code and manufacturer specifications.";
+    } else if (construction === "sleeper" || construction === "second story sleeper") {
+      deckStructureLine =
+        "Deck Structure: Remove existing structure. Sleeper system installed to establish proper pitch and drainage. Decking installed per manufacturer requirements.";
+    }
+
+    if (deckStructureLine) add(deckStructureLine);
+
+    if (decking) add(`New decking to be installed will be ${decking}, color to be determined.`);
+    if (fastener) {
+      const fastenerLower = fastener.toLowerCase();
+      const fastenerLine = fastenerLower.includes("hidden") || fastenerLower.includes("clip")
+        ? "Decking to be secured with Tiger Claw black-coated stainless steel hidden clips."
+        : fastenerLower.includes("nail")
+          ? "Decking to be secured with hot-dipped galvanized nails."
+          : fastenerLower.includes("scrail")
+            ? "Decking to be secured with stainless steel scrails (gun-driven fasteners combining the holding power of a screw with the speed of a nail)."
+            : fastenerLower.includes("screw")
+              ? "Decking to be secured with color-matched stainless steel screws."
+              : `Fasteners: ${fastener}.`;
+      add(fastenerLine);
+    }
+    if (railing) {
+      const railingLower = railing.toLowerCase();
+      const isTrexSelectFlatTop =
+        railingLower.includes("trex") &&
+        railingLower.includes("select") &&
+        railingLower.includes("flat");
+      const detail = isTrexSelectFlatTop ? " with black round aluminum spindles" : "";
+      const colorNote = isTrexSelectFlatTop ? "" : ", color to be determined";
+      add(`New railing to be installed will be ${railing}${detail}${colorNote}.`);
+    }
+
+    if (stairs) {
+      const stairBlurb = (props.selectedStairOption?.proposal_description || "").trim();
+      add(stairBlurb ? `Stairs: ${stairBlurb}` : `Stairs: ${stairs}.`);
+    }
+
+    if (skirting) {
+      const skirtingLower = skirting.toLowerCase();
+      const skirtingLine = skirtingLower.includes("lattice")
+        ? "Underside of deck to be covered using small diamond vinyl lattice, color TBD, with matching decking picture frame trim."
+        : "Underside of deck to be skirted using matching deck boards installed vertically.";
+      add(skirtingLine);
+    }
+
+    // Add-on items (list as-is)
+    addOnLabels.forEach((item) => add(item as string));
 
     return Array.from(new Set(lines)).join("\n");
   }, [
@@ -342,10 +548,55 @@ useEffect(() => {
   ]);
 
   useEffect(() => {
-    if (specificationTouched) return;
-    if (specHasSavedRef.current) return;
-    setSpecificationText(autoSpecification);
-  }, [autoSpecification, specificationTouched]);
+    const prevAuto = prevAutoSpecRef.current;
+    const shouldSync = !specificationTouched || specificationText === prevAuto;
+    if (shouldSync) {
+      setSpecificationText(autoSpecification);
+    }
+    prevAutoSpecRef.current = autoSpecification;
+  }, [autoSpecification, specificationTouched, specificationText]);
+
+  useEffect(() => {
+    const id = (props.estimateId || "").trim();
+    if (!id) return;
+    // When switching to a real estimate, re-seed the spec if user hasn't edited it.
+    if (!specificationTouched) {
+      specHasSavedRef.current = false;
+      setSpecificationText(autoSpecification);
+    }
+  }, [props.estimateId, autoSpecification, specificationTouched]);
+
+  useEffect(() => {
+    const currentId = (props.estimateId || "").trim();
+    const prevId = prevEstimateIdRef.current;
+    prevEstimateIdRef.current = currentId;
+
+    // Only reset temp data when transitioning from a real estimateId to a new blank file
+    if (prevId && !currentId && typeof window !== "undefined") {
+      const prevTemp = window.sessionStorage.getItem("du_contract_temp_key") || "";
+      if (prevTemp) {
+        localStorage.removeItem(`du_contract_header::${prevTemp}`);
+        localStorage.removeItem(`du_contract_spec::${prevTemp}`);
+      }
+
+      const newTemp = `temp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      window.sessionStorage.setItem("du_contract_temp_key", newTemp);
+
+      setHdrClient("");
+      setHdrAddress("");
+      setHdrPhone("");
+      setHdrDate(new Date().toLocaleDateString());
+      setHdrPageNum("1");
+      setHdrPageOf("1");
+      setHdrApproxStart("");
+      setHdrApproxEnd("");
+      setHdrEssence("not");
+
+      setSpecificationText(autoSpecification);
+      setSpecificationTouched(false);
+      specHasSavedRef.current = false;
+    }
+  }, [props.estimateId, autoSpecification]);
 
   // Guard: if user text exists, lock as touched (prevents re-seeding)
   useEffect(() => {
@@ -357,53 +608,116 @@ useEffect(() => {
 
   const printContract = () => window.print();
 
+  const specLineCount = useMemo(() => {
+    return specificationText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "").length;
+  }, [specificationText]);
+
+  const handleSaveContract = () => {
+    try {
+      localStorage.setItem(
+        HEADER_KEY,
+        JSON.stringify({
+          hdrClient,
+          hdrAddress,
+          hdrCity,
+          hdrState,
+          hdrZip,
+          hdrPhone,
+          hdrDate,
+          hdrPageNum,
+          hdrPageOf,
+          hdrApproxStart,
+          hdrApproxEnd,
+          hdrEssence,
+        })
+      );
+      localStorage.setItem(
+        SPEC_KEY,
+        JSON.stringify({ text: specificationText || "", touched: true })
+      );
+      localStorage.setItem(
+        STATE_KEY,
+        JSON.stringify({
+          paymentScheduleText,
+          paymentMode,
+          paymentPercents,
+          contractSumNumerals,
+          contractSumWords,
+          legalDisclaimerText,
+        })
+      );
+    } catch {}
+  };
+
+  const handleClearContract = () => {
+    try {
+      localStorage.removeItem(HEADER_KEY);
+      localStorage.removeItem(SPEC_KEY);
+      localStorage.removeItem(STATE_KEY);
+    } catch {}
+
+    setHdrClient("");
+    setHdrAddress("");
+    setHdrCity("");
+    setHdrState("");
+    setHdrZip("");
+    setHdrPhone("");
+    setHdrDate(new Date().toLocaleDateString());
+    setHdrPageNum("1");
+    setHdrPageOf("1");
+    setHdrApproxStart("");
+    setHdrApproxEnd("");
+    setHdrEssence("not");
+
+    setSpecificationText(autoSpecification);
+    setSpecificationTouched(false);
+    specHasSavedRef.current = false;
+
+    setPaymentScheduleText("$1,000 deposit with contract. Balance upon completion.");
+    setPaymentMode("basic");
+    setPaymentPercents({ deposit: 10, dayOne: 30, afterDecking: 30, holdback: 0 });
+    setPaymentLabels({
+      deposit: "Deposit",
+      dayOne: "Day one",
+      afterDecking: "After decking completed",
+      holdback: "Holdback after final inspection",
+      balance: "Balance upon completion",
+    });
+    setContractSumNumerals("");
+    setContractSumWords("");
+    setLegalDisclaimerText(
+      "All material is guaranteed to be specified. All work to be completed in a work-manlike manner according to standard practices.\n\nThe buyer is responsible for all permits and C.O.’s unless otherwise specified. Decks Unique Inc. is not responsible for weathering, shrinkage or growth on materials, or any underground utilities that may be damaged.\n\nAll agreements contingent upon strikes, accidents or delays beyond our control. There will be a labor charge for any warrantee claim.\n\nIn the event of any litigation to enforce the terms of this contract the successful party will reimburse the other party for all costs, including reasonable attorney fees."
+    );
+  };
+
   return (
     <div className="contract-page">
       <div className="contract-actions no-print">
-        <button className="du-btn" onClick={printContract}>
-          Print Contract
-        </button>
-        <label className="contract-ci-toggle">
-          <input
-            type="checkbox"
-            checked={includeCapitalImprovement}
-            onChange={(e) => setIncludeCapitalImprovement(e.target.checked)}
-          />
-          <span>Include Capital Improvement (ST‑124)</span>
-        </label>
-      </div>
-
-      {includeCapitalImprovement && (
-        <div className="ci-edit no-print">
-          <div className="ci-edit-title">Capital Improvement (ST‑124) Details</div>
-          <div className="ci-edit-grid">
-            <label>
-              Project name
-              <input value={ciProjectName} onChange={(e) => setCiProjectName(e.target.value)} />
-            </label>
-            <label>
-              Work address
-              <input value={ciWorkAddress} onChange={(e) => setCiWorkAddress(e.target.value)} />
-            </label>
-            <label>
-              City
-              <input value={ciCity} onChange={(e) => setCiCity(e.target.value)} />
-            </label>
-            <label>
-              State
-              <input value={ciState} onChange={(e) => setCiState(e.target.value)} />
-            </label>
-            <label>
-              ZIP
-              <input value={ciZip} onChange={(e) => setCiZip(e.target.value)} />
-            </label>
-          </div>
-          <label className="ci-edit-desc">
-            Description
-            <textarea value={ciDescription} onChange={(e) => setCiDescription(e.target.value)} rows={2} />
+        <div className="contract-actions-group">
+          <button className="du-btn" onClick={printContract}>
+            Print Contract
+          </button>
+          <label className="contract-ci-toggle">
+            <input
+              type="checkbox"
+              checked={forcePageBreak}
+              onChange={(e) => setForcePageBreak(e.target.checked)}
+            />
+            <span>Force Page 2</span>
           </label>
         </div>
-      )}
+        <div className="contract-actions-group">
+          <button className="du-btn du-btn-primary" onClick={handleSaveContract}>
+            Save
+          </button>
+          <button className="du-btn du-btn-danger" onClick={handleClearContract}>
+            Reset to Defaults
+          </button>
+        </div>
+      </div>
 
       <div id="contract-doc" className="contract-doc" ref={docRef}>
         <div className="contract-container">
@@ -422,13 +736,45 @@ useEffect(() => {
                 </div>
 
                 <div className="contract-fieldRow">
-                  <div className="contract-fieldLabel">Client Address</div>
+                  <div className="contract-fieldLabel">Address</div>
                   <input
                     className="contract-fieldInput"
                     value={hdrAddress}
                     onChange={(e) => setHdrAddress(e.target.value)}
-                    placeholder="Client address"
+                    placeholder="Street address"
                   />
+                </div>
+
+                <div className="contract-fieldRow contract-fieldRow--three">
+                  <div className="contract-fieldHalf">
+                    <div className="contract-fieldLabel">City</div>
+                    <input
+                      className="contract-fieldInput"
+                      value={hdrCity}
+                      onChange={(e) => setHdrCity(e.target.value)}
+                      placeholder="City"
+                    />
+                  </div>
+
+                  <div className="contract-fieldHalf">
+                    <div className="contract-fieldLabel">State</div>
+                    <input
+                      className="contract-fieldInput"
+                      value={hdrState}
+                      onChange={(e) => setHdrState(e.target.value)}
+                      placeholder="State"
+                    />
+                  </div>
+
+                  <div className="contract-fieldHalf">
+                    <div className="contract-fieldLabel">ZIP</div>
+                    <input
+                      className="contract-fieldInput"
+                      value={hdrZip}
+                      onChange={(e) => setHdrZip(e.target.value)}
+                      placeholder="ZIP"
+                    />
+                  </div>
                 </div>
 
                 <div className="contract-fieldRow contract-fieldRow--two">
@@ -543,8 +889,6 @@ useEffect(() => {
               <h2>We hereby submit specification for:</h2>
 
               <textarea
-                id="contract-specification"
-                name="contractSpecification"
                 className="contract-textarea no-print"
                 value={specificationText}
                 onChange={(e) => {
@@ -558,8 +902,6 @@ useEffect(() => {
                 spellCheck={true}
                 autoCorrect="on"
                 autoCapitalize="sentences"
-                autoComplete="on"
-                lang="en"
               />
 
               <ul className="contract-scopeList print-only">
@@ -573,7 +915,11 @@ useEffect(() => {
             </div>
 
        {/* Bottom stack: Payment + Legal + Acceptance + Cancellation + Licenses */}
-<div className="contract-bottom-stack">
+{forcePageBreak || specLineCount > 15 ? (
+  <div className="contract-page-break print-only" />
+) : null}
+<div className={`contract-bottom-wrapper${forcePageBreak || specLineCount > 15 ? " force-break" : ""}`}>
+  <div className="contract-bottom-stack">
   {/* Sum of + Amount + Payment Schedule */}
   <section className="contract-section contract-section--sum">
     <h2>
@@ -593,7 +939,6 @@ useEffect(() => {
           className="contract-sumInput"
           value={contractSumNumerals}
           onChange={(e) => {
-            setContractSumTouched(true);
             const raw = e.target.value.replace(/[^\d]/g, "");
             const num = raw ? Number(raw) : 0;
             const formatted = raw ? num.toLocaleString("en-US") : "";
@@ -604,25 +949,215 @@ useEffect(() => {
           inputMode="decimal"
         />
       </div>
-      <div className="contract-sumPrint print-only">${contractSumNumerals || ""}</div>
+      <div className="contract-sumPrint print-only">
+        ($) {contractSumNumerals || ""}
+      </div>
     </div>
 
     <div className="contract-payRow">
       <div className="contract-payLabel">PAYMENT SCHEDULE:</div>
-
-      {/* ON SCREEN */}
-      <textarea
-        className="contract-payValue no-print"
-        value={paymentScheduleText}
-        onChange={(e) => setPaymentScheduleText(e.target.value)}
-        rows={1}
-        placeholder="$1,000 deposit with contract. Balance upon completion."
-      />
-
-      {/* PRINT */}
-      <div className="contract-payValue print-only" style={{ whiteSpace: "pre-wrap" }}>
-        {paymentScheduleText}
+      <div className="contract-payToggle no-print">
+        <button
+          type="button"
+          className={`contract-payToggleBtn ${paymentMode === "basic" ? "active" : ""}`}
+          onClick={() => setPaymentMode("basic")}
+        >
+          Basic
+        </button>
+        <button
+          type="button"
+          className={`contract-payToggleBtn ${paymentMode === "staged" ? "active" : ""}`}
+          onClick={() => setPaymentMode("staged")}
+        >
+          Staged
+        </button>
       </div>
+
+      {paymentMode === "basic" ? (
+        <>
+          {/* ON SCREEN */}
+          <textarea
+            className="contract-payValue no-print"
+            value={paymentScheduleText}
+            onChange={(e) => setPaymentScheduleText(e.target.value)}
+            rows={1}
+            placeholder="$1,000 deposit with contract. Balance upon completion."
+          />
+
+          {/* PRINT */}
+          <div className="contract-payValue print-only" style={{ whiteSpace: "pre-wrap" }}>
+            {paymentScheduleText}
+          </div>
+        </>
+      ) : (
+        <>
+          {(() => {
+            const total = Number(contractSumNumerals.replace(/[^\d]/g, "")) || 0;
+            const pct = paymentPercents;
+            const clamp = (value: number) => Math.max(0, Math.min(100, value));
+            const depositPct = clamp(pct.deposit);
+            const dayOnePct = clamp(pct.dayOne);
+            const afterDeckingPct = clamp(pct.afterDecking);
+            const holdbackPct = clamp(pct.holdback);
+            const balancePct = clamp(100 - depositPct - dayOnePct - afterDeckingPct - holdbackPct);
+
+            const deposit = Math.round((total * depositPct) / 100);
+            const dayOne = Math.round((total * dayOnePct) / 100);
+            const afterDecking = Math.round((total * afterDeckingPct) / 100);
+            const holdback = Math.round((total * holdbackPct) / 100);
+            const balance = Math.max(total - deposit - dayOne - afterDecking - holdback, 0);
+
+            const fmt = (value: number) => `$${value.toLocaleString()}`;
+
+            const label = paymentLabels;
+            const sentenceParts = [
+              `${depositPct}% ${label.deposit.toLowerCase()} (${fmt(deposit)})`,
+              `${dayOnePct}% ${label.dayOne.toLowerCase()} (${fmt(dayOne)})`,
+              `${afterDeckingPct}% ${label.afterDecking.toLowerCase()} (${fmt(afterDecking)})`,
+              holdbackPct ? `${holdbackPct}% ${label.holdback.toLowerCase()} (${fmt(holdback)})` : "",
+              `${label.balance} (${fmt(balance)})`,
+            ].filter(Boolean);
+            const stagedText = sentenceParts.join(", ");
+
+            return (
+              <>
+                <div className="contract-payValue no-print">
+                  <div className="contract-payGrid">
+                    <div>
+                      <input
+                        className="contract-payLabelInput"
+                        value={paymentLabels.deposit}
+                        onChange={(e) =>
+                          setPaymentLabels((prev) => ({
+                            ...prev,
+                            deposit: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="contract-payPct">
+                      <input
+                        type="number"
+                        value={depositPct}
+                        onChange={(e) =>
+                          setPaymentPercents((prev) => ({
+                            ...prev,
+                            deposit: Number(e.target.value || 0),
+                          }))
+                        }
+                      />
+                      <span>%</span>
+                    </div>
+                    <div className="contract-payAmount">({fmt(deposit)})</div>
+
+                    <div>
+                      <input
+                        className="contract-payLabelInput"
+                        value={paymentLabels.dayOne}
+                        onChange={(e) =>
+                          setPaymentLabels((prev) => ({
+                            ...prev,
+                            dayOne: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="contract-payPct">
+                      <input
+                        type="number"
+                        value={dayOnePct}
+                        onChange={(e) =>
+                          setPaymentPercents((prev) => ({
+                            ...prev,
+                            dayOne: Number(e.target.value || 0),
+                          }))
+                        }
+                      />
+                      <span>%</span>
+                    </div>
+                    <div className="contract-payAmount">({fmt(dayOne)})</div>
+
+                    <div>
+                      <input
+                        className="contract-payLabelInput"
+                        value={paymentLabels.afterDecking}
+                        onChange={(e) =>
+                          setPaymentLabels((prev) => ({
+                            ...prev,
+                            afterDecking: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="contract-payPct">
+                      <input
+                        type="number"
+                        value={afterDeckingPct}
+                        onChange={(e) =>
+                          setPaymentPercents((prev) => ({
+                            ...prev,
+                            afterDecking: Number(e.target.value || 0),
+                          }))
+                        }
+                      />
+                      <span>%</span>
+                    </div>
+                    <div className="contract-payAmount">({fmt(afterDecking)})</div>
+
+                    <div>
+                      <input
+                        className="contract-payLabelInput"
+                        value={paymentLabels.holdback}
+                        onChange={(e) =>
+                          setPaymentLabels((prev) => ({
+                            ...prev,
+                            holdback: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="contract-payPct">
+                      <input
+                        type="number"
+                        value={holdbackPct}
+                        onChange={(e) =>
+                          setPaymentPercents((prev) => ({
+                            ...prev,
+                            holdback: Number(e.target.value || 0),
+                          }))
+                        }
+                      />
+                      <span>%</span>
+                    </div>
+                    <div className="contract-payAmount">({fmt(holdback)})</div>
+
+                    <div>
+                      <input
+                        className="contract-payLabelInput"
+                        value={paymentLabels.balance}
+                        onChange={(e) =>
+                          setPaymentLabels((prev) => ({
+                            ...prev,
+                            balance: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="contract-payPct">
+                      <span>{balancePct}%</span>
+                    </div>
+                    <div className="contract-payAmount">({fmt(balance)})</div>
+                  </div>
+                  <div className="mt-2 text-[11px] text-slate-500">{stagedText}</div>
+                </div>
+                <div className="contract-payValue print-only">
+                  {stagedText}
+                </div>
+              </>
+            );
+          })()}
+        </>
+      )}
     </div>
 
     {/* Legal (editable) */}
@@ -635,14 +1170,19 @@ useEffect(() => {
     />
 
     {/* Legal print */}
-    <div className="contract-legalText print-only" style={{ whiteSpace: "pre-wrap" }}>
-      {legalDisclaimerText}
+    <div className="contract-legalText print-only">
+      {legalDisclaimerText.replace(/\n+/g, " ").trim()}
     </div>
   </section>
 
   {/* Acceptance */}
   <section className="contract-section contract-acceptance">
-    <h2>Acceptance of Proposal</h2>
+    <p className="contract-acceptance-text">
+      <span className="contract-acceptance-title">Acceptance of Proposal:</span> I have read this
+      document and accept the prices, specifications and conditions stated. I understand that upon
+      signing, this becomes a binding contract. You are authorized to do the work as specified.
+      Payment will be made as outline above.
+    </p>
 
     <div className="acceptance-grid">
       {/* LEFT: Client */}
@@ -682,12 +1222,10 @@ useEffect(() => {
 
   {/* Cancellation Policy */}
   <section className="contract-cancellation">
-    <h4 className="contract-cancellation-title">Notice of Cancellation</h4>
-
     <p className="contract-cancellation-text">
-      You, the buyer, may cancel this transaction at any time prior to midnight of the third
-      business day after the date of this transaction. See the attached Notice of Cancellation
-      form for an explanation of this right.
+      <span className="contract-cancellation-title">Notice of Cancellation:</span> You, the buyer,
+      may cancel at any time prior to the midnight of the third business day after the date of this
+      transaction.
     </p>
   </section>
 
@@ -696,97 +1234,7 @@ useEffect(() => {
     <span>Suffolk 1614-H</span>
   </footer>
 
-  {/* Capital Improvement Form (ST-124) */}
-  {includeCapitalImprovement && (
-    <section className="contract-ci">
-      <div className="ci-title">New York State and Local Sales and Use Tax — Certificate of Capital Improvement (ST‑124)</div>
-
-      <div className="ci-grid">
-        <div className="ci-box">
-          <div className="ci-label">Name of contractor (print or type)</div>
-          <div className="ci-value">Decks Unique</div>
-          <div className="ci-label">Address (number and street)</div>
-          <div className="ci-value">119 Commack Road</div>
-          <div className="ci-row">
-            <div>
-              <div className="ci-label">City</div>
-              <div className="ci-value">Commack</div>
-            </div>
-            <div>
-              <div className="ci-label">State</div>
-              <div className="ci-value">NY</div>
-            </div>
-            <div>
-              <div className="ci-label">ZIP code</div>
-              <div className="ci-value">11725</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="ci-box">
-          <div className="ci-label">Name of customer (print or type)</div>
-          <div className="ci-value">{hdrClient || ""}</div>
-          <div className="ci-label">Address (number and street)</div>
-          <div className="ci-value">{hdrAddress || ""}</div>
-          <div className="ci-row">
-            <div>
-              <div className="ci-label">City</div>
-              <div className="ci-value">{ciCity}</div>
-            </div>
-            <div>
-              <div className="ci-label">State</div>
-              <div className="ci-value">{ciState}</div>
-            </div>
-            <div>
-              <div className="ci-label">ZIP code</div>
-              <div className="ci-value">{ciZip}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="ci-section">
-        <div className="ci-label">Describe capital improvement to be performed</div>
-        <div className="ci-value">{ciDescription}</div>
-      </div>
-
-      <div className="ci-grid">
-        <div className="ci-box">
-          <div className="ci-label">Project name</div>
-          <div className="ci-value">{ciProjectName}</div>
-        </div>
-        <div className="ci-box">
-          <div className="ci-label">Street address (where the work is to be performed)</div>
-          <div className="ci-value">{ciWorkAddress}</div>
-          <div className="ci-row">
-            <div>
-              <div className="ci-label">City</div>
-              <div className="ci-value">{ciCity}</div>
-            </div>
-            <div>
-              <div className="ci-label">State</div>
-              <div className="ci-value">{ciState}</div>
-            </div>
-            <div>
-              <div className="ci-label">ZIP code</div>
-              <div className="ci-value">{ciZip}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="ci-sign">
-        <div className="ci-sign-row">
-          <div className="ci-sign-line" />
-          <div className="ci-sign-label">Signature of customer</div>
-        </div>
-        <div className="ci-sign-row">
-          <div className="ci-sign-line" />
-          <div className="ci-sign-label">Signature of contractor or officer</div>
-        </div>
-      </div>
-    </section>
-  )}
+</div>
 </div>
 
 </section>

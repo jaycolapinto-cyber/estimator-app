@@ -4903,6 +4903,8 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
     selectedSkirting={selectedSkirting}
     selectedFastener={selectedFastener}
     selectedConstruction={selectedConstruction}
+    constructionType={constructionType}
+    addItemsDetailed={addItemsDetailed as any}
     clientTitle={clientTitle}
     clientLastName={clientLastName}
     clientLocation={clientTown}
