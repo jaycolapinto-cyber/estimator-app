@@ -2102,9 +2102,9 @@ const EST_EXT = ".DUest";
         // 3) No cache available
         setPricingError(
           err?.message ||
-            "Failed to load pricing (no internet and no cached pricing yet)."
+            "Offline mode: no cached pricing yet. Using empty pricing lists."
         );
-        setPricingLoaded(false);
+        setPricingLoaded(true);
       }
     };
 
@@ -2118,10 +2118,10 @@ const EST_EXT = ".DUest";
   const skirtingCategoryRef = useRef<HTMLSelectElement | null>(null);
 
   useEffect(() => {
-    if (activeNav === "estimator" && pricingLoaded && !pricingError) {
+    if (activeNav === "estimator" && pricingLoaded) {
       constructionTypeRef.current?.focus();
     }
-  }, [activeNav, pricingLoaded, pricingError]);
+  }, [activeNav, pricingLoaded]);
 
   const deckingOptions = pricingItems
     .filter((item) => {
@@ -3940,7 +3940,7 @@ const altBaseTotal =
                   <div className="banner banner-error">{pricingError}</div>
                 )}
 
-                {pricingLoaded && !pricingError && (
+                {pricingLoaded && (
                   <>
                     {/* ===== UPLIFT / MSRP ROW ===== */}
                     <div className="msrp-pill-row">
