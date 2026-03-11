@@ -117,6 +117,33 @@ const DEFAULT_SECTIONS: Omit<ProposalSection, "id">[] = [
   },
 ];
 
+const DEFAULT_LAYOUT_TITLES = [
+  "PROVEN REPUTATION & TRUSTED SERVICE",
+  "THE ONLY DECK BUILDER ON LONG ISLAND USING PREMIUM",
+  "LONG ISLAND’S ONLY “BRICK AND MORTAR” DECK SPECIALIST",
+  "LONG ISLAND’S ONLY “BRICK AND MORTAR” DECK SPECIALIST",
+  "EFFECTIVE PERIOD",
+  "LIFETIME WORKMANSHIP WARRANT",
+];
+
+function buildDefaultLayoutOrder(sections: ProposalSection[]) {
+  const remaining = [...sections];
+  const ordered: string[] = [];
+
+  for (const title of DEFAULT_LAYOUT_TITLES) {
+    const idx = remaining.findIndex((s) => s.title.trim().toUpperCase() === title.toUpperCase());
+    if (idx >= 0) {
+      const [match] = remaining.splice(idx, 1);
+      ordered.push(match.id);
+    }
+  }
+
+  // append any leftover custom sections
+  ordered.push(...remaining.map((s) => s.id));
+
+  return [...ordered, "__details__", "__timeline__"];
+}
+
 function ensureDefaults(prev: UserSettings): UserSettings {
   const next: UserSettings = { ...(prev || {}) };
 
@@ -130,10 +157,10 @@ function ensureDefaults(prev: UserSettings): UserSettings {
   if (!next.emailSubjectTemplate) {
     next.emailSubjectTemplate = "Your Decks Unique Proposal – {{clientLastName}}";
   }
- // ✅ default layout order: only seed custom sections
-if (!Array.isArray(next.proposalLayoutOrder) || next.proposalLayoutOrder.length === 0) {
-next.proposalLayoutOrder = ["__details__", "__timeline__", ...(next.proposalSections || []).map(s => s.id)];
-}
+  // ✅ default layout order (preferred titles)
+  if (!Array.isArray(next.proposalLayoutOrder) || next.proposalLayoutOrder.length === 0) {
+    next.proposalLayoutOrder = buildDefaultLayoutOrder(next.proposalSections || []);
+  }
 
 
   if (!next.emailBodyTemplate) {
