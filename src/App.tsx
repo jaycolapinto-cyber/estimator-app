@@ -3936,7 +3936,7 @@ const altBaseTotal =
                   </div>
                 )}
 
-                {pricingError && (
+                {pricingError && !(!isOnline || (pricingError || "").toLowerCase().includes("offline mode")) && (
                   <div className="banner banner-info">{pricingError}</div>
                 )}
 
