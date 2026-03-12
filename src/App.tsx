@@ -682,6 +682,21 @@ function AuthedApp() {
   if (orgLoading) return <BootScreen label="Loading your organization…" />;
   // ✅ Guard: user has no org
   if (orgResolved && !orgId) {
+    const isDesktop =
+      typeof window !== "undefined" &&
+      (window as any)?.estimator?.isDesktop;
+
+    if (isDesktop) {
+      return (
+        <AppShell
+          isAdmin={false}
+          orgId="du_desktop"
+          onLogout={async () => {}}
+          userEmail={email}
+        />
+      );
+    }
+
     if (typeof window !== "undefined" && !navigator.onLine) {
       const cached = window.localStorage.getItem("du_offline_org_id") || "du_offline";
       return (
