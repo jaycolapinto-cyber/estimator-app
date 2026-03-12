@@ -15,6 +15,7 @@ import UsersLicensesPage from "./UsersLicensesPage";
 import AuthPage from "./AuthPage";
 import CreateOrgPage from "./CreateOrgPage";
 import ContractPage from "./ContractPage";
+import AccessRevoked from "./AccessRevoked";
 function BootScreen({ label = "Loading…" }: { label?: string }) {
   return (
     <div
@@ -743,13 +744,7 @@ function AuthedApp() {
 
     // Non-admins should NEVER see CreateOrgPage
     return (
-      <div style={{ padding: 32 }}>
-        <h1 style={{ marginBottom: 8 }}>No organization access</h1>
-        <p style={{ maxWidth: 640 }}>
-          Your account is not linked to an organization yet. Ask an admin to
-          invite you, then log out and log back in.
-        </p>
-      </div>
+      <AccessRevoked />
     );
   }
 
@@ -771,13 +766,7 @@ function AuthedApp() {
     }
 
     return (
-      <div style={{ padding: 32 }}>
-        <h1 style={{ marginBottom: 8 }}>No organization access</h1>
-        <p style={{ maxWidth: 640 }}>
-          Your account is not linked to an organization yet. Ask an admin to
-          invite you, then log out and log back in.
-        </p>
-      </div>
+      <AccessRevoked />
     );
   }
 
