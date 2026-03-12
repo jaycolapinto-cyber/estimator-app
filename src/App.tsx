@@ -682,7 +682,7 @@ function AuthedApp() {
   if (orgLoading) return <BootScreen label="Loading your organization…" />;
   // ✅ Guard: user has no org
   if (orgResolved && !orgId) {
-    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    if (typeof window !== "undefined" && !navigator.onLine) {
       const cached = window.localStorage.getItem("du_offline_org_id");
       if (cached) {
         return (
