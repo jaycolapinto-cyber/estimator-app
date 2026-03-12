@@ -799,6 +799,18 @@ function AppShell({
   const [proposalSectionsSnapshot, setProposalSectionsSnapshot] = useState<
     any[]
   >([]);
+  const [updateInfo, setUpdateInfo] = useState<
+    { version?: string; releaseNotes?: string; url?: string } | null
+  >(null);
+
+  useEffect(() => {
+    const api: any = (typeof window !== "undefined" && (window as any).estimator) || null;
+    if (!api?.onUpdateAvailable) return;
+    api.onUpdateAvailable((payload: any) => {
+      setUpdateInfo(payload || { version: "", releaseNotes: "" });
+    });
+  }, []);
+
 
   function BootScreen({ label = "Loading…" }: { label?: string }) {
     return (
@@ -3850,6 +3862,47 @@ const altBaseTotal =
           <div className="sidebar-offline">
             <span className="sidebar-offline-dot" />
             Offline Mode
+          </div>
+        )}
+
+        {updateInfo && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: "10px 12px",
+              borderRadius: 10,
+              background: "rgba(16, 185, 129, 0.15)",
+              border: "1px solid rgba(16, 185, 129, 0.35)",
+              color: "#d1fae5",
+              fontSize: 12,
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>
+              Update available{updateInfo.version ? `: v${updateInfo.version}` : ""}
+            </div>
+            {updateInfo.releaseNotes && (
+              <div style={{ opacity: 0.9, marginBottom: 6, maxHeight: 90, overflow: "auto" }}>
+                {String(updateInfo.releaseNotes).slice(0, 240)}
+              </div>
+            )}
+            <button
+              type="button"
+              style={{
+                background: "#34d399",
+                color: "#0f172a",
+                border: "none",
+                borderRadius: 8,
+                padding: "6px 10px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+              onClick={() => {
+                const api: any = (typeof window !== "undefined" && (window as any).estimator) || null;
+                api?.openExternal?.(updateInfo.url || "https://github.com/jaycolapinto-cyber/estimator-app/releases/latest");
+              }}
+            >
+              Open update
+            </button>
           </div>
         )}
 

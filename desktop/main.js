@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, dialog, protocol, session } = require('electron');
+const { app, BrowserWindow, shell, dialog, protocol, session, ipcMain } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
@@ -97,6 +97,16 @@ function createWindow() {
 app.whenReady().then(() => {
   logLine(`app.whenReady (userData=${app.getPath('userData')})`);
 
+  ipcMain.handle('openExternal', async (_e, url) => {
+    try {
+      if (url) await shell.openExternal(url);
+      return true;
+    } catch (e) {
+      logLine(`openExternal error: ${e?.stack || e}`);
+      return false;
+    }
+  });
+
   protocol.registerSchemesAsPrivileged([
     { scheme: 'app', privileges: { secure: true, standard: true } }
   ]);
@@ -119,8 +129,20 @@ app.whenReady().then(() => {
       logLine(`autoUpdater error: ${err?.stack || err}`);
     });
 
-    autoUpdater.on('update-available', async () => {
+    autoUpdater.on('update-available', async (info) => {
       logLine('update-available');
+      try {
+        if (mainWindow?.webContents) {
+          mainWindow.webContents.send('update-available', {
+            version: info?.version,
+            releaseNotes: info?.releaseNotes || info?.releaseName || '',
+            url: 'https://github.com/jaycolapinto-cyber/estimator-app/releases/latest'
+          });
+        }
+      } catch (e) {
+        logLine(`update-available send error: ${e?.stack || e}`);
+      }
+
       const result = await dialog.showMessageBox({
         type: 'info',
         buttons: ['Update', 'Later'],
