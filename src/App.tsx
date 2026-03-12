@@ -617,9 +617,9 @@ function AuthedApp() {
           if (cancelled) return;
           setOrgId(q1.data.org_id);
           if (typeof window !== "undefined") {
-            window.localStorage.setItem(OFFLINE_ORG_KEY, q1.data.org_id);
+            ((window as any).estimatorStore?.set(OFFLINE_ORG_KEY, q1.data.org_id) ?? window.localStorage.setItem(OFFLINE_ORG_KEY, q1.data.org_id));
             if (navigator.onLine) {
-              window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now()));
+              ((window as any).estimatorStore?.set(OFFLINE_LAST_KEY, String(Date.now() ?? window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now())));
             }
           }
           console.log("APP_ORG_ID", q1.data.org_id);
@@ -649,9 +649,9 @@ function AuthedApp() {
           if (cancelled) return;
           setOrgId(q2.data.account_id);
           if (typeof window !== "undefined") {
-            window.localStorage.setItem(OFFLINE_ORG_KEY, q2.data.account_id);
+            ((window as any).estimatorStore?.set(OFFLINE_ORG_KEY, q2.data.account_id) ?? window.localStorage.setItem(OFFLINE_ORG_KEY, q2.data.account_id));
             if (navigator.onLine) {
-              window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now()));
+              ((window as any).estimatorStore?.set(OFFLINE_LAST_KEY, String(Date.now() ?? window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now())));
             }
           }
           setIsAdmin(String(q2.data.role || "").toLowerCase() === "admin");
@@ -669,7 +669,7 @@ function AuthedApp() {
         setOrgResolved(true); // ✅ this is the key fix
 
         if (typeof window !== "undefined" && !navigator.onLine) {
-          const cached = window.localStorage.getItem(OFFLINE_ORG_KEY);
+          const cached = ((window as any).estimatorStore?.get(OFFLINE_ORG_KEY) ?? window.localStorage.getItem(OFFLINE_ORG_KEY));
           if (cached) {
             setOrgId(cached);
           }
@@ -696,7 +696,7 @@ function AuthedApp() {
   const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
   if (typeof window !== "undefined" && !navigator.onLine) {
-    const lastOnline = Number(window.localStorage.getItem(OFFLINE_LAST_KEY) || 0);
+    const lastOnline = Number(((window as any).estimatorStore?.get(OFFLINE_LAST_KEY) ?? window.localStorage.getItem(OFFLINE_LAST_KEY)) || 0);
     if (!lastOnline || Date.now() - lastOnline > OFFLINE_GRACE_MS) {
       return (
         <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-8">
@@ -720,7 +720,7 @@ function AuthedApp() {
   // ✅ Guard: user has no org
   if (orgResolved && !orgId) {
     if (typeof window !== "undefined" && !navigator.onLine) {
-      const cached = window.localStorage.getItem(OFFLINE_ORG_KEY) || "du_offline";
+      const cached = ((window as any).estimatorStore?.get(OFFLINE_ORG_KEY) ?? window.localStorage.getItem(OFFLINE_ORG_KEY)) || "du_offline";
       return (
         <AppShell
           isAdmin={false}

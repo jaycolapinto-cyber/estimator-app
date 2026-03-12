@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, dialog } = require('electron');
+const { app, BrowserWindow, shell, dialog, protocol, session } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const isDev = !app.isPackaged;
@@ -13,6 +13,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      partition: 'persist:estimator'
     },
   });
 
@@ -20,9 +21,7 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    const appPath = app.getAppPath();
-    const indexPath = path.join(appPath, 'build', 'index.html');
-    mainWindow.loadFile(indexPath);
+    mainWindow.loadURL('app://index.html');
   }
 
   mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {
@@ -39,6 +38,17 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  protocol.registerSchemesAsPrivileged([
+    { scheme: 'app', privileges: { secure: true, standard: true } }
+  ]);
+
+  if (!isDev) {
+    protocol.registerFileProtocol('app', (request, callback) => {
+      const url = request.url.replace('app://', '');
+      callback({ path: path.join(app.getAppPath(), 'build', url) });
+    });
+  }
+
   createWindow();
 
   if (!isDev) {

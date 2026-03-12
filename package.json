@@ -10,6 +10,7 @@
   "main": "desktop/main.js",
   "dependencies": {
     "@supabase/supabase-js": "^2.91.0",
+    "electron-store": "^8.2.0",
     "electron-updater": "^6.8.3",
     "loader-utils": "3.2.1",
     "react": "18.2.0",
