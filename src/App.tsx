@@ -619,7 +619,7 @@ function AuthedApp() {
           if (typeof window !== "undefined") {
             ((window as any).estimatorStore?.set(OFFLINE_ORG_KEY, q1.data.org_id) ?? window.localStorage.setItem(OFFLINE_ORG_KEY, q1.data.org_id));
             if (navigator.onLine) {
-              ((window as any).estimatorStore?.set(OFFLINE_LAST_KEY, String(Date.now() ?? window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now())));
+              ((window as any).estimatorStore?.set(OFFLINE_LAST_KEY, String(Date.now())) ?? window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now())));
             }
           }
           console.log("APP_ORG_ID", q1.data.org_id);
@@ -651,7 +651,7 @@ function AuthedApp() {
           if (typeof window !== "undefined") {
             ((window as any).estimatorStore?.set(OFFLINE_ORG_KEY, q2.data.account_id) ?? window.localStorage.setItem(OFFLINE_ORG_KEY, q2.data.account_id));
             if (navigator.onLine) {
-              ((window as any).estimatorStore?.set(OFFLINE_LAST_KEY, String(Date.now() ?? window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now())));
+              ((window as any).estimatorStore?.set(OFFLINE_LAST_KEY, String(Date.now())) ?? window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now())));
             }
           }
           setIsAdmin(String(q2.data.role || "").toLowerCase() === "admin");
