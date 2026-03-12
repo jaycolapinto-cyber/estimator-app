@@ -67,6 +67,7 @@
         "owner": "jaycolapinto-cyber",
         "repo": "estimator-app"
       }
-    ]
+    ],
+    "icon": "desktop/icon.png"
   }
 }
