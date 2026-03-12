@@ -499,6 +499,7 @@ function AuthedApp() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [orgLoading, setOrgLoading] = useState(true);
   const [orgResolved, setOrgResolved] = useState(false);
+  const [adminEmail, setAdminEmail] = useState<string | null>(null);
   useEffect(() => {
     if (orgId) console.log("APP_ORG_ID", orgId);
   }, [orgId]);
@@ -591,6 +592,7 @@ function AuthedApp() {
   useEffect(() => {
     let cancelled = false;
     const OFFLINE_ORG_KEY = "du_offline_org_id";
+    const ADMIN_EMAIL_KEY = "du_admin_email";
     const OFFLINE_LAST_KEY = "du_last_online";
 
     async function loadOrgForUser() {
@@ -744,7 +746,7 @@ function AuthedApp() {
 
     // Non-admins should NEVER see CreateOrgPage
     return (
-      <AccessRevoked />
+      <AccessRevoked adminEmail={adminEmail} />
     );
   }
 
