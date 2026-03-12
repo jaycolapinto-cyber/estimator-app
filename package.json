@@ -57,7 +57,7 @@
       "package.json"
     ],
     "win": {
-      "target": ["nsis", "zip"]
+      "target": ["zip", "msi"]
     },
     "nsis": {
       "oneClick": false,
