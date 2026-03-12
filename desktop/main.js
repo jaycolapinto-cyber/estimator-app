@@ -20,8 +20,17 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'build', 'index.html'));
+    const appPath = app.getAppPath();
+    const indexPath = path.join(appPath, 'build', 'index.html');
+    mainWindow.loadFile(indexPath);
   }
+
+  mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {
+    dialog.showErrorBox(
+      'Load error',
+      `Failed to load ${validatedURL}\n${errorCode}: ${errorDescription}`
+    );
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
