@@ -20,6 +20,7 @@
     "@types/node": "^25.2.3",
     "@types/react": "^18.2.38",
     "@types/react-dom": "^18.2.15",
+    "cross-env": "^7.0.3",
     "electron": "^41.0.0",
     "electron-builder": "^26.8.1",
     "eslint": "^8.57.1",
@@ -34,7 +35,7 @@
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject",
     "desktop:dev": "electron .",
-    "desktop:build": "npm run build && electron-builder --win"
+    "desktop:build": "cross-env PUBLIC_URL=. npm run build && electron-builder --win"
   },
   "browserslist": [
     ">0.2%",
