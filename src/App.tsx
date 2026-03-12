@@ -720,17 +720,15 @@ function AuthedApp() {
   // ✅ Guard: user has no org
   if (orgResolved && !orgId) {
     if (typeof window !== "undefined" && !navigator.onLine) {
-      const cached = window.localStorage.getItem(OFFLINE_ORG_KEY);
-      if (cached) {
-        return (
-          <AppShell
-            isAdmin={false}
-            orgId={cached}
-            onLogout={async () => {}}
-            userEmail={email}
-          />
-        );
-      }
+      const cached = window.localStorage.getItem(OFFLINE_ORG_KEY) || "du_offline";
+      return (
+        <AppShell
+          isAdmin={false}
+          orgId={cached}
+          onLogout={async () => {}}
+          userEmail={email}
+        />
+      );
     }
     // Only admins are allowed to create an org
     if (isAdmin) {
