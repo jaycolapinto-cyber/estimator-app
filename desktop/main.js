@@ -1,43 +1,83 @@
 const { app, BrowserWindow, shell, dialog, protocol, session } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
+const fs = require('fs');
 const isDev = !app.isPackaged;
 let mainWindow;
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    backgroundColor: '#0f172a',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      partition: 'persist:estimator'
-    },
-  });
-
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
-  } else {
-    mainWindow.loadURL('app://index.html');
+function ensureLogDir() {
+  try {
+    const dir = path.join(app.getPath('userData'), 'logs');
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  } catch (e) {
+    return null;
   }
+}
 
-  mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {
-    dialog.showErrorBox(
-      'Load error',
-      `Failed to load ${validatedURL}\n${errorCode}: ${errorDescription}`
-    );
-  });
+function logLine(msg) {
+  try {
+    const dir = ensureLogDir();
+    if (!dir) return;
+    const file = path.join(dir, 'startup.log');
+    const line = `[${new Date().toISOString()}] ${msg}\n`;
+    fs.appendFileSync(file, line, 'utf8');
+  } catch (e) {
+    // swallow
+  }
+}
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
-    return { action: 'deny' };
-  });
+process.on('uncaughtException', (err) => {
+  logLine(`uncaughtException: ${err?.stack || err}`);
+});
+
+process.on('unhandledRejection', (err) => {
+  logLine(`unhandledRejection: ${err?.stack || err}`);
+});
+
+function createWindow() {
+  try {
+    logLine(`createWindow (isDev=${isDev})`);
+    mainWindow = new BrowserWindow({
+      width: 1400,
+      height: 900,
+      backgroundColor: '#0f172a',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        partition: 'persist:estimator'
+      },
+    });
+
+    if (isDev) {
+      mainWindow.loadURL('http://localhost:3000');
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    } else {
+      mainWindow.loadURL('app://index.html');
+    }
+
+    mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {
+      logLine(`did-fail-load: ${validatedURL} ${errorCode} ${errorDescription}`);
+      dialog.showErrorBox(
+        'Load error',
+        `Failed to load ${validatedURL}\n${errorCode}: ${errorDescription}`
+      );
+    });
+
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    });
+  } catch (e) {
+    logLine(`createWindow error: ${e?.stack || e}`);
+    dialog.showErrorBox('Startup error', String(e));
+  }
 }
 
 app.whenReady().then(() => {
+  logLine(`app.whenReady (userData=${app.getPath('userData')})`);
+
   protocol.registerSchemesAsPrivileged([
     { scheme: 'app', privileges: { secure: true, standard: true } }
   ]);
@@ -45,7 +85,9 @@ app.whenReady().then(() => {
   if (!isDev) {
     protocol.registerFileProtocol('app', (request, callback) => {
       const url = request.url.replace('app://', '');
-      callback({ path: path.join(app.getAppPath(), 'build', url) });
+      const filePath = path.join(app.getAppPath(), 'build', url);
+      logLine(`app protocol: ${request.url} -> ${filePath}`);
+      callback({ path: filePath });
     });
   }
 
@@ -54,7 +96,12 @@ app.whenReady().then(() => {
   if (!isDev) {
     autoUpdater.autoDownload = false;
 
+    autoUpdater.on('error', (err) => {
+      logLine(`autoUpdater error: ${err?.stack || err}`);
+    });
+
     autoUpdater.on('update-available', async () => {
+      logLine('update-available');
       const result = await dialog.showMessageBox({
         type: 'info',
         buttons: ['Update', 'Later'],
@@ -67,6 +114,7 @@ app.whenReady().then(() => {
     });
 
     autoUpdater.on('update-downloaded', async () => {
+      logLine('update-downloaded');
       const result = await dialog.showMessageBox({
         type: 'info',
         buttons: ['Restart', 'Later'],
