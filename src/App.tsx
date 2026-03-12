@@ -590,6 +590,7 @@ function AuthedApp() {
   useEffect(() => {
     let cancelled = false;
     const OFFLINE_ORG_KEY = "du_offline_org_id";
+    const OFFLINE_LAST_KEY = "du_last_online";
 
     async function loadOrgForUser() {
       // If not logged in yet, don’t resolve anything.
@@ -614,6 +615,9 @@ function AuthedApp() {
           setOrgId(q1.data.org_id);
           if (typeof window !== "undefined") {
             window.localStorage.setItem(OFFLINE_ORG_KEY, q1.data.org_id);
+            if (navigator.onLine) {
+              window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now()));
+            }
           }
           console.log("APP_ORG_ID", q1.data.org_id);
           setIsAdmin(String(q1.data.role || "").toLowerCase() === "admin");
@@ -643,6 +647,9 @@ function AuthedApp() {
           setOrgId(q2.data.account_id);
           if (typeof window !== "undefined") {
             window.localStorage.setItem(OFFLINE_ORG_KEY, q2.data.account_id);
+            if (navigator.onLine) {
+              window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now()));
+            }
           }
           setIsAdmin(String(q2.data.role || "").toLowerCase() === "admin");
           return;
@@ -680,33 +687,47 @@ function AuthedApp() {
   if (!session) return <AuthPage />;
 
   if (orgLoading) return <BootScreen label="Loading your organization…" />;
-  // ✅ Guard: user has no org
-  if (orgResolved && !orgId) {
-    const isDesktop =
-      typeof window !== "undefined" &&
-      (window as any)?.estimator?.isDesktop;
 
-    if (isDesktop) {
+  const OFFLINE_LAST_KEY = "du_last_online";
+  const OFFLINE_ORG_KEY = "du_offline_org_id";
+  const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+
+  if (typeof window !== "undefined" && !navigator.onLine) {
+    const lastOnline = Number(window.localStorage.getItem(OFFLINE_LAST_KEY) || 0);
+    if (!lastOnline || Date.now() - lastOnline > OFFLINE_GRACE_MS) {
       return (
-        <AppShell
-          isAdmin={false}
-          orgId="du_desktop"
-          onLogout={async () => {}}
-          userEmail={email}
-        />
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-8">
+          <div className="max-w-xl rounded-2xl border border-slate-800 bg-slate-900/70 p-8 text-center">
+            <div className="text-xl font-semibold mb-2">Offline access expired</div>
+            <p className="text-sm text-slate-300">
+              Please reconnect to the internet and sign in to continue. Offline access lasts 3 days.
+            </p>
+            <button
+              className="mt-4 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-900"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </button>
+          </div>
+        </div>
       );
     }
+  }
 
+  // ✅ Guard: user has no org
+  if (orgResolved && !orgId) {
     if (typeof window !== "undefined" && !navigator.onLine) {
-      const cached = window.localStorage.getItem("du_offline_org_id") || "du_offline";
-      return (
-        <AppShell
-          isAdmin={false}
-          orgId={cached}
-          onLogout={async () => {}}
-          userEmail={email}
-        />
-      );
+      const cached = window.localStorage.getItem(OFFLINE_ORG_KEY);
+      if (cached) {
+        return (
+          <AppShell
+            isAdmin={false}
+            orgId={cached}
+            onLogout={async () => {}}
+            userEmail={email}
+          />
+        );
+      }
     }
     // Only admins are allowed to create an org
     if (isAdmin) {
