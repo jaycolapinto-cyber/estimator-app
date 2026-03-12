@@ -7,9 +7,10 @@
     "react",
     "starter"
   ],
-  "main": "src/index.tsx",
+  "main": "desktop/main.js",
   "dependencies": {
     "@supabase/supabase-js": "^2.91.0",
+    "electron-updater": "^6.8.3",
     "loader-utils": "3.2.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
@@ -19,6 +20,8 @@
     "@types/node": "^25.2.3",
     "@types/react": "^18.2.38",
     "@types/react-dom": "^18.2.15",
+    "electron": "^41.0.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^8.57.1",
     "eslint-config-react-app": "7.0.1",
     "eslint-plugin-react-hooks": "4.6.2",
@@ -29,7 +32,9 @@
     "start": "HOST=0.0.0.0 REACT_APP_VERSION=$npm_package_version react-scripts start",
     "build": "REACT_APP_VERSION=$npm_package_version react-scripts build",
     "test": "react-scripts test --env=jsdom",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "desktop:dev": "electron .",
+    "desktop:build": "npm run build && electron-builder --win"
   },
   "browserslist": [
     ">0.2%",
@@ -37,5 +42,31 @@
     "not ie <= 11",
     "not op_mini all"
   ],
-  "packageManager": "yarn@4.12.0"
+  "packageManager": "yarn@4.12.0",
+  "build": {
+    "appId": "com.decksunique.estimator",
+    "productName": "Estimator",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "build/**/*",
+      "desktop/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "jaycolapinto-cyber",
+        "repo": "estimator-app"
+      }
+    ]
+  }
 }
