@@ -35,6 +35,20 @@ process.on('unhandledRejection', (err) => {
   logLine(`unhandledRejection: ${err?.stack || err}`);
 });
 
+logLine('main.js loaded');
+
+app.on('ready', () => {
+  logLine('app ready event');
+});
+
+app.on('gpu-process-crashed', (event, killed) => {
+  logLine(`gpu-process-crashed (killed=${killed})`);
+});
+
+app.on('child-process-gone', (event, details) => {
+  logLine(`child-process-gone: ${JSON.stringify(details)}`);
+});
+
 function createWindow() {
   try {
     logLine(`createWindow (isDev=${isDev})`);
@@ -56,6 +70,11 @@ function createWindow() {
     } else {
       mainWindow.loadURL('app://index.html');
     }
+
+    mainWindow.webContents.on('render-process-gone', (_e, details) => {
+      logLine(`render-process-gone: ${JSON.stringify(details)}`);
+      dialog.showErrorBox('Render crash', JSON.stringify(details));
+    });
 
     mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {
       logLine(`did-fail-load: ${validatedURL} ${errorCode} ${errorDescription}`);
