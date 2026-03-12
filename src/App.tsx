@@ -3934,10 +3934,6 @@ const altBaseTotal =
                   </div>
                 )}
 
-                {pricingError && !(!isOnline || (pricingError || "").toLowerCase().includes("offline mode")) && (
-                  <div className="banner banner-info">{pricingError}</div>
-                )}
-
                 {pricingLoaded && (
                   <>
                     {/* ===== UPLIFT / MSRP ROW ===== */}
