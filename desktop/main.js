@@ -5,6 +5,12 @@ const fs = require('fs');
 const isDev = !app.isPackaged;
 let mainWindow;
 
+// Force software rendering to avoid GPU startup crashes on some Windows machines
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('disable-gpu-compositing');
+app.commandLine.appendSwitch('disable-software-rasterizer');
+
 function ensureLogDir() {
   try {
     const dir = path.join(app.getPath('userData'), 'logs');
