@@ -57,7 +57,7 @@
       "package.json"
     ],
     "win": {
-      "target": ["msi"]
+      "target": ["portable"]
     },
     "nsis": {
       "oneClick": false,
