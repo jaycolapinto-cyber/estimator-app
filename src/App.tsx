@@ -719,17 +719,34 @@ function AuthedApp() {
 
   // ✅ Guard: user has no org
   if (orgResolved && !orgId) {
-    if (typeof window !== "undefined" && !navigator.onLine) {
-      const cached = ((window as any).estimatorStore?.get(OFFLINE_ORG_KEY) ?? window.localStorage.getItem(OFFLINE_ORG_KEY)) || "du_offline";
+    const cachedOfflineOrg =
+      (typeof window !== "undefined" &&
+        ((window as any).estimatorStore?.get(OFFLINE_ORG_KEY) ??
+          window.localStorage.getItem(OFFLINE_ORG_KEY))) ||
+      null;
+
+    const cachedLastOnline =
+      (typeof window !== "undefined" &&
+        ((window as any).estimatorStore?.get(OFFLINE_LAST_KEY) ??
+          window.localStorage.getItem(OFFLINE_LAST_KEY))) ||
+      null;
+
+    const lastOnlineMs = Number(cachedLastOnline || 0);
+    const canUseOffline =
+      !!cachedOfflineOrg &&
+      (lastOnlineMs ? Date.now() - lastOnlineMs <= OFFLINE_GRACE_MS : true);
+
+    if (canUseOffline) {
       return (
         <AppShell
           isAdmin={false}
-          orgId={cached}
+          orgId={cachedOfflineOrg}
           onLogout={async () => {}}
           userEmail={email}
         />
       );
     }
+
     // Only admins are allowed to create an org
     if (isAdmin) {
       return (
@@ -743,32 +760,13 @@ function AuthedApp() {
     }
 
     // Non-admins should NEVER see CreateOrgPage
-    return (
-      <AccessRevoked adminEmail={adminEmail} />
-    );
+    return <AccessRevoked adminEmail={adminEmail} />;
   }
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
 
-  // ✅ Guard: only admins can create an org
-  if (orgResolved && !orgId) {
-    if (isAdmin) {
-      return (
-        <CreateOrgPage
-          onCreated={(newOrgId) => {
-            setOrgId(newOrgId);
-            setIsAdmin(true);
-          }}
-        />
-      );
-    }
-
-    return (
-      <AccessRevoked />
-    );
-  }
 
   return (
     <AppShell
