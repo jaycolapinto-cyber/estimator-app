@@ -9,6 +9,11 @@ import type { UserSettings, ProposalSection } from "./SettingsPage";
 import { fetchSowTemplatesRows } from "./sowTemplates";
 import { fetchProposalSections } from "./proposalSections";
 import { supabase } from "./supabaseClient";
+import {
+  buildEstimateVisualSelections,
+  matchVisualLibraryRecords,
+  readVisualLibraryRecords,
+} from "./visualLibrary";
 
 
 type AddItemRow = {
@@ -811,6 +816,22 @@ useEffect(() => {
   return Array.isArray(raw) ? raw.filter((s) => s?.enabled) : [];
 }, [readOnly, proposalSectionsSnapshot, dbProposalSections]);
 
+  const visualSelections = useMemo(
+    () =>
+      buildEstimateVisualSelections({
+        deckingType: deckingType || "",
+        railingType: railingType || "",
+        skirtingType: skirtingType || "",
+      }),
+    [deckingType, railingType, skirtingType]
+  );
+
+  const proposalVisuals = useMemo(() => {
+    const records = readVisualLibraryRecords();
+    return matchVisualLibraryRecords(records, visualSelections)
+      .filter((record) => record.imageRef?.trim())
+      .sort((a, b) => a.category.localeCompare(b.category) || a.displayName.localeCompare(b.displayName));
+  }, [visualSelections]);
 
 
   // ✅ Order from SettingsPage
@@ -1323,6 +1344,31 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
   <p className="proposal-text proposal-notes-print" style={{ whiteSpace: "pre-wrap" }}>
     {proposalNotes}
   </p>
+) : null}
+
+{proposalVisuals.length ? (
+  <section className="proposal-visual-appendix proposal-page-break-before">
+    <div className="proposal-clientBarTitle">Visual Appendix</div>
+    <h2 className="proposal-secTitle" style={{ marginTop: 0 }}>Selected Product Visuals</h2>
+    <p className="proposal-text" style={{ marginTop: 0 }}>
+      Matched from the estimator selections for decking, railing, and skirting / lattice.
+    </p>
+
+    <div className="proposal-visual-grid">
+      {proposalVisuals.map((record) => (
+        <figure key={record.id} className="proposal-visual-card">
+          <div className="proposal-visual-meta">
+            <span className="proposal-visual-category">{record.category}</span>
+            <strong>{record.displayName}</strong>
+          </div>
+          <img src={record.imageRef} alt={record.displayName} className="proposal-visual-image" />
+          {record.caption?.trim() ? (
+            <figcaption className="proposal-visual-caption">{record.caption}</figcaption>
+          ) : null}
+        </figure>
+      ))}
+    </div>
+  </section>
 ) : null}
    </div>
       </article>

@@ -16,6 +16,7 @@ import AuthPage from "./AuthPage";
 import CreateOrgPage from "./CreateOrgPage";
 import ContractPage from "./ContractPage";
 import AccessRevoked from "./AccessRevoked";
+import VisualLibraryPage from "./VisualLibraryPage";
 function BootScreen({ label = "Loading…" }: { label?: string }) {
   return (
     <div
@@ -419,10 +420,12 @@ const PRICING_CATS_CACHE_KEY = "du_cache::pricing_categories_v1";
 const PRICING_CACHE_TS_KEY = "du_cache::pricing_ts_v1";
 const OFFLINE_ORG_KEY = "du_offline_org_id";
 const OFFLINE_LAST_KEY = "du_last_online";
+const AUTH_SESSION_HINT_KEY = "du_auth_session_hint";
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 2000;
 const AUTH_URL_PARSE_TIMEOUT_MS = 1500;
 const ORG_LOOKUP_TIMEOUT_MS = 2500;
 const STARTUP_FETCH_TIMEOUT_MS = 3500;
+const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
 function startupLog(step: string, detail?: unknown) {
   const now = new Date().toISOString();
@@ -535,13 +538,17 @@ function App() {
 }
 function AuthedApp() {
   const [session, setSession] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [authResolved, setAuthResolved] = useState(false);
+  const [hasSessionHint, setHasSessionHint] = useState<boolean>(() => {
+    return storageGet(AUTH_SESSION_HINT_KEY) === "1";
+  });
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [orgLoading, setOrgLoading] = useState(true);
   const [orgResolved, setOrgResolved] = useState(false);
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
+  const [startupNotice, setStartupNotice] = useState<string | null>(null);
   useEffect(() => {
     if (orgId) console.log("APP_ORG_ID", orgId);
   }, [orgId]);
@@ -626,19 +633,24 @@ function AuthedApp() {
   useEffect(() => {
     let cancelled = false;
 
-    const releaseLoading = (nextSession: any = undefined) => {
-      if (cancelled) return;
-      if (nextSession !== undefined) {
-        setSession(nextSession ?? null);
+    const applySession = (nextSession: any = undefined) => {
+      if (cancelled || nextSession === undefined) return;
+      const resolvedSession = nextSession ?? null;
+      setSession(resolvedSession);
+      setAuthResolved(true);
+      const nextHint = !!resolvedSession;
+      setHasSessionHint(nextHint);
+      if (nextHint) storageSet(AUTH_SESSION_HINT_KEY, "1");
+      else if (typeof window !== "undefined") {
+        window.localStorage.removeItem(AUTH_SESSION_HINT_KEY);
       }
-      setAuthLoading(false);
     };
 
     const fallbackTimer = window.setTimeout(() => {
-      startupLog("auth bootstrap fallback", {
+      startupLog("auth bootstrap still pending", {
         online: typeof navigator === "undefined" ? undefined : navigator.onLine,
       });
-      releaseLoading();
+      if (!cancelled) setAuthResolved(true);
     }, AUTH_BOOTSTRAP_TIMEOUT_MS);
 
     withTimeout(
@@ -648,20 +660,20 @@ function AuthedApp() {
     )
       .then(({ data }) => {
         window.clearTimeout(fallbackTimer);
-        releaseLoading(data.session ?? null);
+        applySession(data.session ?? null);
       })
       .catch((error) => {
         window.clearTimeout(fallbackTimer);
         startupLog("auth bootstrap failed", {
           message: (error as any)?.message || String(error),
         });
-        releaseLoading(null);
+        if (!cancelled) setAuthResolved(true);
       });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
         window.clearTimeout(fallbackTimer);
-        releaseLoading(newSession ?? null);
+        applySession(newSession ?? null);
       }
     );
 
@@ -684,10 +696,13 @@ function AuthedApp() {
 
       setOrgLoading(true);
       setOrgResolved(false);
+      setStartupNotice(null);
 
       if (cachedOrgId) {
         startupLog("org bootstrap from cache", { cachedOrgId });
         setOrgId(cachedOrgId);
+        setOrgLoading(false);
+        setOrgResolved(true);
       }
 
       if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -774,6 +789,9 @@ function AuthedApp() {
         });
         setOrgId(cachedOrgId || null);
         setIsAdmin(false);
+        if (cachedOrgId) {
+          setStartupNotice("Using cached organization data. Reconnect to verify account access.");
+        }
       } catch (error: any) {
         startupLog("org lookup fallback", {
           message: error?.message || String(error),
@@ -783,6 +801,9 @@ function AuthedApp() {
         if (cancelled) return;
         setOrgId(cachedOrgId || null);
         setIsAdmin(false);
+        if (cachedOrgId) {
+          setStartupNotice("Startup sync failed. Using cached organization data until connection recovers.");
+        }
       } finally {
         if (cancelled) return;
         setOrgLoading(false);
@@ -798,13 +819,14 @@ function AuthedApp() {
   }, [session?.user?.id]);
 
   // 3) Render gates (IMPORTANT ORDER)
-  if (authLoading) return <BootScreen label="Checking sign-in…" />;
+  if (!session) {
+    if (!authResolved && hasSessionHint) {
+      return <BootScreen label="Restoring your session…" />;
+    }
+    return <AuthPage />;
+  }
 
-  if (!session) return <AuthPage />;
-
-  if (orgLoading) return <BootScreen label="Loading your organization…" />;
-
-  const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+  if (orgLoading && !orgId) return <BootScreen label="Loading your organization…" />;
 
   if (typeof window !== "undefined" && !navigator.onLine) {
     const lastOnline = Number(storageGet(OFFLINE_LAST_KEY) || 0);
@@ -846,6 +868,7 @@ function AuthedApp() {
           orgId={cachedOfflineOrg}
           onLogout={async () => {}}
           userEmail={email}
+          startupNotice={startupNotice}
         />
       );
     }
@@ -877,6 +900,7 @@ function AuthedApp() {
       orgId={orgId}
       onLogout={handleLogout}
       userEmail={email}
+      startupNotice={startupNotice}
     />
   );
 }
@@ -886,11 +910,13 @@ function AppShell({
   orgId,
   onLogout,
   userEmail,
+  startupNotice,
 }: {
   isAdmin: boolean;
   orgId: string | null;
   onLogout: () => void;
   userEmail: string;
+  startupNotice?: string | null;
 }) {
   // ===============================
   // ROLE GATES (email-based for now)
@@ -1221,7 +1247,8 @@ console.log("EDGE FUNCTION SUCCESS:", data);
   | "analytics"
   | "settings"
   | "users"
-  | "contract";  // ← ADD THIS
+  | "contract"
+  | "visualLibrary";
 
 
   const [activeNav, setActiveNav] = useState<NavKey>("estimator");
@@ -3956,6 +3983,11 @@ const altBaseTotal =
             isActive={activeNav === "proposals"}
             onClick={() => setActiveNav("proposals")}
           />
+          <SidebarNavItem
+            label="Visual Library"
+            isActive={activeNav === "visualLibrary"}
+            onClick={() => setActiveNav("visualLibrary")}
+          />
 <SidebarNavItem
   label="Contract"
   isActive={activeNav === "contract"}
@@ -4075,6 +4107,7 @@ const altBaseTotal =
               {activeNav === "analytics" && "Analytics"}
               {activeNav === "settings" && "Settings"}
               {activeNav === "users" && "Users / Licenses"}
+              {activeNav === "visualLibrary" && "Visual Library"}
               {activeNav === "contract" && "Contract (Page Under Construction)"}
 
             </div>
@@ -4082,6 +4115,8 @@ const altBaseTotal =
             <div className="page-header__subtitle">
               {activeNav === "estimator" &&
                 "Build an estimate and generate a proposal"}
+              {activeNav === "visualLibrary" &&
+                "Manage product image mappings for future proposal appendices"}
             </div>
           </div>
         </header>
@@ -4093,7 +4128,8 @@ const altBaseTotal =
             "main-grid " +
             (activeNav === "analytics" ||
             activeNav === "proposals" ||
-            activeNav === "settings"
+            activeNav === "settings" ||
+            activeNav === "visualLibrary"
               ? "main-grid--single "
               : "") +
             (activeNav === "pricingAdmin" ? "main-grid--pricing " : "")
@@ -4148,6 +4184,12 @@ const altBaseTotal =
 
                 {pricingLoaded && (
                   <>
+                    {startupNotice && (
+                      <div className="banner banner-info">
+                        {startupNotice}
+                      </div>
+                    )}
+
                     {/* ===== UPLIFT / MSRP ROW ===== */}
                     <div className="msrp-pill-row">
                       {/* Left: MSRP toggle pill */}
@@ -5071,6 +5113,20 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
               setUserSettings={setUserSettings}
               orgId={orgId}
               isAdmin={isAdmin}
+            />
+          )}
+
+          {activeNav === "visualLibrary" && (
+            <VisualLibraryPage
+              estimateContext={{
+                deckingType: selectedDecking?.name || "",
+                railingType: selectedRailing?.name || "",
+                stairsType: selectedStairOption?.name || "",
+                skirtingType: selectedSkirting?.name || "",
+                demoType: selectedDemo?.name || "",
+                fastenerType: selectedFastener?.name || "",
+                addItemsDetailed: addItemsDetailed as any,
+              }}
             />
           )}
 

@@ -613,3 +613,62 @@ padding: 34px 40px 360px 40px !important;
   border-color: #b91c1c !important;
   color: #ffffff !important;
 }
+
+.proposal-page-break-before {
+  break-before: page;
+  page-break-before: always;
+}
+
+.proposal-visual-appendix {
+  margin-top: 28px;
+}
+
+.proposal-visual-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 14px;
+}
+
+.proposal-visual-card {
+  margin: 0;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.proposal-visual-meta {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px 8px;
+}
+
+.proposal-visual-category {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.proposal-visual-image {
+  display: block;
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  background: #e2e8f0;
+}
+
+.proposal-visual-caption {
+  padding: 10px 14px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .proposal-visual-grid {
+    grid-template-columns: 1fr;
+  }
+}
