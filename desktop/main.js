@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const isDev = !app.isPackaged;
 let mainWindow;
+const UPDATE_CHECK_DELAY_MS = 15000;
 
 // Force software rendering to avoid GPU startup crashes on some Windows machines
 app.disableHardwareAcceleration();
@@ -173,7 +174,13 @@ app.whenReady().then(() => {
       }
     });
 
-    autoUpdater.checkForUpdates();
+    setTimeout(() => {
+      if (mainWindow?.isDestroyed()) return;
+      logLine('checkForUpdates scheduled');
+      autoUpdater.checkForUpdates().catch((err) => {
+        logLine(`checkForUpdates error: ${err?.stack || err}`);
+      });
+    }, UPDATE_CHECK_DELAY_MS);
   }
 });
 

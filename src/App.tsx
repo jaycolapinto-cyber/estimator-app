@@ -417,6 +417,48 @@ const RECENTS_MAX = 8;
 const PRICING_ITEMS_CACHE_KEY = "du_cache::pricing_items2_v1";
 const PRICING_CATS_CACHE_KEY = "du_cache::pricing_categories_v1";
 const PRICING_CACHE_TS_KEY = "du_cache::pricing_ts_v1";
+const OFFLINE_ORG_KEY = "du_offline_org_id";
+const OFFLINE_LAST_KEY = "du_last_online";
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 2000;
+const AUTH_URL_PARSE_TIMEOUT_MS = 1500;
+const ORG_LOOKUP_TIMEOUT_MS = 2500;
+const STARTUP_FETCH_TIMEOUT_MS = 3500;
+
+function startupLog(step: string, detail?: unknown) {
+  const now = new Date().toISOString();
+  if (detail === undefined) {
+    console.log(`[startup ${now}] ${step}`);
+    return;
+  }
+  console.log(`[startup ${now}] ${step}`, detail);
+}
+
+function storageGet(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  return (
+    (window as any).estimatorStore?.get(key) ?? window.localStorage.getItem(key)
+  );
+}
+
+function storageSet(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  (window as any).estimatorStore?.set(key, value) ??
+    window.localStorage.setItem(key, value);
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 function getRecents(): RecentFile[] {
   try {
@@ -544,8 +586,23 @@ function AuthedApp() {
   }, [orgId, session?.user?.id]);
   // 0) ✅ Finalize Supabase auth after invite/magic links (prevents blank spinning page)
   useEffect(() => {
-    // Trigger Supabase to parse auth params from the URL (hash/query)
-    supabase.auth.getSession().catch(() => {});
+    const hasAuthParams =
+      Boolean(window.location.hash) ||
+      /[?&](access_token|refresh_token|code|token_hash)=/i.test(
+        window.location.search || ""
+      );
+
+    if (hasAuthParams) {
+      withTimeout(
+        Promise.resolve(supabase.auth.getSession()),
+        AUTH_URL_PARSE_TIMEOUT_MS,
+        "auth url parse"
+      ).catch((error) => {
+        startupLog("auth url parse skipped", {
+          message: (error as any)?.message || String(error),
+        });
+      });
+    }
 
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
@@ -569,111 +626,167 @@ function AuthedApp() {
   useEffect(() => {
     let cancelled = false;
 
-    supabase.auth.getSession().then(({ data }) => {
+    const releaseLoading = (nextSession: any = undefined) => {
       if (cancelled) return;
-      setSession(data.session ?? null);
+      if (nextSession !== undefined) {
+        setSession(nextSession ?? null);
+      }
       setAuthLoading(false);
-    });
+    };
+
+    const fallbackTimer = window.setTimeout(() => {
+      startupLog("auth bootstrap fallback", {
+        online: typeof navigator === "undefined" ? undefined : navigator.onLine,
+      });
+      releaseLoading();
+    }, AUTH_BOOTSTRAP_TIMEOUT_MS);
+
+    withTimeout(
+      Promise.resolve(supabase.auth.getSession()),
+      AUTH_BOOTSTRAP_TIMEOUT_MS,
+      "auth session bootstrap"
+    )
+      .then(({ data }) => {
+        window.clearTimeout(fallbackTimer);
+        releaseLoading(data.session ?? null);
+      })
+      .catch((error) => {
+        window.clearTimeout(fallbackTimer);
+        startupLog("auth bootstrap failed", {
+          message: (error as any)?.message || String(error),
+        });
+        releaseLoading(null);
+      });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
-        if (cancelled) return;
-        setSession(newSession ?? null);
-        setAuthLoading(false);
+        window.clearTimeout(fallbackTimer);
+        releaseLoading(newSession ?? null);
       }
     );
 
     return () => {
       cancelled = true;
+      window.clearTimeout(fallbackTimer);
       listener?.subscription.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    const OFFLINE_ORG_KEY = "du_offline_org_id";
-    const ADMIN_EMAIL_KEY = "du_admin_email";
-    const OFFLINE_LAST_KEY = "du_last_online";
 
     async function loadOrgForUser() {
-      // If not logged in yet, don’t resolve anything.
       if (!session?.user?.id) return;
+
+      const userId = session.user.id;
+      const cachedOrgId = storageGet(OFFLINE_ORG_KEY);
+      const startedAt = performance.now();
 
       setOrgLoading(true);
       setOrgResolved(false);
 
+      if (cachedOrgId) {
+        startupLog("org bootstrap from cache", { cachedOrgId });
+        setOrgId(cachedOrgId);
+      }
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        startupLog("org lookup skipped: offline", { cachedOrgId });
+        if (!cancelled) {
+          setOrgId(cachedOrgId || null);
+          setIsAdmin(false);
+          setOrgLoading(false);
+          setOrgResolved(true);
+        }
+        return;
+      }
+
       try {
-        const userId = session.user.id;
+        const [q1, q2] = await Promise.all([
+          withTimeout(
+            Promise.resolve(
+              supabase
+                .from("org_members")
+                .select("org_id, role")
+                .eq("user_id", userId)
+                .maybeSingle()
+            ),
+            ORG_LOOKUP_TIMEOUT_MS,
+            "org lookup"
+          ).catch((error) => ({ error } as any)),
+          withTimeout(
+            Promise.resolve(
+              supabase
+                .from("org_members")
+                .select("account_id, role")
+                .eq("user_id", userId)
+                .maybeSingle()
+            ),
+            ORG_LOOKUP_TIMEOUT_MS,
+            "org account lookup"
+          ).catch((error) => ({ error } as any)),
+        ]);
 
-        // 1) Try org_members.org_id first
-        const q1 = await supabase
-          .from("org_members")
-          .select("org_id, role")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        // If that worked and we have an org_id, use it
-        if (!q1.error && q1.data?.org_id) {
+        if (!q1?.error && q1?.data?.org_id) {
           if (cancelled) return;
           setOrgId(q1.data.org_id);
-          if (typeof window !== "undefined") {
-            ((window as any).estimatorStore?.set(OFFLINE_ORG_KEY, q1.data.org_id) ?? window.localStorage.setItem(OFFLINE_ORG_KEY, q1.data.org_id));
-            if (navigator.onLine) {
-              ((window as any).estimatorStore?.set(OFFLINE_LAST_KEY, String(Date.now())) ?? window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now())));
-            }
-          }
+          storageSet(OFFLINE_ORG_KEY, q1.data.org_id);
+          storageSet(OFFLINE_LAST_KEY, String(Date.now()));
+          startupLog("org lookup success", {
+            orgId: q1.data.org_id,
+            elapsedMs: Math.round(performance.now() - startedAt),
+          });
           console.log("APP_ORG_ID", q1.data.org_id);
           setIsAdmin(String(q1.data.role || "").toLowerCase() === "admin");
           return;
         }
 
-        // 2) If org_id column doesn’t exist, fallback to account_id
-        const msg = (q1.error?.message || "").toLowerCase();
+        const msg = (q1?.error?.message || "").toLowerCase();
         const missingOrgId =
           msg.includes("column") &&
           msg.includes("org_id") &&
           (msg.includes("does not exist") || msg.includes("not found"));
 
-        if (!missingOrgId) {
-          // If it’s some other error, treat as “no org” but don’t crash
+        if (!missingOrgId && q1?.error) {
           console.warn("org lookup error:", q1.error);
         }
 
-        const q2 = await supabase
-          .from("org_members")
-          .select("account_id, role")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (!q2.error && q2.data?.account_id) {
+        if (!q2?.error && q2?.data?.account_id) {
           if (cancelled) return;
           setOrgId(q2.data.account_id);
-          if (typeof window !== "undefined") {
-            ((window as any).estimatorStore?.set(OFFLINE_ORG_KEY, q2.data.account_id) ?? window.localStorage.setItem(OFFLINE_ORG_KEY, q2.data.account_id));
-            if (navigator.onLine) {
-              ((window as any).estimatorStore?.set(OFFLINE_LAST_KEY, String(Date.now())) ?? window.localStorage.setItem(OFFLINE_LAST_KEY, String(Date.now())));
-            }
-          }
+          storageSet(OFFLINE_ORG_KEY, q2.data.account_id);
+          storageSet(OFFLINE_LAST_KEY, String(Date.now()));
+          startupLog("org account lookup success", {
+            orgId: q2.data.account_id,
+            elapsedMs: Math.round(performance.now() - startedAt),
+          });
           setIsAdmin(String(q2.data.role || "").toLowerCase() === "admin");
           return;
         }
 
-        // No org membership found -> IMPORTANT:
-        // They are NOT an admin and should NOT see CreateOrgPage.
+        if (q2?.error) {
+          console.warn("org account lookup error:", q2.error);
+        }
+
         if (cancelled) return;
-        setOrgId(null);
+        startupLog("org lookup returned no membership", {
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
+        setOrgId(cachedOrgId || null);
+        setIsAdmin(false);
+      } catch (error: any) {
+        startupLog("org lookup fallback", {
+          message: error?.message || String(error),
+          elapsedMs: Math.round(performance.now() - startedAt),
+          cachedOrgId,
+        });
+        if (cancelled) return;
+        setOrgId(cachedOrgId || null);
         setIsAdmin(false);
       } finally {
         if (cancelled) return;
         setOrgLoading(false);
-        setOrgResolved(true); // ✅ this is the key fix
-
-        if (typeof window !== "undefined" && !navigator.onLine) {
-          const cached = ((window as any).estimatorStore?.get(OFFLINE_ORG_KEY) ?? window.localStorage.getItem(OFFLINE_ORG_KEY));
-          if (cached) {
-            setOrgId(cached);
-          }
-        }
+        setOrgResolved(true);
       }
     }
 
@@ -691,12 +804,10 @@ function AuthedApp() {
 
   if (orgLoading) return <BootScreen label="Loading your organization…" />;
 
-  const OFFLINE_LAST_KEY = "du_last_online";
-  const OFFLINE_ORG_KEY = "du_offline_org_id";
   const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
   if (typeof window !== "undefined" && !navigator.onLine) {
-    const lastOnline = Number(((window as any).estimatorStore?.get(OFFLINE_LAST_KEY) ?? window.localStorage.getItem(OFFLINE_LAST_KEY)) || 0);
+    const lastOnline = Number(storageGet(OFFLINE_LAST_KEY) || 0);
     if (!lastOnline || Date.now() - lastOnline > OFFLINE_GRACE_MS) {
       return (
         <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-8">
@@ -719,17 +830,9 @@ function AuthedApp() {
 
   // ✅ Guard: user has no org
   if (orgResolved && !orgId) {
-    const cachedOfflineOrg =
-      (typeof window !== "undefined" &&
-        ((window as any).estimatorStore?.get(OFFLINE_ORG_KEY) ??
-          window.localStorage.getItem(OFFLINE_ORG_KEY))) ||
-      null;
+    const cachedOfflineOrg = storageGet(OFFLINE_ORG_KEY) || null;
 
-    const cachedLastOnline =
-      (typeof window !== "undefined" &&
-        ((window as any).estimatorStore?.get(OFFLINE_LAST_KEY) ??
-          window.localStorage.getItem(OFFLINE_LAST_KEY))) ||
-      null;
+    const cachedLastOnline = storageGet(OFFLINE_LAST_KEY) || null;
 
     const lastOnlineMs = Number(cachedLastOnline || 0);
     const canUseOffline =
@@ -2062,14 +2165,14 @@ const EST_EXT = ".DUest";
   const [pricingError, setPricingError] = useState<string | null>(null);
 
   // ------------------------------
-  // LOAD PRICING (NETWORK FIRST, CACHE FALLBACK)
+  // LOAD PRICING (CACHE FIRST, REFRESH FAST, FAIL FAST OFFLINE)
   // ------------------------------
   useEffect(() => {
     const loadPricing = async () => {
+      const startedAt = performance.now();
       setPricingLoaded(false);
       setPricingError(null);
 
-      // helper: apply items/cats to state
       const applyPricing = (itemsRaw: any[], catsRaw: any[]) => {
         const cleanedItems = (itemsRaw || []).map((r: any) => ({
           ...r,
@@ -2085,19 +2188,57 @@ const EST_EXT = ".DUest";
         dirtySuspendedRef.current = false;
       };
 
-      // 1) Try Supabase first
+      let hadCache = false;
       try {
-        const [itemsRes, catsRes] = await Promise.all([
-          supabase
-            .from("pricing_items2")
-            .select("*")
-            .order("sort_order", { ascending: true })
-            .order("name", { ascending: true }),
-          supabase
-            .from("pricing_categories")
-            .select("id, name, is_active")
-            .order("name", { ascending: true }),
-        ]);
+        const rawItems = localStorage.getItem(PRICING_ITEMS_CACHE_KEY);
+        const rawCats = localStorage.getItem(PRICING_CATS_CACHE_KEY);
+
+        if (rawItems && rawCats) {
+          const cachedItems = JSON.parse(rawItems);
+          const cachedCats = JSON.parse(rawCats);
+          applyPricing(cachedItems, cachedCats);
+          hadCache = true;
+          startupLog("pricing cache applied", {
+            items: cachedItems.length || 0,
+            categories: cachedCats.length || 0,
+            cacheAgeMs: Math.max(0, Date.now() - Number(localStorage.getItem(PRICING_CACHE_TS_KEY) || 0)),
+            elapsedMs: Math.round(performance.now() - startedAt),
+          });
+        }
+      } catch (error) {
+        startupLog("pricing cache read failed", error);
+      }
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        if (hadCache) {
+          setPricingError("Offline mode: using cached pricing.");
+        } else {
+          setPricingError("Offline mode: no cached pricing yet. Using empty pricing lists.");
+          setPricingLoaded(true);
+        }
+        startupLog("pricing refresh skipped: offline", {
+          hadCache,
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
+        return;
+      }
+
+      try {
+        const [itemsRes, catsRes] = await withTimeout(
+          Promise.all([
+            supabase
+              .from("pricing_items2")
+              .select("*")
+              .order("sort_order", { ascending: true })
+              .order("name", { ascending: true }),
+            supabase
+              .from("pricing_categories")
+              .select("id, name, is_active")
+              .order("name", { ascending: true }),
+          ]),
+          STARTUP_FETCH_TIMEOUT_MS,
+          "pricing bootstrap"
+        );
 
         if (itemsRes.error) throw itemsRes.error;
         if (catsRes.error) throw catsRes.error;
@@ -2105,7 +2246,6 @@ const EST_EXT = ".DUest";
         const items = itemsRes.data || [];
         const cats = catsRes.data || [];
 
-        // ✅ cache successful response
         try {
           localStorage.setItem(PRICING_ITEMS_CACHE_KEY, JSON.stringify(items));
           localStorage.setItem(PRICING_CATS_CACHE_KEY, JSON.stringify(cats));
@@ -2113,31 +2253,27 @@ const EST_EXT = ".DUest";
         } catch {}
 
         applyPricing(items, cats);
-        return;
+        setPricingError(null);
+        startupLog("pricing refresh success", {
+          items: items.length,
+          categories: cats.length,
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
       } catch (err: any) {
-        // 2) If Supabase fails, try cache
-        try {
-          const rawItems = localStorage.getItem(PRICING_ITEMS_CACHE_KEY);
-          const rawCats = localStorage.getItem(PRICING_CATS_CACHE_KEY);
-
-          if (rawItems && rawCats) {
-            const cachedItems = JSON.parse(rawItems);
-            const cachedCats = JSON.parse(rawCats);
-
-            applyPricing(cachedItems, cachedCats);
-            setPricingError(
-              "Offline mode: using last saved pricing. (Reconnect to refresh.)"
-            );
-            return;
-          }
-        } catch {}
-
-        // 3) No cache available
-        setPricingError(
-          err?.message ||
-            "Offline mode: no cached pricing yet. Using empty pricing lists."
-        );
-        setPricingLoaded(true);
+        startupLog("pricing refresh fallback", {
+          message: err?.message || String(err),
+          hadCache,
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
+        if (!hadCache) {
+          setPricingError(
+            err?.message ||
+              "Offline mode: no cached pricing yet. Using empty pricing lists."
+          );
+          setPricingLoaded(true);
+        } else {
+          setPricingError("Offline mode: using cached pricing. Reconnect to refresh.");
+        }
       }
     };
 
