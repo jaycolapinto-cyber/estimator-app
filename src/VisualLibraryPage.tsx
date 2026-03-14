@@ -48,7 +48,7 @@ const emptyDraft: DraftState = {
   notes: "",
 };
 
-function fileToDataUrl(file: File): Promise<string> {
+function fileToDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -58,6 +58,67 @@ function fileToDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error || new Error("Unable to read image."));
     reader.readAsDataURL(file);
   });
+}
+
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to load image."));
+    image.src = url;
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Unable to process image."));
+      },
+      type,
+      quality
+    );
+  });
+}
+
+async function optimizeImageForStorage(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
+  const sourceUrl = await fileToDataUrl(file);
+  const image = await loadImage(sourceUrl);
+  const maxDimension = 1600;
+  const longestSide = Math.max(image.width, image.height) || 1;
+  const scale = Math.min(1, maxDimension / longestSide);
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Unable to process image.");
+
+  context.drawImage(image, 0, 0, width, height);
+
+  const hasAlpha = file.type === "image/png" || file.type === "image/webp";
+  const type = hasAlpha ? "image/webp" : "image/jpeg";
+  const qualitySteps = type === "image/jpeg" ? [0.82, 0.72, 0.62] : [0.82, 0.72, 0.62];
+  const targetBytes = 350 * 1024;
+
+  let bestBlob: Blob | null = null;
+  for (const quality of qualitySteps) {
+    const blob = await canvasToBlob(canvas, type, quality);
+    bestBlob = blob;
+    if (blob.size <= targetBytes) break;
+  }
+
+  if (!bestBlob) throw new Error("Unable to process image.");
+
+  return {
+    dataUrl: await fileToDataUrl(bestBlob),
+    width,
+    height,
+  };
 }
 
 function formatImageSourceLabel(imageRef: string): string {
@@ -142,9 +203,11 @@ export default function VisualLibraryPage({ estimateContext, productOptionsByCat
     setImageStatus("");
 
     try {
-      const dataUrl = await fileToDataUrl(file);
-      setDraft((prev) => ({ ...prev, imageRef: dataUrl }));
-      setImageStatus(`${file.name} added and stored locally in this browser.`);
+      const optimizedImage = await optimizeImageForStorage(file);
+      setDraft((prev) => ({ ...prev, imageRef: optimizedImage.dataUrl }));
+      setImageStatus(
+        `${file.name} optimized to ${optimizedImage.width}×${optimizedImage.height} and stored locally in this browser.`
+      );
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Unable to read image.");
       setImageStatus("");
