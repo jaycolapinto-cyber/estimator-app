@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { uid } from "./utils/uid";
 import {
   buildEstimateVisualSelections,
@@ -32,7 +32,6 @@ type DraftState = {
 };
 
 const DEFAULT_CATEGORY = VISUAL_LIBRARY_PRIORITY_CATEGORIES[0];
-
 const emptyDraft: DraftState = {
   category: DEFAULT_CATEGORY,
   productKey: "",
@@ -42,10 +41,31 @@ const emptyDraft: DraftState = {
   notes: "",
 };
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Unable to read image."));
+    };
+    reader.onerror = () => reject(reader.error || new Error("Unable to read image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatImageSourceLabel(imageRef: string): string {
+  if (!imageRef.trim()) return "—";
+  if (imageRef.startsWith("data:image/")) return "Uploaded image stored in this browser";
+  return imageRef;
+}
+
 export default function VisualLibraryPage({ estimateContext }: Props) {
   const [records, setRecords] = useState<VisualLibraryRecord[]>([]);
   const [draft, setDraft] = useState<DraftState>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [imageStatus, setImageStatus] = useState<string>("");
+  const [isReadingImage, setIsReadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setRecords(readVisualLibraryRecords());
@@ -68,6 +88,33 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
   const resetDraft = () => {
     setDraft(emptyDraft);
     setEditingId(null);
+    setImageStatus("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      window.alert("Please choose an image file.");
+      e.target.value = "";
+      return;
+    }
+
+    setIsReadingImage(true);
+    setImageStatus("");
+
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setDraft((prev) => ({ ...prev, imageRef: dataUrl }));
+      setImageStatus(`${file.name} added and stored locally in this browser.`);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Unable to read image.");
+      setImageStatus("");
+    } finally {
+      setIsReadingImage(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -100,7 +147,9 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
 
     setRecords((prev) => {
       const withoutCurrent = prev.filter((item) => item.id !== nextRecord.id);
-      return [nextRecord, ...withoutCurrent].sort((a, b) => a.category.localeCompare(b.category) || a.displayName.localeCompare(b.displayName));
+      return [nextRecord, ...withoutCurrent].sort(
+        (a, b) => a.category.localeCompare(b.category) || a.displayName.localeCompare(b.displayName)
+      );
     });
 
     resetDraft();
@@ -116,6 +165,8 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
       caption: record.caption || "",
       notes: record.notes || "",
     });
+    setImageStatus(record.imageRef.startsWith("data:image/") ? "This record uses an uploaded browser-stored image." : "");
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleDelete = (id: string) => {
@@ -127,7 +178,7 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
     <section style={{ display: "grid", gap: 20 }}>
       <div style={{ display: "grid", gap: 8 }}>
         <div style={{ fontSize: 14, opacity: 0.8 }}>
-          Local-first proposal visual registry. MVP is intentionally limited to decking, railing, and skirting / lattice so proposal matching stays obvious.
+          Local-first proposal visual registry. Upload an image here, keep the auto-generated product key, and the proposal appendix will match it from the estimate selections.
         </div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <div style={pillStyle}>Categories: {VISUAL_LIBRARY_PRIORITY_CATEGORIES.join(" • ")}</div>
@@ -142,15 +193,26 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
 
           <label style={fieldStyle}>
             <span>Category</span>
-            <select value={draft.category} onChange={(e) => setDraft((prev) => ({ ...prev, category: e.target.value, productKey: prev.displayName ? buildVisualProductKey(e.target.value, prev.displayName) : "" }))}>
+            <select
+              value={draft.category}
+              onChange={(e) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  category: e.target.value,
+                  productKey: prev.displayName ? buildVisualProductKey(e.target.value, prev.displayName) : "",
+                }))
+              }
+            >
               {VISUAL_LIBRARY_PRIORITY_CATEGORIES.map((category) => (
-                <option key={category} value={category}>{category}</option>
+                <option key={category} value={category}>
+                  {category}
+                </option>
               ))}
             </select>
           </label>
 
           <label style={fieldStyle}>
-            <span>Display name</span>
+            <span>Product name</span>
             <input
               value={draft.displayName}
               onChange={(e) => {
@@ -172,22 +234,57 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
               onChange={(e) => setDraft((prev) => ({ ...prev, productKey: e.target.value }))}
               placeholder="decking:trex_transcend_-_spiced_rum"
             />
-            <small style={{ opacity: 0.7 }}>Auto-filled from category + display name. Override only if needed.</small>
+            <small style={{ opacity: 0.7 }}>
+              Auto-generated from category + product name. Leave it alone unless you need to remap an existing estimate selection.
+            </small>
           </label>
 
           <label style={fieldStyle}>
-            <span>Image reference</span>
-            <input value={draft.imageRef} onChange={(e) => setDraft((prev) => ({ ...prev, imageRef: e.target.value }))} placeholder="https://... or /images/..." />
+            <span>Upload image</span>
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} />
+            <small style={{ opacity: 0.7 }}>
+              Small MVP path: uploaded images are stored in this browser via local storage so localhost testing stays simple.
+            </small>
           </label>
+
+          <label style={fieldStyle}>
+            <span>Or paste image URL/path</span>
+            <input
+              value={draft.imageRef}
+              onChange={(e) => {
+                setDraft((prev) => ({ ...prev, imageRef: e.target.value }));
+                setImageStatus("");
+              }}
+              placeholder="https://... or /images/..."
+            />
+          </label>
+
+          {isReadingImage ? <div style={{ fontSize: 12, color: "#3730a3" }}>Reading image…</div> : null}
+          {imageStatus ? <div style={{ fontSize: 12, color: "#166534" }}>{imageStatus}</div> : null}
+          {draft.imageRef ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.75 }}>Preview</div>
+              <img src={draft.imageRef} alt={draft.displayName || "Visual preview"} style={previewImageStyle} />
+            </div>
+          ) : null}
 
           <label style={fieldStyle}>
             <span>Customer caption</span>
-            <input value={draft.caption} onChange={(e) => setDraft((prev) => ({ ...prev, caption: e.target.value }))} placeholder="Optional line shown on the proposal visual page" />
+            <input
+              value={draft.caption}
+              onChange={(e) => setDraft((prev) => ({ ...prev, caption: e.target.value }))}
+              placeholder="Optional line shown on the proposal visual page"
+            />
           </label>
 
           <label style={fieldStyle}>
             <span>Internal notes</span>
-            <textarea value={draft.notes} onChange={(e) => setDraft((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Source link, crop reminder, etc." rows={5} />
+            <textarea
+              value={draft.notes}
+              onChange={(e) => setDraft((prev) => ({ ...prev, notes: e.target.value }))}
+              placeholder="Source link, crop reminder, etc."
+              rows={5}
+            />
           </label>
 
           <div style={{ display: "flex", gap: 10 }}>
@@ -238,20 +335,29 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
                   const isMatched = mappedRecords.some((item) => item.id === record.id);
                   return (
                     <div key={record.id} style={{ ...rowStyle, alignItems: "start" }}>
-                      <div style={{ display: "grid", gap: 4 }}>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                          <strong>{record.displayName}</strong>
-                          <span style={tagStyle}>{record.category}</span>
-                          {isMatched && <span style={{ ...tagStyle, background: "#dcfce7", color: "#166534" }}>Used in current estimate</span>}
+                      <div style={{ display: "grid", gap: 8 }}>
+                        {record.imageRef ? (
+                          <img src={record.imageRef} alt={record.displayName} style={libraryThumbStyle} />
+                        ) : null}
+                        <div style={{ display: "grid", gap: 4 }}>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                            <strong>{record.displayName}</strong>
+                            <span style={tagStyle}>{record.category}</span>
+                            {isMatched && <span style={{ ...tagStyle, background: "#dcfce7", color: "#166534" }}>Used in current estimate</span>}
+                          </div>
+                          <div style={{ fontSize: 12, opacity: 0.7 }}>Key: {record.productKey}</div>
+                          <div style={{ fontSize: 12, opacity: 0.85 }}>Image: {formatImageSourceLabel(record.imageRef)}</div>
+                          {record.caption ? <div style={{ fontSize: 13 }}>{record.caption}</div> : null}
+                          {record.notes ? <div style={{ fontSize: 12, opacity: 0.8 }}>{record.notes}</div> : null}
                         </div>
-                        <div style={{ fontSize: 12, opacity: 0.7 }}>Key: {record.productKey}</div>
-                        <div style={{ fontSize: 12, opacity: 0.85 }}>Image: {record.imageRef || "—"}</div>
-                        {record.caption ? <div style={{ fontSize: 13 }}>{record.caption}</div> : null}
-                        {record.notes ? <div style={{ fontSize: 12, opacity: 0.8 }}>{record.notes}</div> : null}
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
-                        <button type="button" className="btn" onClick={() => handleEdit(record)}>Edit</button>
-                        <button type="button" className="btn" onClick={() => handleDelete(record.id)}>Delete</button>
+                        <button type="button" className="btn" onClick={() => handleEdit(record)}>
+                          Edit
+                        </button>
+                        <button type="button" className="btn" onClick={() => handleDelete(record.id)}>
+                          Delete
+                        </button>
                       </div>
                     </div>
                   );
@@ -313,4 +419,20 @@ const tagStyle: React.CSSProperties = {
   color: "#0f172a",
   fontSize: 12,
   fontWeight: 700,
+};
+
+const previewImageStyle: React.CSSProperties = {
+  width: "100%",
+  maxHeight: 220,
+  objectFit: "cover",
+  borderRadius: 12,
+  border: "1px solid rgba(15, 23, 42, 0.08)",
+};
+
+const libraryThumbStyle: React.CSSProperties = {
+  width: 120,
+  height: 90,
+  objectFit: "cover",
+  borderRadius: 10,
+  border: "1px solid rgba(15, 23, 42, 0.08)",
 };
