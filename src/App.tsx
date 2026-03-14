@@ -4108,7 +4108,7 @@ const altBaseTotal =
               {activeNav === "settings" && "Settings"}
               {activeNav === "users" && "Users / Licenses"}
               {activeNav === "visualLibrary" && "Visual Library"}
-              {activeNav === "contract" && "Contract (Page Under Construction)"}
+              {activeNav === "contract" && "Contract"}
 
             </div>
 
@@ -5126,6 +5126,14 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                 demoType: selectedDemo?.name || "",
                 fastenerType: selectedFastener?.name || "",
                 addItemsDetailed: addItemsDetailed as any,
+              }}
+              productOptionsByCategory={{
+                Decking: deckingOptions.map((item) => ({ value: item.name || "", label: item.name || "" })),
+                Railing: railingOptions.map((item) => ({ value: item.name || "", label: item.name || "" })),
+                "Skirting / Lattice": [...skirtingOnlyOptions, ...latticeOnlyOptions].map((item) => ({
+                  value: item.name || "",
+                  label: item.name || "",
+                })),
               }}
             />
           )}

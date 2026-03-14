@@ -9,6 +9,12 @@ import {
   VisualLibraryRecord,
   writeVisualLibraryRecords,
 } from "./visualLibrary";
+import "./VisualLibraryPage.css";
+
+type ProductOption = {
+  value: string;
+  label: string;
+};
 
 type Props = {
   estimateContext: {
@@ -20,6 +26,7 @@ type Props = {
     fastenerType?: string;
     addItemsDetailed?: Array<any>;
   };
+  productOptionsByCategory: Record<string, ProductOption[]>;
 };
 
 type DraftState = {
@@ -59,7 +66,17 @@ function formatImageSourceLabel(imageRef: string): string {
   return imageRef;
 }
 
-export default function VisualLibraryPage({ estimateContext }: Props) {
+function uniqueOptions(options: ProductOption[]): ProductOption[] {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    const key = option.value.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export default function VisualLibraryPage({ estimateContext, productOptionsByCategory }: Props) {
   const [records, setRecords] = useState<VisualLibraryRecord[]>([]);
   const [draft, setDraft] = useState<DraftState>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -85,11 +102,30 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
     [records, estimateSelections]
   );
 
+  const productOptions = useMemo(
+    () => uniqueOptions(productOptionsByCategory[draft.category] || []),
+    [draft.category, productOptionsByCategory]
+  );
+
   const resetDraft = () => {
     setDraft(emptyDraft);
     setEditingId(null);
     setImageStatus("");
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleCategoryChange = (category: string) => {
+    const nextOptions = uniqueOptions(productOptionsByCategory[category] || []);
+    setDraft((prev) => {
+      const keepExisting = nextOptions.some((option) => option.value === prev.displayName);
+      const displayName = keepExisting ? prev.displayName : "";
+      return {
+        ...prev,
+        category,
+        displayName,
+        productKey: displayName ? buildVisualProductKey(category, displayName) : "",
+      };
+    });
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -175,34 +211,34 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
   };
 
   return (
-    <section style={{ display: "grid", gap: 20 }}>
-      <div style={{ display: "grid", gap: 8 }}>
-        <div style={{ fontSize: 14, opacity: 0.8 }}>
-          Local-first proposal visual registry. Upload an image here, keep the auto-generated product key, and the proposal appendix will match it from the estimate selections.
+    <section className="vl-page">
+      <div className="vl-hero">
+        <div>
+          <div className="vl-eyebrow">Proposal visuals</div>
+          <h2 className="vl-hero__title">Visual Library</h2>
+          <div className="vl-hero__text">
+            Upload product images once, keep naming aligned with the Estimator, and proposal appendices will map automatically.
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <div style={pillStyle}>Categories: {VISUAL_LIBRARY_PRIORITY_CATEGORIES.join(" • ")}</div>
-          <div style={pillStyle}>Library records: {records.length}</div>
-          <div style={pillStyle}>Current estimate matches: {mappedRecords.length}</div>
+        <div className="vl-pills">
+          <div className="vl-pill">Categories: {VISUAL_LIBRARY_PRIORITY_CATEGORIES.join(" • ")}</div>
+          <div className="vl-pill">Library records: {records.length}</div>
+          <div className="vl-pill vl-pill--success">Current estimate matches: {mappedRecords.length}</div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 420px) minmax(0, 1fr)", gap: 20, alignItems: "start" }}>
-        <form onSubmit={handleSubmit} style={panelStyle}>
-          <div style={panelTitleStyle}>{editingId ? "Edit visual" : "Add visual"}</div>
+      <div className="vl-layout">
+        <form onSubmit={handleSubmit} className="vl-card vl-card--form">
+          <div className="vl-card__header">
+            <div>
+              <div className="vl-card__title">{editingId ? "Edit visual" : "Add visual"}</div>
+              <div className="vl-card__subtitle">Product names come directly from the live Estimator option lists.</div>
+            </div>
+          </div>
 
-          <label style={fieldStyle}>
+          <label className="vl-field">
             <span>Category</span>
-            <select
-              value={draft.category}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  category: e.target.value,
-                  productKey: prev.displayName ? buildVisualProductKey(e.target.value, prev.displayName) : "",
-                }))
-              }
-            >
+            <select value={draft.category} onChange={(e) => handleCategoryChange(e.target.value)}>
               {VISUAL_LIBRARY_PRIORITY_CATEGORIES.map((category) => (
                 <option key={category} value={category}>
                   {category}
@@ -211,64 +247,75 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
             </select>
           </label>
 
-          <label style={fieldStyle}>
+          <label className="vl-field">
             <span>Product name</span>
-            <input
+            <select
               value={draft.displayName}
               onChange={(e) => {
                 const displayName = e.target.value;
                 setDraft((prev) => ({
                   ...prev,
                   displayName,
-                  productKey: buildVisualProductKey(prev.category, displayName),
+                  productKey: displayName ? buildVisualProductKey(prev.category, displayName) : "",
                 }));
               }}
-              placeholder="Trex Transcend - Spiced Rum"
-            />
+            >
+              <option value="">Select a product</option>
+              {productOptions.map((option) => (
+                <option key={`${draft.category}:${option.value}`} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <small>
+              This list stays synced with the Estimator so proposal visual names always match the selectable products.
+            </small>
           </label>
 
-          <label style={fieldStyle}>
+          <label className="vl-field">
             <span>Product key</span>
             <input
               value={draft.productKey}
               onChange={(e) => setDraft((prev) => ({ ...prev, productKey: e.target.value }))}
               placeholder="decking:trex_transcend_-_spiced_rum"
             />
-            <small style={{ opacity: 0.7 }}>
+            <small>
               Auto-generated from category + product name. Leave it alone unless you need to remap an existing estimate selection.
             </small>
           </label>
 
-          <label style={fieldStyle}>
-            <span>Upload image</span>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} />
-            <small style={{ opacity: 0.7 }}>
-              Small MVP path: uploaded images are stored in this browser via local storage so localhost testing stays simple.
-            </small>
-          </label>
+          <div className="vl-upload-grid">
+            <label className="vl-field">
+              <span>Upload image</span>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} />
+              <small>
+                Uploaded images are stored locally in this browser so localhost testing stays simple.
+              </small>
+            </label>
 
-          <label style={fieldStyle}>
-            <span>Or paste image URL/path</span>
-            <input
-              value={draft.imageRef}
-              onChange={(e) => {
-                setDraft((prev) => ({ ...prev, imageRef: e.target.value }));
-                setImageStatus("");
-              }}
-              placeholder="https://... or /images/..."
-            />
-          </label>
+            <label className="vl-field">
+              <span>Or paste image URL/path</span>
+              <input
+                value={draft.imageRef}
+                onChange={(e) => {
+                  setDraft((prev) => ({ ...prev, imageRef: e.target.value }));
+                  setImageStatus("");
+                }}
+                placeholder="https://... or /images/..."
+              />
+            </label>
+          </div>
 
-          {isReadingImage ? <div style={{ fontSize: 12, color: "#3730a3" }}>Reading image…</div> : null}
-          {imageStatus ? <div style={{ fontSize: 12, color: "#166534" }}>{imageStatus}</div> : null}
+          {isReadingImage ? <div className="vl-status vl-status--info">Reading image…</div> : null}
+          {imageStatus ? <div className="vl-status vl-status--success">{imageStatus}</div> : null}
           {draft.imageRef ? (
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.75 }}>Preview</div>
-              <img src={draft.imageRef} alt={draft.displayName || "Visual preview"} style={previewImageStyle} />
+            <div className="vl-preview">
+              <div className="vl-preview__label">Preview</div>
+              <img src={draft.imageRef} alt={draft.displayName || "Visual preview"} className="vl-preview__image" />
             </div>
           ) : null}
 
-          <label style={fieldStyle}>
+          <label className="vl-field">
             <span>Customer caption</span>
             <input
               value={draft.caption}
@@ -277,7 +324,7 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
             />
           </label>
 
-          <label style={fieldStyle}>
+          <label className="vl-field">
             <span>Internal notes</span>
             <textarea
               value={draft.notes}
@@ -287,7 +334,7 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
             />
           </label>
 
-          <div style={{ display: "flex", gap: 10 }}>
+          <div className="vl-actions">
             <button type="submit" className="btn btn-primary">
               {editingId ? "Update" : "Save"}
             </button>
@@ -299,23 +346,28 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
           </div>
         </form>
 
-        <div style={{ display: "grid", gap: 20 }}>
-          <div style={panelStyle}>
-            <div style={panelTitleStyle}>Estimate product mapping preview</div>
+        <div className="vl-stack">
+          <div className="vl-card">
+            <div className="vl-card__header">
+              <div>
+                <div className="vl-card__title">Estimate product mapping preview</div>
+                <div className="vl-card__subtitle">See which current selections already have proposal visuals ready.</div>
+              </div>
+            </div>
             {estimateSelections.length === 0 ? (
-              <div style={{ opacity: 0.7 }}>Open an estimate with decking, railing, or skirting selected to preview proposal visual matches.</div>
+              <div className="vl-empty">Open an estimate with decking, railing, or skirting selected to preview proposal visual matches.</div>
             ) : (
-              <div style={{ display: "grid", gap: 10 }}>
+              <div className="vl-list">
                 {estimateSelections.map((item) => {
                   const matched = mappedRecords.find((record) => record.productKey === item.productKey);
                   return (
-                    <div key={item.productKey} style={rowStyle}>
+                    <div key={item.productKey} className="vl-row">
                       <div>
-                        <div style={{ fontWeight: 700 }}>{item.category}</div>
+                        <div className="vl-row__title">{item.category}</div>
                         <div>{item.label}</div>
-                        <div style={{ fontSize: 12, opacity: 0.7 }}>{item.productKey}</div>
+                        <div className="vl-row__meta">{item.productKey}</div>
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: matched ? "#166534" : "#991b1b" }}>
+                      <div className={matched ? "vl-badge vl-badge--success" : "vl-badge vl-badge--danger"}>
                         {matched ? "Ready for proposal appendix" : "Missing visual"}
                       </div>
                     </div>
@@ -325,33 +377,40 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
             )}
           </div>
 
-          <div style={panelStyle}>
-            <div style={panelTitleStyle}>Library records</div>
+          <div className="vl-card">
+            <div className="vl-card__header">
+              <div>
+                <div className="vl-card__title">Library records</div>
+                <div className="vl-card__subtitle">Saved visuals are grouped in a cleaner review list for quick maintenance.</div>
+              </div>
+            </div>
             {records.length === 0 ? (
-              <div style={{ opacity: 0.7 }}>No visuals saved yet.</div>
+              <div className="vl-empty">No visuals saved yet.</div>
             ) : (
-              <div style={{ display: "grid", gap: 12 }}>
+              <div className="vl-records">
                 {records.map((record) => {
                   const isMatched = mappedRecords.some((item) => item.id === record.id);
                   return (
-                    <div key={record.id} style={{ ...rowStyle, alignItems: "start" }}>
-                      <div style={{ display: "grid", gap: 8 }}>
+                    <div key={record.id} className="vl-record">
+                      <div className="vl-record__main">
                         {record.imageRef ? (
-                          <img src={record.imageRef} alt={record.displayName} style={libraryThumbStyle} />
-                        ) : null}
-                        <div style={{ display: "grid", gap: 4 }}>
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                          <img src={record.imageRef} alt={record.displayName} className="vl-record__thumb" />
+                        ) : (
+                          <div className="vl-record__thumb vl-record__thumb--empty">No image</div>
+                        )}
+                        <div className="vl-record__content">
+                          <div className="vl-record__heading">
                             <strong>{record.displayName}</strong>
-                            <span style={tagStyle}>{record.category}</span>
-                            {isMatched && <span style={{ ...tagStyle, background: "#dcfce7", color: "#166534" }}>Used in current estimate</span>}
+                            <span className="vl-tag">{record.category}</span>
+                            {isMatched && <span className="vl-tag vl-tag--success">Used in current estimate</span>}
                           </div>
-                          <div style={{ fontSize: 12, opacity: 0.7 }}>Key: {record.productKey}</div>
-                          <div style={{ fontSize: 12, opacity: 0.85 }}>Image: {formatImageSourceLabel(record.imageRef)}</div>
-                          {record.caption ? <div style={{ fontSize: 13 }}>{record.caption}</div> : null}
-                          {record.notes ? <div style={{ fontSize: 12, opacity: 0.8 }}>{record.notes}</div> : null}
+                          <div className="vl-row__meta">Key: {record.productKey}</div>
+                          <div className="vl-row__meta">Image: {formatImageSourceLabel(record.imageRef)}</div>
+                          {record.caption ? <div className="vl-record__caption">{record.caption}</div> : null}
+                          {record.notes ? <div className="vl-record__notes">{record.notes}</div> : null}
                         </div>
                       </div>
-                      <div style={{ display: "flex", gap: 8 }}>
+                      <div className="vl-actions vl-actions--compact">
                         <button type="button" className="btn" onClick={() => handleEdit(record)}>
                           Edit
                         </button>
@@ -370,69 +429,3 @@ export default function VisualLibraryPage({ estimateContext }: Props) {
     </section>
   );
 }
-
-const panelStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid rgba(15, 23, 42, 0.08)",
-  borderRadius: 16,
-  padding: 18,
-  boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
-  display: "grid",
-  gap: 14,
-};
-
-const panelTitleStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 800,
-};
-
-const fieldStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 6,
-  fontSize: 13,
-  fontWeight: 600,
-};
-
-const rowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 16,
-  padding: "12px 0",
-  borderTop: "1px solid rgba(15, 23, 42, 0.08)",
-};
-
-const pillStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 999,
-  background: "#eef2ff",
-  color: "#3730a3",
-  fontSize: 12,
-  fontWeight: 700,
-};
-
-const tagStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "2px 8px",
-  borderRadius: 999,
-  background: "#e2e8f0",
-  color: "#0f172a",
-  fontSize: 12,
-  fontWeight: 700,
-};
-
-const previewImageStyle: React.CSSProperties = {
-  width: "100%",
-  maxHeight: 220,
-  objectFit: "cover",
-  borderRadius: 12,
-  border: "1px solid rgba(15, 23, 42, 0.08)",
-};
-
-const libraryThumbStyle: React.CSSProperties = {
-  width: 120,
-  height: 90,
-  objectFit: "cover",
-  borderRadius: 10,
-  border: "1px solid rgba(15, 23, 42, 0.08)",
-};
