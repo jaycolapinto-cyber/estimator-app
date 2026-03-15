@@ -828,9 +828,22 @@ useEffect(() => {
 
   const proposalVisuals = useMemo(() => {
     const records = readVisualLibraryRecords();
-    return matchVisualLibraryRecords(records, visualSelections)
+    const matched = matchVisualLibraryRecords(records, visualSelections)
       .filter((record) => record.imageRef?.trim())
       .sort((a, b) => a.category.localeCompare(b.category) || a.displayName.localeCompare(b.displayName));
+
+    // Keep only a single Skirting visual (show style example once)
+    let skirtingKept = false;
+    const filtered = matched.filter((r) => {
+      if ((r.category || '').toLowerCase().includes('skirt')) {
+        if (skirtingKept) return false;
+        skirtingKept = true;
+        return true;
+      }
+      return true;
+    });
+
+    return filtered;
   }, [visualSelections]);
 
 
@@ -1357,14 +1370,17 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
     <div className="proposal-visual-grid">
       {proposalVisuals.map((record) => (
         <figure key={record.id} className="proposal-visual-card">
-          <div className="proposal-visual-meta">
-            <span className="proposal-visual-category">{record.category}</span>
-            <strong>{record.displayName}</strong>
-          </div>
-          <img src={record.imageRef} alt={record.displayName} className="proposal-visual-image" />
-          {record.caption?.trim() ? (
-            <figcaption className="proposal-visual-caption">{record.caption}</figcaption>
-          ) : null}
+          <img src={record.imageRef} alt={record.displayName} className={`proposal-visual-image ${record.category === 'Decking' ? 'contain' : ''}`} />
+          {(record.category || '').toLowerCase().includes('skirt') ? (
+            <div className="proposal-visual-label">
+              <strong>Skirting</strong>
+            </div>
+          ) : (
+            <div className="proposal-visual-label">
+              <span className="proposal-visual-category">{(record.category || '').toLowerCase().includes('latt') ? 'Lattice' : record.category} — </span>
+              <strong>{record.displayName}</strong>
+            </div>
+          )}
         </figure>
       ))}
     </div>

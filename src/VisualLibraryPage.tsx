@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { uid } from "./utils/uid";
+import { createClient } from "@supabase/supabase-js";
 import {
   buildEstimateVisualSelections,
   buildVisualProductKey,
@@ -10,6 +11,12 @@ import {
   writeVisualLibraryRecords,
 } from "./visualLibrary";
 import "./VisualLibraryPage.css";
+
+// Supabase client (anon key is safe for client-side; bucket is public)
+const SUPABASE_URL = "https://tozsbxtxurssvznreikr.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvenNieHR4dXJzc3Z6bnJlaWtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5ODk4NTcsImV4cCI6MjA4MDU2NTg1N30.mQUI8eeiOlSFGIaye2SFnJhNt6EIU-bsBsHFhIhwv7s";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const STORAGE_BUCKET = "visual-library";
 
 type ProductOption = {
   value: string;
@@ -82,7 +89,7 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number)
   });
 }
 
-async function optimizeImageForStorage(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
+async function optimizeImageForStorage(file: File): Promise<{ dataUrl: string; blob: Blob; width: number; height: number; contentType: string }> {
   const sourceUrl = await fileToDataUrl(file);
   const image = await loadImage(sourceUrl);
   const maxDimension = 1600;
@@ -116,8 +123,10 @@ async function optimizeImageForStorage(file: File): Promise<{ dataUrl: string; w
 
   return {
     dataUrl: await fileToDataUrl(bestBlob),
+    blob: bestBlob,
     width,
     height,
+    contentType: type,
   };
 }
 
@@ -178,6 +187,17 @@ export default function VisualLibraryPage({ estimateContext, productOptionsByCat
   const handleCategoryChange = (category: string) => {
     const nextOptions = uniqueOptions(productOptionsByCategory[category] || []);
     setDraft((prev) => {
+      // For Skirting, auto-label and hide the product selector
+      if ((category || '').toLowerCase().includes('skirt')) {
+        const displayName = 'Skirting Style';
+        return {
+          ...prev,
+          category,
+          displayName,
+          productKey: buildVisualProductKey(category, displayName),
+        };
+      }
+
       const keepExisting = nextOptions.some((option) => option.value === prev.displayName);
       const displayName = keepExisting ? prev.displayName : "";
       return {
@@ -203,13 +223,26 @@ export default function VisualLibraryPage({ estimateContext, productOptionsByCat
     setImageStatus("");
 
     try {
-      const optimizedImage = await optimizeImageForStorage(file);
-      setDraft((prev) => ({ ...prev, imageRef: optimizedImage.dataUrl }));
-      setImageStatus(
-        `${file.name} optimized to ${optimizedImage.width}×${optimizedImage.height} and stored locally in this browser.`
-      );
+      const optimized = await optimizeImageForStorage(file);
+      // Upload optimized blob to Supabase Storage
+      const category = (draft.category || "").trim() || "misc";
+      const safeName = (draft.displayName || file.name || uid()).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+      const objectPath = `${category}/${Date.now()}-${safeName}.${optimized.contentType.includes("webp") ? "webp" : "jpg"}`;
+
+      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(objectPath, optimized.blob, {
+        upsert: false,
+        contentType: optimized.contentType,
+      });
+      if (upErr) throw upErr;
+
+      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(objectPath);
+      const publicUrl = pub?.publicUrl || "";
+
+      setDraft((prev) => ({ ...prev, imageRef: publicUrl }));
+      setImageStatus(`${file.name} uploaded to Supabase and linked.`);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Unable to read image.");
+      console.error(error);
+      window.alert(error instanceof Error ? error.message : "Upload failed.");
       setImageStatus("");
     } finally {
       setIsReadingImage(false);
@@ -220,11 +253,14 @@ export default function VisualLibraryPage({ estimateContext, productOptionsByCat
     e.preventDefault();
 
     const category = draft.category.trim();
-    const displayName = draft.displayName.trim();
+    const isSkirting = (category || '').toLowerCase().includes('skirt');
+    const displayName = isSkirting ? 'Skirting Style' : draft.displayName.trim();
     const imageRef = draft.imageRef.trim();
     const caption = draft.caption.trim();
     const notes = draft.notes.trim();
-    const productKey = (draft.productKey || buildVisualProductKey(category, displayName)).trim();
+
+    // Always build productKey from canonicalized category + displayName
+    const productKey = buildVisualProductKey(category, displayName).trim();
 
     if (!category || !displayName || !productKey) {
       window.alert("Category, product key, and display name are required.");
@@ -256,10 +292,12 @@ export default function VisualLibraryPage({ estimateContext, productOptionsByCat
 
   const handleEdit = (record: VisualLibraryRecord) => {
     setEditingId(record.id);
+    const isSkirting = (record.category || '').toLowerCase().includes('skirt');
+    const displayName = isSkirting ? 'Skirting Style' : (record.displayName || '');
     setDraft({
       category: record.category,
-      productKey: record.productKey,
-      displayName: record.displayName,
+      productKey: buildVisualProductKey(record.category, displayName),
+      displayName,
       imageRef: record.imageRef,
       caption: record.caption || "",
       notes: record.notes || "",
@@ -310,30 +348,38 @@ export default function VisualLibraryPage({ estimateContext, productOptionsByCat
             </select>
           </label>
 
-          <label className="vl-field">
-            <span>Product name</span>
-            <select
-              value={draft.displayName}
-              onChange={(e) => {
-                const displayName = e.target.value;
-                setDraft((prev) => ({
-                  ...prev,
-                  displayName,
-                  productKey: displayName ? buildVisualProductKey(prev.category, displayName) : "",
-                }));
-              }}
-            >
-              <option value="">Select a product</option>
-              {productOptions.map((option) => (
-                <option key={`${draft.category}:${option.value}`} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <small>
-              This list stays synced with the Estimator so proposal visual names always match the selectable products.
-            </small>
-          </label>
+          {!(draft.category || '').toLowerCase().includes('skirt') ? (
+            <label className="vl-field">
+              <span>Product name</span>
+              <select
+                value={draft.displayName}
+                onChange={(e) => {
+                  const displayName = e.target.value;
+                  setDraft((prev) => ({
+                    ...prev,
+                    displayName,
+                    productKey: displayName ? buildVisualProductKey(prev.category, displayName) : "",
+                  }));
+                }}
+              >
+                <option value="">Select a product</option>
+                {productOptions.map((option) => (
+                  <option key={`${draft.category}:${option.value}`} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <small>
+                This list stays synced with the Estimator so proposal visual names always match the selectable products.
+              </small>
+            </label>
+          ) : (
+            <div className="vl-field">
+              <span>Product name</span>
+              <input value="Skirting Style" readOnly onChange={() => {}} />
+              <small>Skirting visuals are grouped under a single style label. The Estimator stays unchanged.</small>
+            </div>
+          )}
 
           <label className="vl-field">
             <span>Product key</span>

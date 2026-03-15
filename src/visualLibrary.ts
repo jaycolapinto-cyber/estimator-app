@@ -20,7 +20,8 @@ export const VISUAL_LIBRARY_STORAGE_KEY = "du_visual_library_records_v1";
 export const VISUAL_LIBRARY_PRIORITY_CATEGORIES = [
   "Decking",
   "Railing",
-  "Skirting / Lattice",
+  "Skirting",
+  "Lattice",
 ] as const;
 
 function normalize(value: string): string {
@@ -31,7 +32,9 @@ function normalize(value: string): string {
 }
 
 export function buildVisualProductKey(category: string, name: string): string {
-  return `${normalize(category)}:${normalize(name)}`;
+  const cat = (category || "").toLowerCase();
+  const canonical = cat.includes("skirt") || cat.includes("latt") ? "Skirting / Lattice" : category;
+  return `${normalize(canonical)}:${normalize(name)}`;
 }
 
 export function readVisualLibraryRecords(): VisualLibraryRecord[] {

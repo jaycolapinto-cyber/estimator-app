@@ -5130,10 +5130,17 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
               productOptionsByCategory={{
                 Decking: deckingOptions.map((item) => ({ value: item.name || "", label: item.name || "" })),
                 Railing: railingOptions.map((item) => ({ value: item.name || "", label: item.name || "" })),
-                "Skirting / Lattice": [...skirtingOnlyOptions, ...latticeOnlyOptions].map((item) => ({
-                  value: item.name || "",
-                  label: item.name || "",
-                })),
+                Skirting: Array.from(
+                  new Map(
+                    (skirtingOnlyOptions || [])
+                      .map((item) => {
+                        const raw = (item.name || "").trim();
+                        const style = raw.split(" - ")[0]; // collapse to style regardless of material
+                        return [style.toLowerCase(), { value: style, label: style }];
+                      })
+                  ).values()
+                ),
+                Lattice: (latticeOnlyOptions || []).map((item) => ({ value: item.name || "", label: item.name || "" })),
               }}
             />
           )}

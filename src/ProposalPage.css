@@ -547,8 +547,13 @@ padding: 34px 40px 360px 40px !important;
   width: 7.0in;
   height: auto;
   opacity: 0.12;
+  filter: grayscale(100%) saturate(0%);
   pointer-events: none;
   z-index: 2;
+}
+.proposal-page--readonly .du-print-watermark img,
+.proposal-page--readonly .du-print-watermark svg {
+  filter: grayscale(100%) saturate(0%) !important;
 }
 
 @media print {
@@ -571,11 +576,16 @@ padding: 34px 40px 360px 40px !important;
     height: auto !important;
 
     opacity: 0.12 !important; /* adjust 0.06–0.12 */
+    filter: grayscale(100%) saturate(0%) !important;
     pointer-events: none !important;
 
     z-index: 2 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  .du-print-watermark img,
+  .du-print-watermark svg {
+    filter: grayscale(100%) saturate(0%) !important;
   }
 
   /* content stays above watermark = professional */
@@ -656,12 +666,40 @@ padding: 34px 40px 360px 40px !important;
 .proposal-visual-image {
   display: block;
   width: 100%;
-  height: 220px;
-  object-fit: cover;
-  background: #e2e8f0;
+  height: auto; /* no forced square on screen */
+  max-height: 2.4in; /* keep tiles reasonably compact */
+  object-fit: contain; /* show full image; user pre-crops for square fill */
+  background: #fff; /* neutral letterbox if needed */
+}
+/* Decking swatch strips: preserve full image without crop; allow rectangular swatches */
+.proposal-visual-image.contain {
+  object-fit: contain;
+  background: #fff;
+  aspect-ratio: auto; /* don’t force square */
+  width: 100%;
+  height: auto;
+  max-height: 1.2in; /* print-friendly swatch height */
+}
+@media print {
+  .proposal-visual-image.contain {
+    width: 3in !important;   /* card width */
+    height: auto !important; /* keep natural aspect */
+    max-height: 1.2in !important; /* keep it compact */
+    object-fit: contain !important;
+  }
+}
+
+.proposal-visual-label {
+  padding: 10px 12px;
+  font-size: 10pt;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .proposal-visual-caption {
+  display: none !important;
   padding: 10px 14px 14px;
   font-size: 12px;
   line-height: 1.5;
@@ -673,25 +711,26 @@ padding: 34px 40px 360px 40px !important;
   }
 }/* === Visual Appendix print sizing overrides === */
 @media print {
-  /* 2-up grid with ~3in cards */
+  /* 2–3 up grid with fixed-width ~3.2in cards; auto-fits per page width */
   .proposal-visual-grid {
-    grid-template-columns: repeat(2, 3.2in);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(3.2in, 3.2in));
     justify-content: start;
-    column-gap: 0.35in;
-    row-gap: 0.35in;
+    column-gap: 0.15in;
+    row-gap: 0.15in;
   }
   .proposal-visual-card {
     width: 3.2in; /* includes border */
   }
   .proposal-visual-image {
     width: 3in !important;
-    height: 3in !important;
-    object-fit: cover !important;
+    height: auto !important;
+    object-fit: contain !important; /* no cropping in print */
     margin: 0 auto;
     display: block;
-    background: #e2e8f0;
+    background: #fff; /* neutral letterbox */
   }
-  .proposal-visual-meta,
+  .proposal-visual-label,
   .proposal-visual-caption {
     padding: 0.08in 0.12in; /* compact for print */
   }
