@@ -4712,42 +4712,26 @@ const altBaseTotal =
                             </select>
                           </div>
 
-                          {skirtingCategory === "Skirting" ? (
-                            <div className="form-field">
-                              <input
-                                className="form-input"
-                                value="Style only"
-                                disabled
-                                title="A generic skirting photo will be shown in the proposal"
-                              />
-                            </div>
-                          ) : (
-                            <div className="form-field">
-                              <select
-                                className="form-select"
-                                value={selectedSkirtingId}
-                                onChange={(e) => {
-                                  setSkirtingTypeTouched(true);
-                                  setSelectedSkirtingId(e.target.value);
-                                }}
-                                disabled={!skirtingCategory}
-                              >
-                                <option value="" disabled hidden>
-                                  Type
+                          <div className="form-field">
+                            <select
+                              className="form-select"
+                              value={selectedSkirtingId}
+                              onChange={(e) => {
+                                setSkirtingTypeTouched(true);
+                                setSelectedSkirtingId(e.target.value);
+                              }}
+                              disabled={!skirtingCategory}
+                            >
+                              <option value="" disabled hidden>
+                                Type
+                              </option>
+                              {skirtingLatticeOptions.map((opt) => (
+                                <option key={opt.id} value={String(opt.id)}>
+                                  {opt.name}
                                 </option>
-                                {(skirtingCategory === "Lattice"
-                                  ? skirtingLatticeOptions.filter((opt) =>
-                                      ["Lattice - Picture Framed", "Lattice - No Picture Frame"].includes(opt.name || "")
-                                    )
-                                  : skirtingLatticeOptions
-                                ).map((opt) => (
-                                  <option key={opt.id} value={String(opt.id)}>
-                                    {opt.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
+                              ))}
+                            </select>
+                          </div>
 
                           <div className="tooltip-wrapper">
                             <ExpressionNumberInput
