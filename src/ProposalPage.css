@@ -656,12 +656,23 @@ padding: 34px 40px 360px 40px !important;
 .proposal-visual-image {
   display: block;
   width: 100%;
-  height: 220px;
+  aspect-ratio: 1 / 1; /* square cards on screen */
+  height: auto;
   object-fit: cover;
-  background: #e2e8f0;
+  background: transparent; /* no gray behind images on print */
+}
+
+.proposal-visual-label {
+  padding: 10px 12px;
+  font-size: 10pt;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .proposal-visual-caption {
+  display: none !important;
   padding: 10px 14px 14px;
   font-size: 12px;
   line-height: 1.5;
@@ -673,12 +684,13 @@ padding: 34px 40px 360px 40px !important;
   }
 }/* === Visual Appendix print sizing overrides === */
 @media print {
-  /* 2-up grid with ~3in cards */
+  /* 2–3 up grid with fixed-width ~3.2in cards; auto-fits per page width */
   .proposal-visual-grid {
-    grid-template-columns: repeat(2, 3.2in);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(3.2in, 3.2in));
     justify-content: start;
-    column-gap: 0.35in;
-    row-gap: 0.35in;
+    column-gap: 0.15in;
+    row-gap: 0.15in;
   }
   .proposal-visual-card {
     width: 3.2in; /* includes border */
@@ -689,9 +701,9 @@ padding: 34px 40px 360px 40px !important;
     object-fit: cover !important;
     margin: 0 auto;
     display: block;
-    background: #e2e8f0;
+    background: transparent; /* no gray behind images on print */
   }
-  .proposal-visual-meta,
+  .proposal-visual-label,
   .proposal-visual-caption {
     padding: 0.08in 0.12in; /* compact for print */
   }
