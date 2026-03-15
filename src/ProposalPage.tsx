@@ -828,9 +828,22 @@ useEffect(() => {
 
   const proposalVisuals = useMemo(() => {
     const records = readVisualLibraryRecords();
-    return matchVisualLibraryRecords(records, visualSelections)
+    const matched = matchVisualLibraryRecords(records, visualSelections)
       .filter((record) => record.imageRef?.trim())
       .sort((a, b) => a.category.localeCompare(b.category) || a.displayName.localeCompare(b.displayName));
+
+    // Keep only a single Skirting visual (show style example once)
+    let skirtingKept = false;
+    const filtered = matched.filter((r) => {
+      if ((r.category || '').toLowerCase().includes('skirt')) {
+        if (skirtingKept) return false;
+        skirtingKept = true;
+        return true;
+      }
+      return true;
+    });
+
+    return filtered;
   }, [visualSelections]);
 
 
