@@ -547,8 +547,13 @@ padding: 34px 40px 360px 40px !important;
   width: 7.0in;
   height: auto;
   opacity: 0.12;
+  filter: grayscale(100%) saturate(0%);
   pointer-events: none;
   z-index: 2;
+}
+.proposal-page--readonly .du-print-watermark img,
+.proposal-page--readonly .du-print-watermark svg {
+  filter: grayscale(100%) saturate(0%) !important;
 }
 
 @media print {
@@ -571,11 +576,16 @@ padding: 34px 40px 360px 40px !important;
     height: auto !important;
 
     opacity: 0.12 !important; /* adjust 0.06–0.12 */
+    filter: grayscale(100%) saturate(0%) !important;
     pointer-events: none !important;
 
     z-index: 2 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  .du-print-watermark img,
+  .du-print-watermark svg {
+    filter: grayscale(100%) saturate(0%) !important;
   }
 
   /* content stays above watermark = professional */
