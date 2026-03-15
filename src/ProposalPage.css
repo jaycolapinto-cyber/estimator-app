@@ -656,8 +656,8 @@ padding: 34px 40px 360px 40px !important;
 .proposal-visual-image {
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1; /* square cards on screen */
-  height: auto;
+  height: auto; /* no forced square on screen */
+  max-height: 2.4in; /* keep tiles reasonably compact */
   object-fit: contain; /* show full image; user pre-crops for square fill */
   background: #fff; /* neutral letterbox if needed */
 }
