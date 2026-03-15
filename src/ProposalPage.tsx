@@ -1377,7 +1377,7 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
             </div>
           ) : (
             <div className="proposal-visual-label">
-              <span className="proposal-visual-category">{record.category} — </span>
+              <span className="proposal-visual-category">{(record.category || '').toLowerCase().includes('latt') ? 'Lattice' : record.category} — </span>
               <strong>{record.displayName}</strong>
             </div>
           )}
