@@ -219,7 +219,7 @@ export default function VisualLibraryPage({ estimateContext, productOptionsByCat
       const objectPath = `${category}/${Date.now()}-${safeName}.${optimized.contentType.includes("webp") ? "webp" : "jpg"}`;
 
       const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(objectPath, optimized.blob, {
-        upsert: true,
+        upsert: false,
         contentType: optimized.contentType,
       });
       if (upErr) throw upErr;
