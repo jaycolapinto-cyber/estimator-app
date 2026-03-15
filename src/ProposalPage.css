@@ -661,10 +661,22 @@ padding: 34px 40px 360px 40px !important;
   object-fit: cover;
   background: transparent; /* no gray behind images on print */
 }
-/* Decking swatch strips: preserve full image without crop */
+/* Decking swatch strips: preserve full image without crop; allow rectangular swatches */
 .proposal-visual-image.contain {
   object-fit: contain;
   background: #fff;
+  aspect-ratio: auto; /* don’t force square */
+  width: 100%;
+  height: auto;
+  max-height: 1.2in; /* print-friendly swatch height */
+}
+@media print {
+  .proposal-visual-image.contain {
+    width: 3in !important;   /* card width */
+    height: auto !important; /* keep natural aspect */
+    max-height: 1.2in !important; /* keep it compact */
+    object-fit: contain !important;
+  }
 }
 
 .proposal-visual-label {
