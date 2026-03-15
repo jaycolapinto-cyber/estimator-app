@@ -4720,12 +4720,18 @@ const altBaseTotal =
                                 setSkirtingTypeTouched(true);
                                 setSelectedSkirtingId(e.target.value);
                               }}
-                              disabled={!skirtingCategory}
+                              disabled={!skirtingCategory || skirtingCategory === "Skirting"}
+                              title={skirtingCategory === "Skirting" ? "Style-only: a generic skirting photo will be shown in the proposal" : undefined}
                             >
                               <option value="" disabled hidden>
                                 Type
                               </option>
-                              {skirtingLatticeOptions.map((opt) => (
+                              {(skirtingCategory === "Lattice"
+                                ? skirtingLatticeOptions.filter((opt) =>
+                                    ["Lattice - Picture Framed", "Lattice - No Picture Frame"].includes(opt.name || "")
+                                  )
+                                : skirtingLatticeOptions
+                              ).map((opt) => (
                                 <option key={opt.id} value={String(opt.id)}>
                                   {opt.name}
                                 </option>
