@@ -658,8 +658,8 @@ padding: 34px 40px 360px 40px !important;
   width: 100%;
   aspect-ratio: 1 / 1; /* square cards on screen */
   height: auto;
-  object-fit: cover;
-  background: transparent; /* no gray behind images on print */
+  object-fit: contain; /* show full image; user pre-crops for square fill */
+  background: #fff; /* neutral letterbox if needed */
 }
 /* Decking swatch strips: preserve full image without crop; allow rectangular swatches */
 .proposal-visual-image.contain {
@@ -714,11 +714,11 @@ padding: 34px 40px 360px 40px !important;
   }
   .proposal-visual-image {
     width: 3in !important;
-    height: 3in !important;
-    object-fit: cover !important;
+    height: auto !important;
+    object-fit: contain !important; /* no cropping in print */
     margin: 0 auto;
     display: block;
-    background: transparent; /* no gray behind images on print */
+    background: #fff; /* neutral letterbox */
   }
   .proposal-visual-label,
   .proposal-visual-caption {
