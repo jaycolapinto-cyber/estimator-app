@@ -187,6 +187,17 @@ export default function VisualLibraryPage({ estimateContext, productOptionsByCat
   const handleCategoryChange = (category: string) => {
     const nextOptions = uniqueOptions(productOptionsByCategory[category] || []);
     setDraft((prev) => {
+      // For Skirting, auto-label and hide the product selector
+      if ((category || '').toLowerCase().includes('skirt')) {
+        const displayName = 'Skirting Style';
+        return {
+          ...prev,
+          category,
+          displayName,
+          productKey: buildVisualProductKey(category, displayName),
+        };
+      }
+
       const keepExisting = nextOptions.some((option) => option.value === prev.displayName);
       const displayName = keepExisting ? prev.displayName : "";
       return {
@@ -242,11 +253,14 @@ export default function VisualLibraryPage({ estimateContext, productOptionsByCat
     e.preventDefault();
 
     const category = draft.category.trim();
-    const displayName = draft.displayName.trim();
+    const isSkirting = (category || '').toLowerCase().includes('skirt');
+    const displayName = isSkirting ? 'Skirting Style' : draft.displayName.trim();
     const imageRef = draft.imageRef.trim();
     const caption = draft.caption.trim();
     const notes = draft.notes.trim();
-    const productKey = (draft.productKey || buildVisualProductKey(category, displayName)).trim();
+
+    // Always build productKey from canonicalized category + displayName
+    const productKey = buildVisualProductKey(category, displayName).trim();
 
     if (!category || !displayName || !productKey) {
       window.alert("Category, product key, and display name are required.");
@@ -278,10 +292,12 @@ export default function VisualLibraryPage({ estimateContext, productOptionsByCat
 
   const handleEdit = (record: VisualLibraryRecord) => {
     setEditingId(record.id);
+    const isSkirting = (record.category || '').toLowerCase().includes('skirt');
+    const displayName = isSkirting ? 'Skirting Style' : (record.displayName || '');
     setDraft({
       category: record.category,
-      productKey: record.productKey,
-      displayName: record.displayName,
+      productKey: buildVisualProductKey(record.category, displayName),
+      displayName,
       imageRef: record.imageRef,
       caption: record.caption || "",
       notes: record.notes || "",
@@ -332,30 +348,38 @@ export default function VisualLibraryPage({ estimateContext, productOptionsByCat
             </select>
           </label>
 
-          <label className="vl-field">
-            <span>Product name</span>
-            <select
-              value={draft.displayName}
-              onChange={(e) => {
-                const displayName = e.target.value;
-                setDraft((prev) => ({
-                  ...prev,
-                  displayName,
-                  productKey: displayName ? buildVisualProductKey(prev.category, displayName) : "",
-                }));
-              }}
-            >
-              <option value="">Select a product</option>
-              {productOptions.map((option) => (
-                <option key={`${draft.category}:${option.value}`} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <small>
-              This list stays synced with the Estimator so proposal visual names always match the selectable products.
-            </small>
-          </label>
+          {!(draft.category || '').toLowerCase().includes('skirt') ? (
+            <label className="vl-field">
+              <span>Product name</span>
+              <select
+                value={draft.displayName}
+                onChange={(e) => {
+                  const displayName = e.target.value;
+                  setDraft((prev) => ({
+                    ...prev,
+                    displayName,
+                    productKey: displayName ? buildVisualProductKey(prev.category, displayName) : "",
+                  }));
+                }}
+              >
+                <option value="">Select a product</option>
+                {productOptions.map((option) => (
+                  <option key={`${draft.category}:${option.value}`} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <small>
+                This list stays synced with the Estimator so proposal visual names always match the selectable products.
+              </small>
+            </label>
+          ) : (
+            <div className="vl-field">
+              <span>Product name</span>
+              <input value="Skirting Style" readOnly onChange={() => {}} />
+              <small>Skirting visuals are grouped under a single style label. The Estimator stays unchanged.</small>
+            </div>
+          )}
 
           <label className="vl-field">
             <span>Product key</span>
