@@ -661,6 +661,11 @@ padding: 34px 40px 360px 40px !important;
   object-fit: cover;
   background: transparent; /* no gray behind images on print */
 }
+/* Decking swatch strips: preserve full image without crop */
+.proposal-visual-image.contain {
+  object-fit: contain;
+  background: #fff;
+}
 
 .proposal-visual-label {
   padding: 10px 12px;

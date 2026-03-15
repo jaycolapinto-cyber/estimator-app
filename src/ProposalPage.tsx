@@ -1357,7 +1357,7 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
     <div className="proposal-visual-grid">
       {proposalVisuals.map((record) => (
         <figure key={record.id} className="proposal-visual-card">
-          <img src={record.imageRef} alt={record.displayName} className="proposal-visual-image" />
+          <img src={record.imageRef} alt={record.displayName} className={`proposal-visual-image ${record.category === 'Decking' ? 'contain' : ''}`} />
           <div className="proposal-visual-label">
             <span className="proposal-visual-category">{record.category} — </span>
             <strong>{record.displayName}</strong>
