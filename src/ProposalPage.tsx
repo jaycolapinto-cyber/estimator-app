@@ -1371,10 +1371,16 @@ className={`btn ${needsRefresh ? "btn-danger" : "btn-secondary"}`}          onCl
       {proposalVisuals.map((record) => (
         <figure key={record.id} className="proposal-visual-card">
           <img src={record.imageRef} alt={record.displayName} className={`proposal-visual-image ${record.category === 'Decking' ? 'contain' : ''}`} />
-          <div className="proposal-visual-label">
-            <span className="proposal-visual-category">{record.category} — </span>
-            <strong>{record.displayName}</strong>
-          </div>
+          {(record.category || '').toLowerCase().includes('skirt') ? (
+            <div className="proposal-visual-label">
+              <strong>Skirting</strong>
+            </div>
+          ) : (
+            <div className="proposal-visual-label">
+              <span className="proposal-visual-category">{record.category} — </span>
+              <strong>{record.displayName}</strong>
+            </div>
+          )}
         </figure>
       ))}
     </div>
