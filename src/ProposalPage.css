@@ -671,4 +671,28 @@ padding: 34px 40px 360px 40px !important;
   .proposal-visual-grid {
     grid-template-columns: 1fr;
   }
+}/* === Visual Appendix print sizing overrides === */
+@media print {
+  /* 2-up grid with ~3in cards */
+  .proposal-visual-grid {
+    grid-template-columns: repeat(2, 3.2in);
+    justify-content: start;
+    column-gap: 0.35in;
+    row-gap: 0.35in;
+  }
+  .proposal-visual-card {
+    width: 3.2in; /* includes border */
+  }
+  .proposal-visual-image {
+    width: 3in !important;
+    height: 3in !important;
+    object-fit: cover !important;
+    margin: 0 auto;
+    display: block;
+    background: #e2e8f0;
+  }
+  .proposal-visual-meta,
+  .proposal-visual-caption {
+    padding: 0.08in 0.12in; /* compact for print */
+  }
 }
