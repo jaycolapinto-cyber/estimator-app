@@ -209,7 +209,19 @@ export default function ContractPage(props: Props) {
   const [ciZip, setCiZip] = useState<string>("");
 
   // Body
-  const [specificationText, setSpecificationText] = useState<string>("");
+  // Load saved spec synchronously so saved user edits are not overwritten by auto-seed on mount
+  const computeInitialSpec = () => {
+    try {
+      if (typeof window === 'undefined') return "";
+      const raw = localStorage.getItem(SPEC_KEY) || "";
+      if (!raw) return "";
+      const saved = JSON.parse(raw);
+      return String(saved?.text || "");
+    } catch {
+      return "";
+    }
+  };
+  const [specificationText, setSpecificationText] = useState<string>(computeInitialSpec());
   const [specificationTouched, setSpecificationTouched] = useState<boolean>(false);
   const specHasSavedRef = useRef<boolean>(false);
 
@@ -388,15 +400,14 @@ useEffect(() => {
     return override != null && !Number.isNaN(override) ? override : base;
   }, [props.finalEstimate, priceOverride]);
 
-  const companyName = useMemo(() => {
+  const storedUserSettings = useMemo(() => {
     const tryRead = (key: string) => {
       try {
         const raw = localStorage.getItem(key);
-        if (!raw) return "";
-        const obj = JSON.parse(raw);
-        return ((obj?.organizationName || obj?.orgName || obj?.companyName || "") as string).trim();
+        if (!raw) return null;
+        return JSON.parse(raw);
       } catch {
-        return "";
+        return null;
       }
     };
 
@@ -404,9 +415,24 @@ useEffect(() => {
       tryRead("userSettings") ||
       tryRead("du_user_settings") ||
       tryRead("duUserSettings") ||
-      "Decks Unique"
+      null
     );
   }, []);
+
+  const companyName = useMemo(() => {
+    return (
+      (storedUserSettings?.organizationName || storedUserSettings?.orgName || storedUserSettings?.companyName || "").trim() ||
+      "Decks Unique"
+    );
+  }, [storedUserSettings]);
+
+  const companyLogo = useMemo(() => {
+    return String(storedUserSettings?.logoDataUrl || "").trim();
+  }, [storedUserSettings]);
+
+  const companyTagline = useMemo(() => {
+    return String(storedUserSettings?.logoSlogan || "Pride and Quality Make Decks Unique").trim();
+  }, [storedUserSettings]);
 
   const addOnLabels = useMemo(() => {
     const items = (props.addItemsDetailed || [])
@@ -803,11 +829,12 @@ useEffect(() => {
               {/* CENTER */}
               <div className="contract-frame-center">
                 <div className="contract-frame-top">
+                  {companyLogo ? <img className="contract-logo" src={companyLogo} alt={`${companyName} logo`} /> : null}
                   <div className="contract-frame-title">Contract</div>
-                  <div className="contract-frame-tagline">"Pride and Quality Make Decks Unique"</div>
+                  <div className="contract-frame-tagline">"{companyTagline}"</div>
                 </div>
 
-                <img className="contract-watermark" src="/DU-watermark.png" alt="" />
+                {!companyLogo ? <img className="contract-watermark" src="/DU-watermark.png" alt="" /> : null}
 
                 <div className="contract-frame-company">
                   <div className="contract-company-address">119 Commack Rd, Commack NY 11725</div>

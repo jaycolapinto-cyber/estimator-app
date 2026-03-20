@@ -219,6 +219,16 @@
   flex-direction: column;
   align-items: center;
   margin-top: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+.contract-logo {
+  display: block;
+  max-width: 220px;
+  max-height: 92px;
+  object-fit: contain;
+  margin-bottom: 8px;
 }
 
 .contract-frame-title {
