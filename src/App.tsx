@@ -3415,6 +3415,9 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
     skirtingSubtotal +
     addItemsSubtotalUpliftable;
 
+  const displayedBasePriceForThresholds =
+    baseProjectTotal + addItemsSubtotalFixed;
+
   const financeRow = pricingItems.find(
     (row) => row.unit === "global_multiplier" && row.name === "Finance"
   );
@@ -3431,10 +3434,11 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
   const permitMultiplier = permitTier.multiplier;
   const permitThreshold = permitTier.threshold;
 
-  const smallTier = getSmallJobTierForTotal(pricingItems, baseProjectTotal) ?? {
-    multiplier: 1,
-    threshold: null,
-  };
+  const smallTier =
+    getSmallJobTierForTotal(pricingItems, displayedBasePriceForThresholds) ?? {
+      multiplier: 1,
+      threshold: null,
+    };
   const smallProjectMultiplier =
     baseProjectTotal > 0 ? smallTier.multiplier : 1;
 
