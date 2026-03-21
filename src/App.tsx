@@ -426,6 +426,31 @@ const AUTH_URL_PARSE_TIMEOUT_MS = 1500;
 const ORG_LOOKUP_TIMEOUT_MS = 2500;
 const STARTUP_FETCH_TIMEOUT_MS = 3500;
 const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+const LOCAL_DESKTOP_ORG_ID = "local-desktop";
+
+function isLocalDesktopLaunch() {
+  if (typeof window === "undefined") return false;
+  const estimatorApi = (window as any).estimator;
+  const protocol = window.location.protocol || "";
+  const hostname = window.location.hostname || "";
+
+  return (
+    estimatorApi?.isDesktop === true ||
+    protocol === "app:" ||
+    protocol === "file:" ||
+    hostname === "localhost" ||
+    hostname === "127.0.0.1"
+  );
+}
+
+function createLocalDesktopSession() {
+  return {
+    user: {
+      id: "local-desktop-user",
+      email: "local@desktop.estimator",
+    },
+  };
+}
 
 function startupLog(step: string, detail?: unknown) {
   const now = new Date().toISOString();
@@ -537,16 +562,21 @@ function App() {
   return <AuthedApp />;
 }
 function AuthedApp() {
-  const [session, setSession] = useState<any>(null);
-  const [authResolved, setAuthResolved] = useState(false);
+  const localDesktopMode = useMemo(() => isLocalDesktopLaunch(), []);
+  const [session, setSession] = useState<any>(
+    localDesktopMode ? createLocalDesktopSession() : null
+  );
+  const [authResolved, setAuthResolved] = useState(localDesktopMode);
   const [hasSessionHint, setHasSessionHint] = useState<boolean>(() => {
     return storageGet(AUTH_SESSION_HINT_KEY) === "1";
   });
 
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [orgId, setOrgId] = useState<string | null>(null);
-  const [orgLoading, setOrgLoading] = useState(true);
-  const [orgResolved, setOrgResolved] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(localDesktopMode);
+  const [orgId, setOrgId] = useState<string | null>(
+    localDesktopMode ? LOCAL_DESKTOP_ORG_ID : null
+  );
+  const [orgLoading, setOrgLoading] = useState(!localDesktopMode);
+  const [orgResolved, setOrgResolved] = useState(localDesktopMode);
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [startupNotice, setStartupNotice] = useState<string | null>(null);
   useEffect(() => {
@@ -558,6 +588,8 @@ function AuthedApp() {
   const acceptedInviteRef = useRef<string>("");
 
   useEffect(() => {
+    if (localDesktopMode) return;
+
     // only attempt once we have orgId and a signed-in user
     if (!orgId) return;
     if (!session?.user?.id) return;
@@ -590,9 +622,11 @@ function AuthedApp() {
         console.warn("accept-invite exception:", e);
       }
     })();
-  }, [orgId, session?.user?.id]);
+  }, [localDesktopMode, orgId, session?.user?.id]);
   // 0) ✅ Finalize Supabase auth after invite/magic links (prevents blank spinning page)
   useEffect(() => {
+    if (localDesktopMode) return;
+
     const hasAuthParams =
       Boolean(window.location.hash) ||
       /[?&](access_token|refresh_token|code|token_hash)=/i.test(
@@ -627,10 +661,12 @@ function AuthedApp() {
     return () => {
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [localDesktopMode]);
 
   // 1) Auth session bootstrap
   useEffect(() => {
+    if (localDesktopMode) return;
+
     let cancelled = false;
 
     const applySession = (nextSession: any = undefined) => {
@@ -682,9 +718,18 @@ function AuthedApp() {
       window.clearTimeout(fallbackTimer);
       listener?.subscription.unsubscribe();
     };
-  }, []);
+  }, [localDesktopMode]);
 
   useEffect(() => {
+    if (localDesktopMode) {
+      setOrgId(LOCAL_DESKTOP_ORG_ID);
+      setIsAdmin(true);
+      setOrgLoading(false);
+      setOrgResolved(true);
+      setStartupNotice("Local desktop mode: login skipped on this device.");
+      return;
+    }
+
     let cancelled = false;
 
     async function loadOrgForUser() {
@@ -816,7 +861,7 @@ function AuthedApp() {
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id]);
+  }, [localDesktopMode, session?.user?.id]);
 
   // 3) Render gates (IMPORTANT ORDER)
   if (!session) {
@@ -890,6 +935,10 @@ function AuthedApp() {
   }
 
   const handleLogout = async () => {
+    if (localDesktopMode) {
+      setStartupNotice("Local desktop mode stays unlocked on this device.");
+      return;
+    }
     await supabase.auth.signOut();
   };
 
