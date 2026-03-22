@@ -2236,6 +2236,13 @@ const EST_EXT = ".DUest";
   };
 
   const handleFileOpen = async () => {
+    if (isDirty) {
+      const ok = window.confirm(
+        "You have unsaved changes. Open another file anyway?"
+      );
+      if (!ok) return;
+    }
+
     if (estimatorDesktopApi?.isDesktop && estimatorDesktopApi?.openEstimateFile) {
       try {
         const result = await estimatorDesktopApi.openEstimateFile();
@@ -2260,8 +2267,17 @@ const EST_EXT = ".DUest";
   };
 
   const openRecent = (rf: RecentFile) => {
+    if (isDirty) {
+      const ok = window.confirm(
+        "You have unsaved changes. Open another file anyway?"
+      );
+      if (!ok) return;
+    }
+
     try {
       applySnapshot(rf.json);
+      setLastSavedFileName(rf.name);
+      setLastSavedFilePath(null);
       pushRecent(rf.name, rf.json);
       refreshRecents();
       setRecentOpen(false);
@@ -2272,6 +2288,33 @@ const EST_EXT = ".DUest";
       alert("Could not open that recent file.");
     }
   };
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isSaveShortcut = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s";
+      if (!isSaveShortcut) return;
+      e.preventDefault();
+      if (e.shiftKey) {
+        void handleFileSaveAs();
+      } else {
+        void handleFileSave();
+      }
+    };
+
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("beforeunload", onBeforeUnload);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [handleFileSave, handleFileSaveAs, isDirty]);
+
   const buildDefaultEstimateName = () => {
     const town = (clientTown || "").trim();
     const last = (clientLastName || "").trim();
