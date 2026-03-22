@@ -890,8 +890,8 @@ input:checked + .slider:before {
 
 .additem-qty-wrap {
   display: grid !important;
-  grid-template-columns: 1fr 44px !important;
-  gap: 10px !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 8px !important;
   align-items: center !important;
   width: 100%;
   position: relative;
@@ -899,34 +899,40 @@ input:checked + .slider:before {
 
 .additem-qty-input {
   width: 100% !important;
-}.additem-controls {
-  display: flex;
-  flex-direction: column;
+}
+
+.additem-controls {
+  display: inline-flex;
+  flex-direction: row;
   gap: 6px;
-  align-items: stretch;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
 }
 
 .additem-order,
 .additem-remove {
-  height: 44px !important;
-  width: 44px !important;
-  min-width: 44px !important;
+  height: 36px !important;
+  width: 36px !important;
+  min-width: 36px !important;
   padding: 0 !important;
 
-  border-radius: 12px !important;
+  border-radius: 10px !important;
   background: rgba(255, 255, 255, 0.14) !important;
   border: 1px solid rgba(255, 255, 255, 0.28) !important;
 
   color: #fff !important;
-  font-size: 18px !important;
+  font-size: 15px !important;
   font-weight: 700 !important;
   line-height: 1 !important;
 
-  display: grid !important;
-  place-items: center !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 
   cursor: pointer !important;
   box-sizing: border-box !important;
+  flex: 0 0 auto !important;
 }
 
 .additem-order:hover:not(:disabled) {
