@@ -4983,7 +4983,6 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                                   </>
 ) : normalizeCat(row.category || "") === "misc" ? (
   <>
-    {/* Title (col 2) */}
     <div className="form-field">
       <input
         type="text"
@@ -4999,29 +4998,14 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    {/* Proposal Qty + controls */}
-    <div className="additem-qty-wrap">
-      <input
-        type="text"
-        className="form-input"
-        placeholder="Proposal Qty (e.g., 400 sf)"
-        value={(row as any).customQtyText || ""}
-        onChange={(e) =>
-          updateAddItemRow(
-            row.rowId,
-            { customQtyText: e.target.value, qty: 1 } as any
-          )
-        }
-      />
+    <div className="misc-row-top-actions" style={{ gridColumn: "3 / 5" }}>
       {renderAddItemControls()}
     </div>
 
-    {/* ---- second line (indented under Title/Qty) ---- */}
-
-    {/* spacer (col 1) so the line starts under Title */}
     <div />
 
-    {/* Proposal description (col 2-3) */}
+    <div />
+
     <div className="form-field additem-subrow-indent" style={{ gridColumn: "2 / 3" }}>
       <input
         type="text"
@@ -5037,8 +5021,22 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    {/* Price (col 3) */}
     <div className="form-field additem-subrow-indent" style={{ gridColumn: "3 / 4" }}>
+      <input
+        type="text"
+        className="form-input"
+        placeholder="Proposal Qty (e.g., 400 sf)"
+        value={(row as any).customQtyText || ""}
+        onChange={(e) =>
+          updateAddItemRow(
+            row.rowId,
+            { customQtyText: e.target.value, qty: 1 } as any
+          )
+        }
+      />
+    </div>
+
+    <div className="form-field additem-subrow-indent" style={{ gridColumn: "4 / 5" }}>
       <ExpressionNumberInput
         className="form-input no-spinner additem-qty-input"
         placeholder="$ Price"
@@ -5051,9 +5049,6 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
         }
       />
     </div>
-
-    {/* empty col 4 to keep grid shape consistent */}
-    <div />
   </>
 ) : (
 

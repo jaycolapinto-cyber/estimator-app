@@ -884,15 +884,17 @@ input:checked + .slider:before {
 }
 
 .add-item-row.add-item-row--grid.add-item-row--misc {
-  grid-template-columns: 220px minmax(260px, 1.25fr) minmax(260px, 1fr) 120px !important;
-}
-
-.add-item-row.add-item-row--grid.add-item-row--misc .additem-qty-wrap {
-  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-columns: 220px minmax(320px, 1.45fr) minmax(220px, 0.9fr) 140px !important;
 }
 
 .add-item-row.add-item-row--grid.add-item-row--misc .additem-subrow-indent {
   padding-left: 14px;
+}
+
+.add-item-row.add-item-row--grid.add-item-row--misc .misc-row-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 
