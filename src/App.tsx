@@ -4983,7 +4983,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                                   </>
 ) : normalizeCat(row.category || "") === "misc" ? (
   <>
-    <div className="form-field" style={{ gridColumn: "2 / 4" }}>
+    <div className="form-field">
       <input
         type="text"
         className="form-input"
@@ -4998,13 +4998,36 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    <div className="misc-row-top-actions" style={{ gridColumn: "4 / 5" }}>
-      {renderAddItemControls()}
+    <div className="form-field">
+      <ExpressionNumberInput
+        className="form-input no-spinner additem-qty-input"
+        placeholder="$ Price"
+        value={row.customPrice || 0}
+        onValueChange={(val) =>
+          updateAddItemRow(row.rowId, {
+            customPrice: val,
+            qty: 1,
+          })
+        }
+      />
     </div>
 
-    <div />
+    <div className="form-field additem-subrow-indent misc-qty-field">
+      <input
+        type="text"
+        className="form-input"
+        placeholder="Qty (e.g., 400 sf)"
+        value={(row as any).customQtyText || ""}
+        onChange={(e) =>
+          updateAddItemRow(
+            row.rowId,
+            { customQtyText: e.target.value, qty: 1 } as any
+          )
+        }
+      />
+    </div>
 
-    <div className="form-field additem-subrow-indent" style={{ gridColumn: "2 / 3" }}>
+    <div className="form-field">
       <input
         type="text"
         className="form-input"
@@ -5019,33 +5042,8 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    <div className="form-field additem-subrow-indent" style={{ gridColumn: "3 / 4" }}>
-      <input
-        type="text"
-        className="form-input"
-        placeholder="Proposal Qty (e.g., 400 sf)"
-        value={(row as any).customQtyText || ""}
-        onChange={(e) =>
-          updateAddItemRow(
-            row.rowId,
-            { customQtyText: e.target.value, qty: 1 } as any
-          )
-        }
-      />
-    </div>
-
-    <div className="form-field additem-subrow-indent" style={{ gridColumn: "4 / 5" }}>
-      <ExpressionNumberInput
-        className="form-input no-spinner additem-qty-input"
-        placeholder="$ Price"
-        value={row.customPrice || 0}
-        onValueChange={(val) =>
-          updateAddItemRow(row.rowId, {
-            customPrice: val,
-            qty: 1,
-          })
-        }
-      />
+    <div className="misc-row-top-actions">
+      {renderAddItemControls()}
     </div>
   </>
 ) : (

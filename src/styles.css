@@ -884,11 +884,15 @@ input:checked + .slider:before {
 }
 
 .add-item-row.add-item-row--grid.add-item-row--misc {
-  grid-template-columns: 220px minmax(320px, 1.35fr) minmax(220px, 0.95fr) 140px !important;
+  grid-template-columns: 220px minmax(320px, 1fr) 160px !important;
 }
 
 .add-item-row.add-item-row--grid.add-item-row--misc .additem-subrow-indent {
   padding-left: 14px;
+}
+
+.add-item-row.add-item-row--grid.add-item-row--misc .misc-qty-field {
+  max-width: 180px;
 }
 
 .add-item-row.add-item-row--grid.add-item-row--misc .misc-row-top-actions {
