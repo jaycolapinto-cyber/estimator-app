@@ -5029,7 +5029,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    <div className="form-field" style={{ gridColumn: "2 / 4" }}>
+    <div className="form-field misc-description-field" style={{ gridColumn: "2 / 4" }}>
       <input
         type="text"
         className="form-input"

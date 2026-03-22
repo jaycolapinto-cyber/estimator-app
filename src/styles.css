@@ -884,7 +884,7 @@ input:checked + .slider:before {
 }
 
 .add-item-row.add-item-row--grid.add-item-row--misc {
-  grid-template-columns: 220px minmax(320px, 1fr) 180px 120px !important;
+  grid-template-columns: 220px 1fr 180px 48px !important;
 }
 
 .add-item-row.add-item-row--grid.add-item-row--misc .additem-subrow-indent {
@@ -893,6 +893,10 @@ input:checked + .slider:before {
 
 .add-item-row.add-item-row--grid.add-item-row--misc .misc-qty-field {
   max-width: 180px;
+}
+
+.add-item-row.add-item-row--grid.add-item-row--misc .misc-description-field {
+  margin-left: -208px !important;
 }
 
 .add-item-row.add-item-row--grid.add-item-row--misc .misc-row-top-actions {
