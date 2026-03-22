@@ -4999,8 +4999,8 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    {/* Proposal Qty (col 3) */}
-    <div className="form-field">
+    {/* Proposal Qty + controls */}
+    <div className="additem-qty-wrap">
       <input
         type="text"
         className="form-input"
@@ -5013,10 +5013,8 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
           )
         }
       />
+      {renderAddItemControls()}
     </div>
-
-    {/* Reorder / remove controls (col 4) */}
-    {renderAddItemControls()}
 
     {/* ---- second line (indented under Title/Qty) ---- */}
 
