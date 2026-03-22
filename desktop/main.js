@@ -67,9 +67,16 @@ function createWindow() {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
-        partition: 'persist:estimator'
+        partition: 'persist:estimator',
+        spellcheck: true,
       },
     });
+
+    try {
+      mainWindow.webContents.session.setSpellCheckerLanguages(['en-US']);
+    } catch (e) {
+      logLine(`setSpellCheckerLanguages error: ${e?.stack || e}`);
+    }
 
     if (isDev) {
       mainWindow.loadURL('http://localhost:3000');
