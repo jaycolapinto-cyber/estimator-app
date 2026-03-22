@@ -116,19 +116,6 @@ app.whenReady().then(() => {
     }
   });
 
-  protocol.registerSchemesAsPrivileged([
-    { scheme: 'app', privileges: { secure: true, standard: true } }
-  ]);
-
-  if (!isDev) {
-    protocol.registerFileProtocol('app', (request, callback) => {
-      const url = request.url.replace('app://', '');
-      const filePath = path.join(app.getAppPath(), 'build', url);
-      logLine(`app protocol: ${request.url} -> ${filePath}`);
-      callback({ path: filePath });
-    });
-  }
-
   createWindow();
 
   if (!isDev) {
