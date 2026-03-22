@@ -895,10 +895,6 @@ input:checked + .slider:before {
   max-width: 180px;
 }
 
-.add-item-row.add-item-row--grid.add-item-row--misc .misc-description-field {
-  margin-left: -208px !important;
-}
-
 .add-item-row.add-item-row--grid.add-item-row--misc .misc-row-top-actions {
   display: flex;
   justify-content: flex-end;
