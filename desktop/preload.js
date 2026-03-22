@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('estimator', {
   isDesktop: true,
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_e, payload) => cb(payload)),
   openExternal: (url) => ipcRenderer.invoke('openExternal', url),
+  openEstimateFile: () => ipcRenderer.invoke('openEstimateFile'),
+  saveEstimateFile: (payload) => ipcRenderer.invoke('saveEstimateFile', payload),
+  saveEstimateFileAs: (payload) => ipcRenderer.invoke('saveEstimateFileAs', payload),
 });
 
 contextBridge.exposeInMainWorld('estimatorStore', {

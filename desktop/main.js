@@ -116,6 +116,82 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('openEstimateFile', async () => {
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+          { name: 'Estimator Files', extensions: ['duest', 'json'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      });
+
+      if (result.canceled || !result.filePaths?.[0]) {
+        return { canceled: true };
+      }
+
+      const filePath = result.filePaths[0];
+      const text = fs.readFileSync(filePath, 'utf8');
+      return {
+        canceled: false,
+        filePath,
+        fileName: path.basename(filePath),
+        text,
+      };
+    } catch (e) {
+      logLine(`openEstimateFile error: ${e?.stack || e}`);
+      return { canceled: false, error: String(e?.message || e || 'Open failed') };
+    }
+  });
+
+  ipcMain.handle('saveEstimateFile', async (_e, payload) => {
+    try {
+      const filePath = String(payload?.filePath || '').trim();
+      const text = String(payload?.text || '');
+      if (!filePath) {
+        return { ok: false, error: 'Missing file path.' };
+      }
+      fs.writeFileSync(filePath, text, 'utf8');
+      return {
+        ok: true,
+        filePath,
+        fileName: path.basename(filePath),
+      };
+    } catch (e) {
+      logLine(`saveEstimateFile error: ${e?.stack || e}`);
+      return { ok: false, error: String(e?.message || e || 'Save failed') };
+    }
+  });
+
+  ipcMain.handle('saveEstimateFileAs', async (_e, payload) => {
+    try {
+      const text = String(payload?.text || '');
+      const defaultPath = String(payload?.defaultPath || '').trim();
+      const result = await dialog.showSaveDialog(mainWindow, {
+        defaultPath,
+        filters: [
+          { name: 'Estimator Files', extensions: ['duest'] },
+          { name: 'JSON Files', extensions: ['json'] },
+        ],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { canceled: true };
+      }
+
+      fs.writeFileSync(result.filePath, text, 'utf8');
+      return {
+        canceled: false,
+        ok: true,
+        filePath: result.filePath,
+        fileName: path.basename(result.filePath),
+      };
+    } catch (e) {
+      logLine(`saveEstimateFileAs error: ${e?.stack || e}`);
+      return { canceled: false, ok: false, error: String(e?.message || e || 'Save As failed') };
+    }
+  });
+
   createWindow();
 
   if (!isDev) {

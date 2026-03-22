@@ -1541,6 +1541,9 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
   const [lastSavedFileName, setLastSavedFileName] = useState<string | null>(
     null
   );
+  const [lastSavedFilePath, setLastSavedFilePath] = useState<string | null>(
+    null
+  );
 
   // ===============================
   // USER SETTINGS (for Proposal PDF)
@@ -2052,30 +2055,41 @@ setEmailDraft({ to, subject, body, link, proposalId: proposalId || undefined });
   // FILE → OPEN
   // ===============================
   const openFileInputRef = useRef<HTMLInputElement | null>(null);
+  const estimatorDesktopApi =
+    typeof window !== "undefined" ? (window as any).estimator : null;
+
+  const loadSnapshotFromText = (
+    text: string,
+    fileName: string,
+    filePath?: string | null
+  ) => {
+    const snapshot = JSON.parse(text);
+    if (!snapshot || typeof snapshot !== "object") {
+      throw new Error("Invalid estimate file.");
+    }
+
+    applySnapshot(snapshot);
+    setLastSavedFileName(fileName);
+    setLastSavedFilePath(filePath || null);
+
+    const recentName =
+      (snapshot.estimateName || "").trim() ||
+      fileName.replace(/\.json$/i, "").replace(/\.duest$/i, "");
+
+    pushRecent(recentName, snapshot);
+    refreshRecents();
+
+    dirtySuspendedRef.current = false;
+    setActiveNav("estimator");
+  };
+
   const onPickOpenFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       const text = await file.text();
-      const snapshot = JSON.parse(text);
-      if (!snapshot || typeof snapshot !== "object") {
-        alert("Invalid estimate file.");
-        return;
-      }
-
-      applySnapshot(snapshot);
-      setLastSavedFileName(file.name);
-
-      const recentName =
-        (snapshot.estimateName || "").trim() ||
-        file.name.replace(/\.json$/i, "").replace(/\.duest$/i, "");
-
-      pushRecent(recentName, snapshot);
-      refreshRecents();
-
-      dirtySuspendedRef.current = false;
-      setActiveNav("estimator");
+      loadSnapshotFromText(text, file.name, null);
     } catch (err: any) {
       alert("Could not open that file. It may be corrupted.");
       console.error(err);
@@ -2117,29 +2131,88 @@ const EST_EXT = ".DUest";
     URL.revokeObjectURL(url);
   };
 
-  const handleFileSaveAs = () => {
+  const handleFileSaveAs = async () => {
+    const ensuredEstimateId = estimateId || uid();
+    if (!estimateId) setEstimateId(ensuredEstimateId);
+
+    const snap = { ...buildSnapshot(), estimateId: ensuredEstimateId };
+    const text = JSON.stringify(snap, null, 2);
+
+    if (estimatorDesktopApi?.isDesktop && estimatorDesktopApi?.saveEstimateFileAs) {
+      const result = await estimatorDesktopApi.saveEstimateFileAs({
+        defaultPath: lastSavedFilePath || defaultFileName(),
+        text,
+      });
+
+      if (result?.canceled) return;
+      if (!result?.ok) {
+        alert(result?.error || "Could not save that estimate file.");
+        return;
+      }
+
+      const savedName = normalizeFileName(result.fileName || defaultFileName());
+      setLastSavedFileName(savedName);
+      setLastSavedFilePath(result.filePath || null);
+
+      const recentLabel = savedName.replace(new RegExp(`${EST_EXT}$`, "i"), "");
+      pushRecent(recentLabel, snap);
+      refreshRecents();
+      setIsDirty(false);
+      return;
+    }
+
     const input = prompt("Save As file name:", defaultFileName());
     if (!input) return;
 
     const filename = normalizeFileName(input);
     if (!filename) return;
 
-    const ensuredEstimateId = estimateId || uid();
-    if (!estimateId) setEstimateId(ensuredEstimateId);
-
-    const snap = { ...buildSnapshot(), estimateId: ensuredEstimateId };
-
     const recentLabel = filename.replace(new RegExp(`${EST_EXT}$`, "i"), "");
     pushRecent(recentLabel, snap);
     refreshRecents();
 
-    downloadTextFile(filename, JSON.stringify(snap, null, 2));
+    downloadTextFile(filename, text);
     setLastSavedFileName(filename);
+    setLastSavedFilePath(null);
     setIsDirty(false);
   };
 
-  const handleFileSave = () => {
-    // If we don't yet have a saved filename, guide the user to Save As first
+  const handleFileSave = async () => {
+    const snap = buildSnapshot();
+    const text = JSON.stringify(snap, null, 2);
+
+    if (estimatorDesktopApi?.isDesktop && estimatorDesktopApi?.saveEstimateFile) {
+      if (!lastSavedFilePath) {
+        await handleFileSaveAs();
+        return;
+      }
+
+      const ok = window.confirm(
+        `Overwrite existing file?\n\n${lastSavedFilePath}\n\nThis will replace the previous version.`
+      );
+      if (!ok) return;
+
+      const result = await estimatorDesktopApi.saveEstimateFile({
+        filePath: lastSavedFilePath,
+        text,
+      });
+
+      if (!result?.ok) {
+        alert(result?.error || "Could not save that estimate file.");
+        return;
+      }
+
+      const savedName = normalizeFileName(result.fileName || lastSavedFileName || defaultFileName());
+      setLastSavedFileName(savedName);
+      setLastSavedFilePath(result.filePath || lastSavedFilePath);
+
+      const recentLabel = savedName.replace(new RegExp(`${EST_EXT}$`, "i"), "");
+      pushRecent(recentLabel, snap);
+      refreshRecents();
+      setIsDirty(false);
+      return;
+    }
+
     if (!lastSavedFileName) {
       alert("Please use 'Save As' first to choose a file name.");
       return;
@@ -2150,8 +2223,6 @@ const EST_EXT = ".DUest";
     );
     if (!ok) return;
 
-    const snap = buildSnapshot();
-
     const recentLabel = lastSavedFileName.replace(
       new RegExp(`${EST_EXT}$`, "i"),
       ""
@@ -2159,11 +2230,34 @@ const EST_EXT = ".DUest";
     pushRecent(recentLabel, snap);
     refreshRecents();
 
-    downloadTextFile(lastSavedFileName, JSON.stringify(snap, null, 2));
+    downloadTextFile(lastSavedFileName, text);
+    setLastSavedFilePath(null);
     setIsDirty(false);
   };
 
-  const handleFileOpen = () => openFileInputRef.current?.click();
+  const handleFileOpen = async () => {
+    if (estimatorDesktopApi?.isDesktop && estimatorDesktopApi?.openEstimateFile) {
+      try {
+        const result = await estimatorDesktopApi.openEstimateFile();
+        if (result?.canceled) return;
+        if (result?.error) {
+          alert(result.error || "Could not open that file.");
+          return;
+        }
+        loadSnapshotFromText(
+          String(result?.text || ""),
+          String(result?.fileName || "Estimate"),
+          result?.filePath || null
+        );
+      } catch (err) {
+        alert("Could not open that file. It may be corrupted.");
+        console.error(err);
+      }
+      return;
+    }
+
+    openFileInputRef.current?.click();
+  };
 
   const openRecent = (rf: RecentFile) => {
     try {
