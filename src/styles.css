@@ -891,6 +891,10 @@ input:checked + .slider:before {
   grid-template-columns: minmax(0, 1fr) auto !important;
 }
 
+.add-item-row.add-item-row--grid.add-item-row--misc .additem-subrow-indent {
+  padding-left: 14px;
+}
+
 
 .add-item-row.add-item-row--grid .form-field {
   margin: 0 !important;

@@ -5022,7 +5022,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
     <div />
 
     {/* Proposal description (col 2-3) */}
-    <div className="form-field" style={{ gridColumn: "2 / 3" }}>
+    <div className="form-field additem-subrow-indent" style={{ gridColumn: "2 / 3" }}>
       <input
         type="text"
         className="form-input"
@@ -5038,7 +5038,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
     </div>
 
     {/* Price (col 3) */}
-    <div className="form-field" style={{ gridColumn: "3 / 4" }}>
+    <div className="form-field additem-subrow-indent" style={{ gridColumn: "3 / 4" }}>
       <ExpressionNumberInput
         className="form-input no-spinner additem-qty-input"
         placeholder="$ Price"
