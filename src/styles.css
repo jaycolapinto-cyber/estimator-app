@@ -884,7 +884,7 @@ input:checked + .slider:before {
 }
 
 .add-item-row.add-item-row--grid.add-item-row--misc {
-  grid-template-columns: 220px minmax(320px, 1fr) 160px !important;
+  grid-template-columns: 220px minmax(320px, 1fr) 180px 120px !important;
 }
 
 .add-item-row.add-item-row--grid.add-item-row--misc .additem-subrow-indent {

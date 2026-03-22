@@ -4983,7 +4983,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                                   </>
 ) : normalizeCat(row.category || "") === "misc" ? (
   <>
-    <div className="form-field">
+    <div className="form-field" style={{ gridColumn: "2 / 3" }}>
       <input
         type="text"
         className="form-input"
@@ -4998,7 +4998,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    <div className="form-field">
+    <div className="form-field" style={{ gridColumn: "3 / 4" }}>
       <ExpressionNumberInput
         className="form-input no-spinner additem-qty-input"
         placeholder="$ Price"
@@ -5012,7 +5012,9 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    <div className="form-field additem-subrow-indent misc-qty-field">
+    <div style={{ gridColumn: "4 / 5" }} />
+
+    <div className="form-field additem-subrow-indent misc-qty-field" style={{ gridColumn: "1 / 2" }}>
       <input
         type="text"
         className="form-input"
@@ -5027,7 +5029,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    <div className="form-field">
+    <div className="form-field" style={{ gridColumn: "2 / 4" }}>
       <input
         type="text"
         className="form-input"
@@ -5042,7 +5044,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    <div className="misc-row-top-actions">
+    <div className="misc-row-top-actions" style={{ gridColumn: "4 / 5" }}>
       {renderAddItemControls()}
     </div>
   </>
