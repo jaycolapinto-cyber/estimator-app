@@ -390,8 +390,33 @@ const persistSpecification = useCallback(
   [SPEC_KEY]
 );
 
+const markSpecificationTouchedAndPersist = useCallback(
+  (text: string) => {
+    setSpecificationTouched(true);
+    setSpecificationText(text);
+    persistSpecification(text, true);
+  },
+  [persistSpecification]
+);
+
 useEffect(() => {
   persistSpecification(specificationText, specificationTouched);
+}, [persistSpecification, specificationText, specificationTouched]);
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  const flushSpecification = () => {
+    persistSpecification(specificationText, specificationTouched || !!specificationText);
+  };
+
+  window.addEventListener("pagehide", flushSpecification);
+  document.addEventListener("visibilitychange", flushSpecification);
+
+  return () => {
+    window.removeEventListener("pagehide", flushSpecification);
+    document.removeEventListener("visibilitychange", flushSpecification);
+  };
 }, [persistSpecification, specificationText, specificationTouched]);
 
   const contractPrice = useMemo(() => {
@@ -919,10 +944,10 @@ useEffect(() => {
                 className="contract-textarea no-print"
                 value={specificationText}
                 onChange={(e) => {
-                  const next = e.target.value;
-                  setSpecificationTouched(true);
-                  setSpecificationText(next);
-                  persistSpecification(next, true);
+                  markSpecificationTouchedAndPersist(e.target.value);
+                }}
+                onBlur={(e) => {
+                  persistSpecification(e.target.value, true);
                 }}
                 rows={10}
                 placeholder="Specifications will auto‑populate here. You can edit each line."
