@@ -883,6 +883,14 @@ input:checked + .slider:before {
   width: 100%;
 }
 
+.add-item-row.add-item-row--grid.add-item-row--misc {
+  grid-template-columns: 220px minmax(260px, 1.25fr) minmax(260px, 1fr) 120px !important;
+}
+
+.add-item-row.add-item-row--grid.add-item-row--misc .additem-qty-wrap {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+}
+
 
 .add-item-row.add-item-row--grid .form-field {
   margin: 0 !important;

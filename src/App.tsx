@@ -4886,7 +4886,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                             return (
                               <div
                                 key={row.rowId}
-                                className="add-item-row add-item-row--grid"
+                                className={`add-item-row add-item-row--grid ${normalizeCat(row.category || "") === "misc" ? "add-item-row--misc" : ""}`}
                               >
                                 <div className="form-field">
                                   <select
