@@ -5044,7 +5044,8 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    <div className="misc-row-top-actions" style={{ gridColumn: "4 / 5" }}>
+    <div className="misc-row-top-actions additem-qty-wrap" style={{ gridColumn: "3 / 4" }}>
+      <div className="misc-controls-spacer" />
       {renderAddItemControls()}
     </div>
   </>

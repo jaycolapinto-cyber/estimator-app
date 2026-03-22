@@ -896,9 +896,11 @@ input:checked + .slider:before {
 }
 
 .add-item-row.add-item-row--grid.add-item-row--misc .misc-row-top-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
+  width: 100%;
+}
+
+.add-item-row.add-item-row--grid.add-item-row--misc .misc-controls-spacer {
+  min-width: 0;
 }
 
 
