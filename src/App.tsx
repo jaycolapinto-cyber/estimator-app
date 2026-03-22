@@ -1514,6 +1514,20 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
       prev.map((r) => (r.rowId === rowId ? { ...r, ...patch } : r))
     );
   };
+  const moveAddItemRow = (rowId: string, direction: -1 | 1) => {
+    setAddItems((prev) => {
+      const index = prev.findIndex((r) => r.rowId === rowId);
+      if (index < 0) return prev;
+
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+
+      const next = [...prev];
+      const [row] = next.splice(index, 1);
+      next.splice(nextIndex, 0, row);
+      return next;
+    });
+  };
 
   // ===============================
   // DIRTY STATE (unsaved changes)
@@ -4032,7 +4046,7 @@ const altBaseTotal =
             onClick={() => setActiveNav("estimator")}
           />
           <SidebarNavItem
-            label="Proposals"
+            label="Proposal"
             isActive={activeNav === "proposals"}
             onClick={() => setActiveNav("proposals")}
           />
@@ -4155,7 +4169,7 @@ const altBaseTotal =
           <div className="page-header__left">
             <div className="page-header__title">
               {activeNav === "estimator" && "Deck Estimate"}
-              {activeNav === "proposals" && "Proposals"}
+              {activeNav === "proposals" && "Proposal"}
               {activeNav === "pricingAdmin" && "Pricing Administration"}
               {activeNav === "analytics" && "Analytics"}
               {activeNav === "settings" && "Settings"}
@@ -4819,6 +4833,9 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                         >
                           + Add Item
                         </button>
+                        <div className="add-items-order-hint">
+                          Use ↑ ↓ to set proposal order
+                        </div>
                       </div>
 
                       <div className="add-items-rows">
@@ -4828,8 +4845,43 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                             lighting, columns, etc.
                           </div>
                         ) : (
-                          addItemsDetailed.map((row: any) => {
+                          addItemsDetailed.map((row: any, index: number) => {
                             const options = addItemOptionsForRow(row);
+                            const isFirstRow = index === 0;
+                            const isLastRow = index === addItemsDetailed.length - 1;
+                            const renderAddItemControls = () => (
+                              <div className="additem-controls">
+                                <button
+                                  type="button"
+                                  className="additem-order"
+                                  onClick={() => moveAddItemRow(row.rowId, -1)}
+                                  aria-label="Move item up"
+                                  title="Move up"
+                                  disabled={isFirstRow}
+                                >
+                                  ↑
+                                </button>
+                                <button
+                                  type="button"
+                                  className="additem-order"
+                                  onClick={() => moveAddItemRow(row.rowId, 1)}
+                                  aria-label="Move item down"
+                                  title="Move down"
+                                  disabled={isLastRow}
+                                >
+                                  ↓
+                                </button>
+                                <button
+                                  type="button"
+                                  className="additem-remove"
+                                  onClick={() => removeAddItemRow(row.rowId)}
+                                  aria-label="Remove item"
+                                  title="Remove"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            );
 
                             return (
                               <div
@@ -4926,17 +4978,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                                           })
                                         }
                                       />
-                                      <button
-                                        type="button"
-                                        className="additem-remove"
-                                        onClick={() =>
-                                          removeAddItemRow(row.rowId)
-                                        }
-                                        aria-label="Remove item"
-                                        title="Remove"
-                                      >
-                                        ✕
-                                      </button>
+                                      {renderAddItemControls()}
                                     </div>
                                   </>
 ) : normalizeCat(row.category || "") === "misc" ? (
@@ -4973,16 +5015,8 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
       />
     </div>
 
-    {/* Remove X (col 4) — EXACTLY like other rows */}
-    <button
-      type="button"
-      className="additem-remove"
-      onClick={() => removeAddItemRow(row.rowId)}
-      aria-label="Remove item"
-      title="Remove"
-    >
-      ✕
-    </button>
+    {/* Reorder / remove controls (col 4) */}
+    {renderAddItemControls()}
 
     {/* ---- second line (indented under Title/Qty) ---- */}
 
@@ -5121,17 +5155,7 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
                                           })
                                         }
                                       />
-                                      <button
-                                        type="button"
-                                        className="additem-remove"
-                                        onClick={() =>
-                                          removeAddItemRow(row.rowId)
-                                        }
-                                        aria-label="Remove item"
-                                        title="Remove"
-                                      >
-                                        ✕
-                                      </button>
+                                      {renderAddItemControls()}
                                     </div>
                                   </>
                                 )}
