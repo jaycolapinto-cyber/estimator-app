@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, dialog, protocol, session, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, dialog, ipcMain } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
@@ -75,7 +75,9 @@ function createWindow() {
       mainWindow.loadURL('http://localhost:3000');
       mainWindow.webContents.openDevTools({ mode: 'detach' });
     } else {
-      mainWindow.loadURL('app://index.html');
+      const indexPath = path.join(app.getAppPath(), 'build', 'index.html');
+      logLine(`loading packaged index: ${indexPath}`);
+      mainWindow.loadFile(indexPath);
     }
 
     mainWindow.webContents.on('render-process-gone', (_e, details) => {
