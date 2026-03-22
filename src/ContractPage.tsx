@@ -222,7 +222,10 @@ export default function ContractPage(props: Props) {
     }
   };
   const [specificationText, setSpecificationText] = useState<string>(computeInitialSpec());
-  const [specificationTouched, setSpecificationTouched] = useState<boolean>(false);
+  const [specificationTouched, setSpecificationTouched] = useState<boolean>(() => {
+    const initial = computeInitialSpec();
+    return !!String(initial || "").trim();
+  });
   const specHasSavedRef = useRef<boolean>(false);
 
 // ✅ Per-estimate persistence (keyed by estimateId)
@@ -600,7 +603,8 @@ useEffect(() => {
 
   useEffect(() => {
     const prevAuto = prevAutoSpecRef.current;
-    const shouldSync = !specificationTouched || specificationText === prevAuto;
+    const hasSavedUserSpec = specHasSavedRef.current || specificationTouched;
+    const shouldSync = !hasSavedUserSpec || specificationText === prevAuto;
     if (shouldSync) {
       setSpecificationText(autoSpecification);
     }
