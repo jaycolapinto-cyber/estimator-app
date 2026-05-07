@@ -1746,34 +1746,72 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
   const applySnapshot = (snap: any) => {
     setEstimateName(snap.estimateName || "");
     setEstimateId(snap.estimateId || uid());
-
-    // If the snapshot includes a pricing snapshot, use it so the estimate
-    // reopens with the exact prices that were saved. Notify the user.
+    // If the snapshot includes a pricing snapshot, offer to either keep the
+    // saved prices or update to current pricing. If pricing isn't loaded yet,
+    // defer the decision until pricingLoaded becomes true.
     try {
       if (snap?.pricingItemsSnapshot && Array.isArray(snap.pricingItemsSnapshot)) {
-        const cleanedItems = (snap.pricingItemsSnapshot || []).map((r: any) => ({
-          ...r,
-          active: r.active !== false,
-          deleted_at: r.deleted_at ?? null,
-          category: r.category ?? null,
-          category2: r.category2 ?? null,
-        }));
-        setPricingItems(cleanedItems as PricingItemRow[]);
-        if (Array.isArray(snap.pricingCategoriesSnapshot)) {
-          setPricingCategories(snap.pricingCategoriesSnapshot as PricingCategoryRow[]);
-        }
-        setPricingLoaded(true);
+        const snapshot = snap.pricingItemsSnapshot;
 
-        const savedAt = snap.savedAt ? new Date(snap.savedAt).toLocaleString() : null;
-        const cacheTs = snap.pricingCacheTs ? new Date(Number(snap.pricingCacheTs)).toLocaleString() : null;
-        window.alert(
-          `This estimate was saved${savedAt ? ` on ${savedAt}` : ""}.\n\n` +
-            "The app will use the pricing snapshot included with this file so the numbers match what you originally saved."
-        );
+        const applySnapshotNow = () => {
+          const cleanedItems = (snapshot || []).map((r: any) => ({
+            ...r,
+            active: r.active !== false,
+            deleted_at: r.deleted_at ?? null,
+            category: r.category ?? null,
+            category2: r.category2 ?? null,
+          }));
+          setPricingItems(cleanedItems as PricingItemRow[]);
+          if (Array.isArray(snap.pricingCategoriesSnapshot)) {
+            setPricingCategories(snap.pricingCategoriesSnapshot as PricingCategoryRow[]);
+          }
+          setPricingLoaded(true);
+        };
+
+        const hasDiff = () => {
+          try {
+            const currentMap: Record<string, number> = {};
+            pricingItems.forEach((p: any) => {
+              currentMap[String(p.id)] = Number(p.cost || 0);
+            });
+
+            for (const s of snapshot) {
+              const id = String((s as any).id);
+              const sCost = Number((s as any).cost || 0);
+              if (!(id in currentMap)) return true; // missing item => changed
+              if (Number(currentMap[id]) !== Number(sCost)) return true;
+            }
+            // also check for new items in current pricing not present in snapshot
+            for (const p of pricingItems) {
+              if (!snapshot.find((s: any) => String(s.id) === String(p.id))) return true;
+            }
+            return false;
+          } catch (e) {
+            return true; // if anything goes wrong, be conservative and treat as diff
+          }
+        };
+
+        if (!pricingLoaded) {
+          // defer: store snapshot on a temp ref and wait for pricing to load
+          (window as any).__du_pending_pricing_snapshot = { snap, snapshot, applySnapshotNow };
+        } else {
+          const diff = hasDiff();
+          if (!diff) {
+            applySnapshotNow();
+          } else {
+            const update = window.confirm(
+              "Prices have changed since this estimate was saved.\n\nClick OK to update pricing to current values, or Cancel to keep the prices used when this estimate was saved."
+            );
+            if (update) {
+              // keep current pricing (do nothing)
+            } else {
+              applySnapshotNow();
+            }
+          }
+        }
       }
     } catch (e) {
-      // non-fatal: if parsing fails, continue applying remaining snapshot fields
-      console.error("Failed to apply pricing snapshot:", e);
+      console.error("Failed to handle pricing snapshot:", e);
     }
 
     setClientTitle(snap.clientTitle || "");
