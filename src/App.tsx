@@ -1729,11 +1729,52 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     miValue,
 
     addItems,
+
+    // include a snapshot of current pricing so saved estimates always reopen
+    // with the exact prices that were used when the file was saved
+    pricingItemsSnapshot: pricingItems,
+    pricingCategoriesSnapshot: pricingCategories,
+    pricingCacheTs: (() => {
+      try {
+        return localStorage.getItem(PRICING_CACHE_TS_KEY) || null;
+      } catch (e) {
+        return null;
+      }
+    })(),
   });
 
   const applySnapshot = (snap: any) => {
     setEstimateName(snap.estimateName || "");
     setEstimateId(snap.estimateId || uid());
+
+    // If the snapshot includes a pricing snapshot, use it so the estimate
+    // reopens with the exact prices that were saved. Notify the user.
+    try {
+      if (snap?.pricingItemsSnapshot && Array.isArray(snap.pricingItemsSnapshot)) {
+        const cleanedItems = (snap.pricingItemsSnapshot || []).map((r: any) => ({
+          ...r,
+          active: r.active !== false,
+          deleted_at: r.deleted_at ?? null,
+          category: r.category ?? null,
+          category2: r.category2 ?? null,
+        }));
+        setPricingItems(cleanedItems as PricingItemRow[]);
+        if (Array.isArray(snap.pricingCategoriesSnapshot)) {
+          setPricingCategories(snap.pricingCategoriesSnapshot as PricingCategoryRow[]);
+        }
+        setPricingLoaded(true);
+
+        const savedAt = snap.savedAt ? new Date(snap.savedAt).toLocaleString() : null;
+        const cacheTs = snap.pricingCacheTs ? new Date(Number(snap.pricingCacheTs)).toLocaleString() : null;
+        window.alert(
+          `This estimate was saved${savedAt ? ` on ${savedAt}` : ""}.\n\n` +
+            "The app will use the pricing snapshot included with this file so the numbers match what you originally saved."
+        );
+      }
+    } catch (e) {
+      // non-fatal: if parsing fails, continue applying remaining snapshot fields
+      console.error("Failed to apply pricing snapshot:", e);
+    }
 
     setClientTitle(snap.clientTitle || "");
     setClientLastName(snap.clientLastName || "");
