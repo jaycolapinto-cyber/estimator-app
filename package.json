@@ -1,6 +1,6 @@
 {
   "name": "react-typescript",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "React and TypeScript example starter project",
   "keywords": [
     "typescript",
@@ -57,7 +57,9 @@
       "package.json"
     ],
     "win": {
-      "target": ["portable"]
+      "target": [
+        "portable"
+      ]
     },
     "nsis": {
       "oneClick": false,
