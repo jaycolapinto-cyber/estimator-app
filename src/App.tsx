@@ -2678,9 +2678,19 @@ const EST_EXT = ".DUest";
     (s) => String(s.id) === selectedSkirtingId
   );
 
-  const selectedConstruction = constructionOptions.find(
-    (c) => c.name === constructionType
-  );
+  const selectedConstruction = constructionOptions.find((c) => {
+    const cn = normalizeName(c.name || "");
+    const ct = normalizeName(constructionType || "");
+    // tolerant match: exact, contains, or prefix matches so entries like
+    // "New Construction PT pine" will match constructionType "New Construction"
+    return (
+      cn === ct ||
+      (ct && cn.includes(ct)) ||
+      (cn && ct.includes(cn)) ||
+      cn.startsWith(ct) ||
+      ct.startsWith(cn)
+    );
+  });
   useEffect(() => {
     // Only auto-pick once a decking type exists
     if (!selectedDeckingId) return;
