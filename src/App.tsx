@@ -3127,14 +3127,20 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
       // Prefer dynamic adjustments from Supabase (pricing_items2 rows with unit === 'decking_adjustment')
       // Fallback to the static CONSTRUCTION_TYPES adjustments if no DB row found.
       const ctLabel = getConstructionTypeLabel(row.category || "") || "";
-      const dbAdjRow = pricingItems.find(
-        (it) => (it.unit || "").toLowerCase().trim() === "decking_adjustment" && normalizeName(it.name || "") === normalizeName(ctLabel)
-      );
+      const dbAdjRow = pricingItems.find((it) => {
+        if (((it.unit || "").toLowerCase().trim() !== "decking_adjustment")) return false;
+        const cn = normalizeName(it.name || "");
+        const ct = normalizeName(ctLabel || "");
+        return (
+          cn === ct ||
+          (ct && cn.includes(ct)) ||
+          (cn && ct.includes(cn)) ||
+          cn.startsWith(ct) ||
+          ct.startsWith(cn)
+        );
+      });
       const adjSf = dbAdjRow ? Number(dbAdjRow.cost || 0) : getConstructionAdjustment(row.category || "");
       const rateSf = baseRateSf + adjSf;
-
-      const ctLabel =
-        getConstructionTypeLabel(row.category || "") || "Construction";
 
       const lineBase =
         !deckingRowForThisLine || !row.deckingId || rateSf <= 0
