@@ -1713,6 +1713,10 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     miValue,
 
     addItems,
+    // Embed current pricing so opened files use frozen prices
+    pricingItems,
+    pricingCategories,
+    pricingSnapshotAt: new Date().toISOString(),
   });
 
   const applySnapshot = (snap: any) => {
@@ -1748,6 +1752,27 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
 
     setMiValue(Number(snap.miValue || 0));
     setAddItems(Array.isArray(snap.addItems) ? snap.addItems : []);
+
+    // If the snapshot contains embedded pricing, use it and prevent live refresh
+    if (snap && Array.isArray(snap.pricingItems) && Array.isArray(snap.pricingCategories)) {
+      try {
+        setPricingItems(snap.pricingItems as PricingItemRow[]);
+        setPricingCategories(snap.pricingCategories as PricingCategoryRow[]);
+        setPricingLoaded(true);
+        setPricingError(null);
+        // mark that pricing was loaded from file so the startup loader can skip refresh
+        setPricingFrozenFromFile(true);
+
+        // also update local cache so other parts of the app see the same snapshot
+        try {
+          localStorage.setItem(PRICING_ITEMS_CACHE_KEY, JSON.stringify(snap.pricingItems));
+          localStorage.setItem(PRICING_CATS_CACHE_KEY, JSON.stringify(snap.pricingCategories));
+          localStorage.setItem(PRICING_CACHE_TS_KEY, String(Date.now()));
+        } catch {}
+      } catch (e) {
+        console.warn("Failed to apply embedded pricing from file:", e);
+      }
+    }
 
     setIsDirty(false);
     setShowBreakdown(false);
@@ -2394,8 +2419,13 @@ const EST_EXT = ".DUest";
   // ------------------------------
   // LOAD PRICING (CACHE FIRST, REFRESH FAST, FAIL FAST OFFLINE)
   // ------------------------------
+  const [pricingFrozenFromFile, setPricingFrozenFromFile] = useState(false);
   useEffect(() => {
     const loadPricing = async () => {
+      if (pricingFrozenFromFile) {
+        startupLog("pricing frozen from file - skipping live refresh");
+        return;
+      }
       const startedAt = performance.now();
       setPricingLoaded(false);
       setPricingError(null);
