@@ -420,6 +420,7 @@ const PRICING_CATS_CACHE_KEY = "du_cache::pricing_categories_v1";
 const PRICING_CACHE_TS_KEY = "du_cache::pricing_ts_v1";
 const OFFLINE_ORG_KEY = "du_offline_org_id";
 const OFFLINE_LAST_KEY = "du_last_online";
+const OFFLINE_ROLE_KEY = "du_offline_role";
 const AUTH_SESSION_HINT_KEY = "du_auth_session_hint";
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 2000;
 const AUTH_URL_PARSE_TIMEOUT_MS = 1500;
@@ -472,6 +473,15 @@ function storageSet(key: string, value: string) {
   if (typeof window === "undefined") return;
   (window as any).estimatorStore?.set(key, value) ??
     window.localStorage.setItem(key, value);
+}
+
+function storageRemove(key: string) {
+  if (typeof window === "undefined") return;
+  (window as any).estimatorStore?.remove?.(key) ?? window.localStorage.removeItem(key);
+}
+
+function isOfflineAdminCached() {
+  return String(storageGet(OFFLINE_ROLE_KEY) || "").toLowerCase() === "admin";
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -677,9 +687,7 @@ function AuthedApp() {
       const nextHint = !!resolvedSession;
       setHasSessionHint(nextHint);
       if (nextHint) storageSet(AUTH_SESSION_HINT_KEY, "1");
-      else if (typeof window !== "undefined") {
-        window.localStorage.removeItem(AUTH_SESSION_HINT_KEY);
-      }
+      else storageRemove(AUTH_SESSION_HINT_KEY);
     };
 
     const fallbackTimer = window.setTimeout(() => {
@@ -737,6 +745,7 @@ function AuthedApp() {
 
       const userId = session.user.id;
       const cachedOrgId = storageGet(OFFLINE_ORG_KEY);
+      const cachedIsAdmin = isOfflineAdminCached();
       const startedAt = performance.now();
 
       setOrgLoading(true);
@@ -751,10 +760,10 @@ function AuthedApp() {
       }
 
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        startupLog("org lookup skipped: offline", { cachedOrgId });
+        startupLog("org lookup skipped: offline", { cachedOrgId, cachedIsAdmin });
         if (!cancelled) {
           setOrgId(cachedOrgId || null);
-          setIsAdmin(false);
+          setIsAdmin(cachedIsAdmin);
           setOrgLoading(false);
           setOrgResolved(true);
         }
@@ -789,15 +798,18 @@ function AuthedApp() {
 
         if (!q1?.error && q1?.data?.org_id) {
           if (cancelled) return;
+          const nextIsAdmin = String(q1.data.role || "").toLowerCase() === "admin";
           setOrgId(q1.data.org_id);
           storageSet(OFFLINE_ORG_KEY, q1.data.org_id);
           storageSet(OFFLINE_LAST_KEY, String(Date.now()));
+          storageSet(OFFLINE_ROLE_KEY, nextIsAdmin ? "admin" : "user");
           startupLog("org lookup success", {
             orgId: q1.data.org_id,
             elapsedMs: Math.round(performance.now() - startedAt),
+            isAdmin: nextIsAdmin,
           });
           console.log("APP_ORG_ID", q1.data.org_id);
-          setIsAdmin(String(q1.data.role || "").toLowerCase() === "admin");
+          setIsAdmin(nextIsAdmin);
           return;
         }
 
@@ -813,14 +825,17 @@ function AuthedApp() {
 
         if (!q2?.error && q2?.data?.account_id) {
           if (cancelled) return;
+          const nextIsAdmin = String(q2.data.role || "").toLowerCase() === "admin";
           setOrgId(q2.data.account_id);
           storageSet(OFFLINE_ORG_KEY, q2.data.account_id);
           storageSet(OFFLINE_LAST_KEY, String(Date.now()));
+          storageSet(OFFLINE_ROLE_KEY, nextIsAdmin ? "admin" : "user");
           startupLog("org account lookup success", {
             orgId: q2.data.account_id,
             elapsedMs: Math.round(performance.now() - startedAt),
+            isAdmin: nextIsAdmin,
           });
-          setIsAdmin(String(q2.data.role || "").toLowerCase() === "admin");
+          setIsAdmin(nextIsAdmin);
           return;
         }
 
@@ -833,7 +848,7 @@ function AuthedApp() {
           elapsedMs: Math.round(performance.now() - startedAt),
         });
         setOrgId(cachedOrgId || null);
-        setIsAdmin(false);
+        setIsAdmin(cachedIsAdmin);
         if (cachedOrgId) {
           setStartupNotice("Using cached organization data. Reconnect to verify account access.");
         }
@@ -845,7 +860,7 @@ function AuthedApp() {
         });
         if (cancelled) return;
         setOrgId(cachedOrgId || null);
-        setIsAdmin(false);
+        setIsAdmin(cachedIsAdmin);
         if (cachedOrgId) {
           setStartupNotice("Startup sync failed. Using cached organization data until connection recovers.");
         }
@@ -898,6 +913,7 @@ function AuthedApp() {
   // ✅ Guard: user has no org
   if (orgResolved && !orgId) {
     const cachedOfflineOrg = storageGet(OFFLINE_ORG_KEY) || null;
+    const cachedOfflineAdmin = isOfflineAdminCached();
 
     const cachedLastOnline = storageGet(OFFLINE_LAST_KEY) || null;
 
@@ -909,7 +925,7 @@ function AuthedApp() {
     if (canUseOffline) {
       return (
         <AppShell
-          isAdmin={false}
+          isAdmin={cachedOfflineAdmin}
           orgId={cachedOfflineOrg}
           onLogout={async () => {}}
           userEmail={email}
@@ -1760,14 +1776,33 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     // If the snapshot contains embedded pricing, use it and prevent live refresh.
     // The frozen prices live in React state only — they must never be written to the
     // shared localStorage cache (PRICING_ITEMS_CACHE_KEY), which always mirrors live Supabase.
-    if (snap && Array.isArray(snap.pricingItems) && Array.isArray(snap.pricingCategories)) {
+    // Backward-compat: files saved on main used pricingItemsSnapshot / pricingCategoriesSnapshot
+    // (and pricingCacheTs instead of pricingSnapshotAt) — accept those too.
+    const embeddedItems = Array.isArray(snap?.pricingItems)
+      ? snap.pricingItems
+      : Array.isArray(snap?.pricingItemsSnapshot)
+        ? snap.pricingItemsSnapshot
+        : null;
+    const embeddedCategories = Array.isArray(snap?.pricingCategories)
+      ? snap.pricingCategories
+      : Array.isArray(snap?.pricingCategoriesSnapshot)
+        ? snap.pricingCategoriesSnapshot
+        : null;
+    const embeddedSnapshotAt =
+      typeof snap?.pricingSnapshotAt === "string"
+        ? snap.pricingSnapshotAt
+        : snap?.pricingCacheTs
+          ? new Date(Number(snap.pricingCacheTs)).toISOString()
+          : null;
+
+    if (embeddedItems && embeddedCategories) {
       try {
-        setPricingItems(snap.pricingItems as PricingItemRow[]);
-        setPricingCategories(snap.pricingCategories as PricingCategoryRow[]);
+        setPricingItems(embeddedItems as PricingItemRow[]);
+        setPricingCategories(embeddedCategories as PricingCategoryRow[]);
         setPricingLoaded(true);
         setPricingError(null);
         setPricingFrozenFromFile(true);
-        setPricingSnapshotAt(typeof snap.pricingSnapshotAt === "string" ? snap.pricingSnapshotAt : null);
+        setPricingSnapshotAt(embeddedSnapshotAt);
       } catch (e) {
         console.warn("Failed to apply embedded pricing from file:", e);
       }
@@ -2723,9 +2758,19 @@ const EST_EXT = ".DUest";
     (s) => String(s.id) === selectedSkirtingId
   );
 
-  const selectedConstruction = constructionOptions.find(
-    (c) => c.name === constructionType
-  );
+  const selectedConstruction = constructionOptions.find((c) => {
+    const cn = normalizeName(c.name || "");
+    const ct = normalizeName(constructionType || "");
+    // tolerant match: exact, contains, or prefix matches so entries like
+    // "New Construction PT pine" will match constructionType "New Construction"
+    return (
+      cn === ct ||
+      (ct && cn.includes(ct)) ||
+      (cn && ct.includes(cn)) ||
+      cn.startsWith(ct) ||
+      ct.startsWith(cn)
+    );
+  });
   useEffect(() => {
     // Only auto-pick once a decking type exists
     if (!selectedDeckingId) return;
@@ -3229,11 +3274,23 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
       );
 
       const baseRateSf = deckingRowForThisLine?.cost ?? 0;
-      const adjSf = getConstructionAdjustment(row.category || "");
+      // Prefer dynamic adjustments from Supabase (pricing_items2 rows with unit === 'decking_adjustment')
+      // Fallback to the static CONSTRUCTION_TYPES adjustments if no DB row found.
+      const ctLabel = getConstructionTypeLabel(row.category || "") || "";
+      const dbAdjRow = pricingItems.find((it) => {
+        if (((it.unit || "").toLowerCase().trim() !== "decking_adjustment")) return false;
+        const cn = normalizeName(it.name || "");
+        const ct = normalizeName(ctLabel || "");
+        return (
+          cn === ct ||
+          (ct && cn.includes(ct)) ||
+          (cn && ct.includes(cn)) ||
+          cn.startsWith(ct) ||
+          ct.startsWith(cn)
+        );
+      });
+      const adjSf = dbAdjRow ? Number(dbAdjRow.cost || 0) : getConstructionAdjustment(row.category || "");
       const rateSf = baseRateSf + adjSf;
-
-      const ctLabel =
-        getConstructionTypeLabel(row.category || "") || "Construction";
 
       const lineBase =
         !deckingRowForThisLine || !row.deckingId || rateSf <= 0

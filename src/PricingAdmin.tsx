@@ -206,29 +206,11 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
     if (catRes.error) {
       setError(catRes.error.message);
       setLoading(false);
-
-    // If Construction_options exists, select it by default (helps show decking adjustments immediately)
-    try {
-      const hasConstr = cleanedCats.find(c => String(c.name).toLowerCase() === 'construction_options' || String(c.name).toLowerCase().includes('construct'));
-      if (hasConstr) {
-        setSelectedCategoryId(prev => (prev != null ? prev : Number(hasConstr.id)));
-      }
-    } catch (e) {}
-
       return;
     }
     if (itemRes.error) {
       setError(itemRes.error.message);
       setLoading(false);
-
-    // If Construction_options exists, select it by default (helps show decking adjustments immediately)
-    try {
-      const hasConstr = cleanedCats.find(c => String(c.name).toLowerCase() === 'construction_options' || String(c.name).toLowerCase().includes('construct'));
-      if (hasConstr) {
-        setSelectedCategoryId(prev => (prev != null ? prev : Number(hasConstr.id)));
-      }
-    } catch (e) {}
-
       return;
     }
 
@@ -246,43 +228,10 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
     setCategories(cleanedCats);
     setItems(cleanedItems);
 
-    // Detect item.category strings not present in pricing_categories and add synthetic categories so admins can edit them
-    try {
-      const catNames = new Set(cleanedCats.map(c => String(c.name).toLowerCase()));
-      const orphanNames = Array.from(new Set(cleanedItems.map(it => (it.category || '').toString().trim()).filter(Boolean).map(n => n.toLowerCase()))).filter(n => !catNames.has(n));
-      if (orphanNames.length) {
-        const synthetic = orphanNames.map((n, idx) => ({ id: -(idx+1), name: n, sort_order: 9999, is_active: true }));
-        setCategories(prev => [...prev, ...synthetic]);
-      }
-    } catch (e) {
-      // ignore
-    }
-    // If no selection yet, prefer construction category now (including synthetic ones)
-    try {
-      const allCats = (function(){
-        const prev = cleanedCats.slice();
-        const rawOrphans = Array.from(new Set(cleanedItems.map(it => (it.category || '').toString().trim()).filter(Boolean).map(n => n.toLowerCase()))).filter(n => !prev.map(c=>String(c.name).toLowerCase()).includes(n));
-        const synthetic = rawOrphans.map((n, idx)=>({ id: -(idx+1), name:n, sort_order:9999, is_active:true }));
-        return [...prev, ...synthetic];
-      })();
-      const construct = allCats.find(c => String(c.name).toLowerCase().includes('construct'));
-      if (construct) {
-        setSelectedCategoryId((prev) => prev != null ? prev : Number(construct.id));
-      }
-    } catch(e){}
-
-
     const activeCatsLocal = cleanedCats.filter((c) => c.is_active);
     const firstActiveId = activeCatsLocal.length
       ? Number(activeCatsLocal[0].id)
       : null;
-
-    // Prefer construction_options if present (decking adjustments), else Price_adjusters, else first active
-    const constructionCat = cleanedCats.find(c => String(c.name).toLowerCase().includes('construct') || String(c.name).toLowerCase().includes('construction'));
-    const priceAdjusters = cleanedCats.find(
-      (c) => String(c.name).toLowerCase().includes("price_adjust") || String(c.name).toLowerCase().includes("price adjust")
-    );
-    const preferredId = constructionCat ? Number(constructionCat.id) : priceAdjusters ? Number(priceAdjusters.id) : firstActiveId;
 
     setSelectedCategoryId((prev) => {
       if (
@@ -291,19 +240,10 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
       ) {
         return prev;
       }
-      return preferredId;
+      return firstActiveId;
     });
 
     setLoading(false);
-
-    // If Construction_options exists, select it by default (helps show decking adjustments immediately)
-    try {
-      const hasConstr = cleanedCats.find(c => String(c.name).toLowerCase() === 'construction_options' || String(c.name).toLowerCase().includes('construct'));
-      if (hasConstr) {
-        setSelectedCategoryId(prev => (prev != null ? prev : Number(hasConstr.id)));
-      }
-    } catch (e) {}
-
   };
 
   useEffect(() => {
@@ -332,20 +272,26 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
     [categories]
   );
 
+  // Add a virtual admin-only category for decking adjustments (items with unit === 'decking_adjustment')
+  const DECKING_CAT_ID = -999999;
+  const deckingVirtualCategory = useMemo(
+    () => ({ id: DECKING_CAT_ID, name: "Decking Adjustments", sort_order: -1, is_active: true }),
+    []
+  );
+
+  // Use this list only for the Pricing Admin category select so we don't modify real categories in DB
+  const activeCatsWithDecking = useMemo(() => [deckingVirtualCategory, ...activeCats], [deckingVirtualCategory, activeCats]);
+
   const itemsForCategory = useMemo(() => {
     if (!selectedCategoryId) return [];
-    // prefer items that have a matching category_id
-    const primary = items.filter((it) => Number(it.category_id) === Number(selectedCategoryId));
-    if (primary.length) return primary;
-    // fallback: include items where category_id is null but category string matches the selected category name
-    const selCat = categories.find((c) => Number(c.id) === Number(selectedCategoryId));
-    const selName = selCat ? String(selCat.name).toLowerCase() : null;
-    if (!selName) return [];
-    return items.filter((it) => {
-      if (it.category_id != null) return false;
-      return String(it.category || "").toLowerCase() === selName;
-    });
-  }, [items, selectedCategoryId, categories]);
+
+    // Special case: show decking_adjustment items when our virtual Decking Adjustments category is selected
+    if (Number(selectedCategoryId) === Number(DECKING_CAT_ID)) {
+      return items.filter((it) => (it.unit || "") === "decking_adjustment");
+    }
+
+    return items.filter((it) => Number(it.category_id) === Number(selectedCategoryId));
+  }, [items, selectedCategoryId]);
 
   const trashCount = useMemo(
     () => itemsForCategory.filter((it) => it.deleted_at != null).length,
@@ -697,7 +643,7 @@ await Promise.all([handleSaveCategories(), handleSaveItems()]);
 <button
   className="paBtn primary"
   onClick={handleAddItem}
-  disabled={readOnly || !selectedCategoryId}
+  disabled={readOnly || !selectedCategoryId || selectedCategoryId === DECKING_CAT_ID}
 >
   + Add Item
 </button>
@@ -726,12 +672,12 @@ await Promise.all([handleSaveCategories(), handleSaveItems()]);
               setShowTrash(false);
               setItemSearch("");
             }}
-            disabled={loading || activeCats.length === 0}
+            disabled={loading || activeCatsWithDecking.length === 0}
           >
-            {activeCats.length === 0 ? (
+            {activeCatsWithDecking.length === 0 ? (
               <option value="">No categories</option>
             ) : (
-              activeCats.map((c) => (
+              activeCatsWithDecking.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name.replace(/_/g, " ")}
                 </option>
@@ -748,7 +694,7 @@ await Promise.all([handleSaveCategories(), handleSaveItems()]);
           <button
             className={`paBtn ${showTrash ? "on" : ""}`}
             onClick={() => setShowTrash((v) => !v)}
-            disabled={!selectedCategoryId}
+            disabled={!selectedCategoryId || selectedCategoryId === DECKING_CAT_ID}
           >
             Trash ({trashCount})
           </button>
@@ -765,7 +711,7 @@ await Promise.all([handleSaveCategories(), handleSaveItems()]);
             <button
               className="paBtn primary"
               onClick={handleAddItem}
-              disabled={!selectedCategoryId || readOnly}
+              disabled={!selectedCategoryId || readOnly || selectedCategoryId === DECKING_CAT_ID}
               title={readOnly ? "Read-only" : ""}
             >
               + Add Item
