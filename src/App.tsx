@@ -1670,6 +1670,10 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     setActiveNav("estimator");
     setIsDirty(false);
     setShowBreakdown(false);
+
+    setPricingFrozenFromFile(false);
+    setPricingSnapshotAt(null);
+    setLivePricingItems(null);
   };
 
   const requestNewProject = () => {
@@ -1753,25 +1757,25 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     setMiValue(Number(snap.miValue || 0));
     setAddItems(Array.isArray(snap.addItems) ? snap.addItems : []);
 
-    // If the snapshot contains embedded pricing, use it and prevent live refresh
+    // If the snapshot contains embedded pricing, use it and prevent live refresh.
+    // The frozen prices live in React state only — they must never be written to the
+    // shared localStorage cache (PRICING_ITEMS_CACHE_KEY), which always mirrors live Supabase.
     if (snap && Array.isArray(snap.pricingItems) && Array.isArray(snap.pricingCategories)) {
       try {
         setPricingItems(snap.pricingItems as PricingItemRow[]);
         setPricingCategories(snap.pricingCategories as PricingCategoryRow[]);
         setPricingLoaded(true);
         setPricingError(null);
-        // mark that pricing was loaded from file so the startup loader can skip refresh
         setPricingFrozenFromFile(true);
-
-        // also update local cache so other parts of the app see the same snapshot
-        try {
-          localStorage.setItem(PRICING_ITEMS_CACHE_KEY, JSON.stringify(snap.pricingItems));
-          localStorage.setItem(PRICING_CATS_CACHE_KEY, JSON.stringify(snap.pricingCategories));
-          localStorage.setItem(PRICING_CACHE_TS_KEY, String(Date.now()));
-        } catch {}
+        setPricingSnapshotAt(typeof snap.pricingSnapshotAt === "string" ? snap.pricingSnapshotAt : null);
       } catch (e) {
         console.warn("Failed to apply embedded pricing from file:", e);
       }
+    } else {
+      // Legacy file with no embedded pricing — make sure live Supabase prices
+      // resume by clearing the freeze flag (which gates the load effect).
+      setPricingFrozenFromFile(false);
+      setPricingSnapshotAt(null);
     }
 
     setIsDirty(false);
@@ -2420,6 +2424,9 @@ const EST_EXT = ".DUest";
   // LOAD PRICING (CACHE FIRST, REFRESH FAST, FAIL FAST OFFLINE)
   // ------------------------------
   const [pricingFrozenFromFile, setPricingFrozenFromFile] = useState(false);
+  const [pricingSnapshotAt, setPricingSnapshotAt] = useState<string | null>(null);
+  const [livePricingItems, setLivePricingItems] = useState<PricingItemRow[] | null>(null);
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
   useEffect(() => {
     const loadPricing = async () => {
       if (pricingFrozenFromFile) {
@@ -2535,7 +2542,31 @@ const EST_EXT = ".DUest";
     };
 
     loadPricing();
-  }, []);
+  }, [pricingFrozenFromFile]);
+
+  // ------------------------------
+  // BACKGROUND LIVE-PRICE FETCH (for diff detection on frozen files)
+  // ------------------------------
+  useEffect(() => {
+    if (!pricingFrozenFromFile) {
+      setLivePricingItems(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("pricing_items2")
+          .select("*")
+          .order("sort_order", { ascending: true });
+        if (cancelled || error || !Array.isArray(data)) return;
+        setLivePricingItems(data as PricingItemRow[]);
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pricingFrozenFromFile, estimateId]);
 
   // ===============================
   // ESTIMATOR DERIVED DATA
@@ -2963,6 +2994,76 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
   const selectedStairsRow = pricingItems.find(
     (p) => String(p.id) === String(selectedStairsId)
   );
+
+  // ------------------------------
+  // FROZEN PRICE DIFF — items used in this estimate whose live price differs
+  // ------------------------------
+  const usedPricingItemIds = useMemo(() => {
+    const ids = new Set<string>();
+    [
+      selectedDeckingId,
+      selectedRailingId,
+      selectedStairsId,
+      selectedFastenerId,
+      selectedDemoId,
+      selectedSkirtingId,
+    ].forEach((id) => {
+      if (id) ids.add(String(id));
+    });
+    addItems.forEach((r) => {
+      if (r.itemId && !r.isFixedPrice) ids.add(String(r.itemId));
+    });
+    return ids;
+  }, [
+    selectedDeckingId,
+    selectedRailingId,
+    selectedStairsId,
+    selectedFastenerId,
+    selectedDemoId,
+    selectedSkirtingId,
+    addItems,
+  ]);
+
+  const frozenPriceDiffs = useMemo(() => {
+    if (!pricingFrozenFromFile || !livePricingItems) return [];
+    const frozenById = new Map(
+      pricingItems.map((i) => [String(i.id), i])
+    );
+    const diffs: Array<{
+      id: string;
+      name: string;
+      unit: string;
+      oldCost: number;
+      newCost: number;
+      delta: number;
+    }> = [];
+    livePricingItems.forEach((live) => {
+      if (!usedPricingItemIds.has(String(live.id))) return;
+      const frozen = frozenById.get(String(live.id));
+      if (!frozen) return;
+      const oldCost = Number(frozen.cost ?? 0);
+      const newCost = Number(live.cost ?? 0);
+      if (Math.abs(oldCost - newCost) < 0.005) return;
+      diffs.push({
+        id: String(live.id),
+        name: String(live.name || frozen.name || "Unnamed"),
+        unit: String(live.unit || frozen.unit || ""),
+        oldCost,
+        newCost,
+        delta: newCost - oldCost,
+      });
+    });
+    return diffs;
+  }, [pricingFrozenFromFile, livePricingItems, pricingItems, usedPricingItemIds]);
+
+  const handleAcceptFrozenSync = () => {
+    if (!livePricingItems) return;
+    setPricingItems(livePricingItems);
+    setPricingSnapshotAt(new Date().toISOString());
+    setIsDirty(true);
+    setSyncModalOpen(false);
+    showToast("Prices updated to current. Save the file to lock in the new prices.");
+  };
 
   const addItemsDetailed = addItems.map((row) => {
     const rowCat = normalizeCat(row.category || "");
@@ -4353,6 +4454,67 @@ const altBaseTotal =
                 "Manage product image mappings for future proposal appendices"}
             </div>
           </div>
+
+          {pricingFrozenFromFile &&
+            (activeNav === "estimator" || activeNav === "proposals") && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginLeft: "auto",
+                }}
+              >
+                <div
+                  title={
+                    pricingSnapshotAt
+                      ? `Prices captured ${new Date(pricingSnapshotAt).toLocaleString()}`
+                      : "This file uses prices captured at save time"
+                  }
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    background: "#eef2ff",
+                    border: "1px solid #c7d2fe",
+                    color: "#3730a3",
+                    fontWeight: 700,
+                    fontSize: 12,
+                  }}
+                >
+                  <span aria-hidden>🔒</span>
+                  <span>Frozen prices</span>
+                  {pricingSnapshotAt && (
+                    <span style={{ fontWeight: 500, opacity: 0.85 }}>
+                      · {new Date(pricingSnapshotAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                {frozenPriceDiffs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSyncModalOpen(true)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      background: "#f59e0b",
+                      border: "1px solid #d97706",
+                      color: "#1f2937",
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Sync prices ({frozenPriceDiffs.length})
+                  </button>
+                )}
+              </div>
+            )}
         </header>
 
         {toast && <div className="du-toast">{toast}</div>}
@@ -5720,6 +5882,14 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
         onSave={saveAndNew}
       />
 
+      <FrozenSyncModal
+        open={syncModalOpen}
+        diffs={frozenPriceDiffs}
+        snapshotAt={pricingSnapshotAt}
+        onCancel={() => setSyncModalOpen(false)}
+        onAccept={handleAcceptFrozenSync}
+      />
+
       {/* =============================== */}
       {/* EMAIL MODAL (TEMP TEST) */}
       {/* =============================== */}
@@ -5919,6 +6089,176 @@ function ConfirmNewProjectModal({
               onClick={onSave}
             >
               Save &amp; New
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ===============================
+// FROZEN PRICE SYNC MODAL
+// ===============================
+function FrozenSyncModal({
+  open,
+  diffs,
+  snapshotAt,
+  onCancel,
+  onAccept,
+}: {
+  open: boolean;
+  diffs: Array<{
+    id: string;
+    name: string;
+    unit: string;
+    oldCost: number;
+    newCost: number;
+    delta: number;
+  }>;
+  snapshotAt: string | null;
+  onCancel: () => void;
+  onAccept: () => void;
+}) {
+  if (!open) return null;
+
+  const fmt = (n: number) =>
+    `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  return ReactDOM.createPortal(
+    <div className="du-modal-overlay" role="dialog" aria-modal="true">
+      <div
+        className="du-modal-card"
+        style={{ maxWidth: 720, width: "92vw" }}
+      >
+        <div className="du-modal-title">Update frozen prices?</div>
+        <div className="du-modal-subtitle">
+          This file uses prices captured
+          {snapshotAt
+            ? ` on ${new Date(snapshotAt).toLocaleDateString()}`
+            : " at save time"}
+          . The items below have changed in the live pricing list. Accepting
+          will replace this file's frozen prices with the current values — the
+          file remains frozen at the new prices once you save.
+        </div>
+
+        <div
+          style={{
+            margin: "12px 0 8px",
+            maxHeight: 360,
+            overflowY: "auto",
+            border: "1px solid #e5e7eb",
+            borderRadius: 8,
+          }}
+        >
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: 13,
+            }}
+          >
+            <thead>
+              <tr style={{ background: "#f9fafb", textAlign: "left" }}>
+                <th style={{ padding: "8px 10px", borderBottom: "1px solid #e5e7eb" }}>
+                  Item
+                </th>
+                <th
+                  style={{
+                    padding: "8px 10px",
+                    borderBottom: "1px solid #e5e7eb",
+                    textAlign: "right",
+                  }}
+                >
+                  Frozen
+                </th>
+                <th
+                  style={{
+                    padding: "8px 10px",
+                    borderBottom: "1px solid #e5e7eb",
+                    textAlign: "right",
+                  }}
+                >
+                  Current
+                </th>
+                <th
+                  style={{
+                    padding: "8px 10px",
+                    borderBottom: "1px solid #e5e7eb",
+                    textAlign: "right",
+                  }}
+                >
+                  Δ
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {diffs.map((d) => (
+                <tr key={d.id}>
+                  <td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>
+                    <div style={{ fontWeight: 600 }}>{d.name}</div>
+                    {d.unit && (
+                      <div style={{ fontSize: 11, color: "#6b7280" }}>
+                        per {d.unit}
+                      </div>
+                    )}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      borderBottom: "1px solid #f1f5f9",
+                      textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {fmt(d.oldCost)}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      borderBottom: "1px solid #f1f5f9",
+                      textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {fmt(d.newCost)}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      borderBottom: "1px solid #f1f5f9",
+                      textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
+                      color: d.delta > 0 ? "#b91c1c" : "#047857",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {d.delta > 0 ? "+" : ""}
+                    {fmt(d.delta)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="du-modal-actions">
+          <button
+            type="button"
+            className="du-btn du-btn-ghost"
+            onClick={onCancel}
+          >
+            Keep frozen prices
+          </button>
+
+          <div className="du-modal-actions-right">
+            <button
+              type="button"
+              className="du-btn du-btn-primary"
+              onClick={onAccept}
+            >
+              Update to current prices
             </button>
           </div>
         </div>

@@ -1087,6 +1087,10 @@ await upsertProposalSections(orgId, orderedSections);
         </SectionCard>
 
 
+        {/* Migrate legacy estimates */}
+        <LegacyEstimatesMigrator />
+
+
         {/* Scope of Work */}
         <section className="settings-card">
           <div className="settings-card-title">SCOPE TEMPLATES</div>
@@ -1338,4 +1342,288 @@ function ScopeEditor({
     </div>
   );
 
+}
+
+// ===============================================================
+// LEGACY ESTIMATES MIGRATOR
+// One-time tool to embed today's Supabase pricing into older .duest
+// files that were saved before per-file price freezing existed.
+// ===============================================================
+type MigrationStatus = "migrated" | "skipped" | "error";
+type MigrationResult = {
+  fileName: string;
+  status: MigrationStatus;
+  message?: string;
+};
+
+function LegacyEstimatesMigrator() {
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const [running, setRunning] = useState(false);
+  const [results, setResults] = useState<MigrationResult[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const desktopApi =
+    typeof window !== "undefined" ? (window as any).estimator : null;
+
+  const triggerPicker = () => {
+    setError(null);
+    setResults([]);
+    inputRef.current?.click();
+  };
+
+  const saveBack = async (fileName: string, text: string) => {
+    if (desktopApi?.isDesktop && desktopApi?.saveEstimateFileAs) {
+      const result = await desktopApi.saveEstimateFileAs({
+        defaultPath: fileName,
+        text,
+      });
+      if (result?.canceled) {
+        return { ok: false, message: "Save cancelled" };
+      }
+      if (!result?.ok) {
+        return { ok: false, message: result?.error || "Save failed" };
+      }
+      return { ok: true };
+    }
+    const blob = new Blob([text], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return { ok: true };
+  };
+
+  const onFilesPicked = async (filesList: FileList | null) => {
+    if (!filesList || filesList.length === 0) return;
+    const files = Array.from(filesList);
+
+    setRunning(true);
+    setError(null);
+    setResults([]);
+
+    let pricingItems: any[] = [];
+    let pricingCategories: any[] = [];
+
+    try {
+      const [itemsRes, catsRes] = await Promise.all([
+        supabase
+          .from("pricing_items2")
+          .select("*")
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true }),
+        supabase
+          .from("pricing_categories")
+          .select("*")
+          .order("name", { ascending: true }),
+      ]);
+      if (itemsRes.error) throw itemsRes.error;
+      if (catsRes.error) throw catsRes.error;
+      pricingItems = itemsRes.data || [];
+      pricingCategories = catsRes.data || [];
+    } catch (e: any) {
+      setError(
+        `Could not fetch current Supabase pricing: ${e?.message || String(e)}`
+      );
+      setRunning(false);
+      return;
+    }
+
+    const snapshotAt = new Date().toISOString();
+    const next: MigrationResult[] = [];
+
+    for (const file of files) {
+      try {
+        const text = await file.text();
+        let snap: any;
+        try {
+          snap = JSON.parse(text);
+        } catch {
+          next.push({
+            fileName: file.name,
+            status: "error",
+            message: "Not valid JSON",
+          });
+          setResults([...next]);
+          continue;
+        }
+        if (!snap || typeof snap !== "object") {
+          next.push({
+            fileName: file.name,
+            status: "error",
+            message: "Not a valid estimate file",
+          });
+          setResults([...next]);
+          continue;
+        }
+        if (Array.isArray(snap.pricingItems) && snap.pricingItems.length > 0) {
+          next.push({
+            fileName: file.name,
+            status: "skipped",
+            message: "Already has frozen pricing",
+          });
+          setResults([...next]);
+          continue;
+        }
+
+        const migrated = {
+          ...snap,
+          pricingItems,
+          pricingCategories,
+          pricingSnapshotAt: snapshotAt,
+        };
+        const newText = JSON.stringify(migrated, null, 2);
+        const saveRes = await saveBack(file.name, newText);
+        if (!saveRes.ok) {
+          next.push({
+            fileName: file.name,
+            status: "error",
+            message: saveRes.message,
+          });
+        } else {
+          next.push({ fileName: file.name, status: "migrated" });
+        }
+        setResults([...next]);
+      } catch (e: any) {
+        next.push({
+          fileName: file.name,
+          status: "error",
+          message: e?.message || String(e),
+        });
+        setResults([...next]);
+      }
+    }
+
+    setRunning(false);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const counts = results.reduce(
+    (acc, r) => {
+      acc[r.status]++;
+      return acc;
+    },
+    { migrated: 0, skipped: 0, error: 0 } as Record<MigrationStatus, number>
+  );
+
+  return (
+    <section className="settings-card">
+      <div className="settings-card-title">MIGRATE LEGACY ESTIMATES</div>
+      <div className="settings-card-subtitle">
+        One-time tool for older .duest files saved before per-file price
+        freezing. Pick the files, and today's Supabase prices will be embedded
+        into each one. You'll be prompted to save the updated file
+        {desktopApi?.isDesktop ? "" : " (it will download)"} — overwrite the
+        original to complete the migration. Files that already have frozen
+        pricing are skipped automatically.
+      </div>
+
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12 }}>
+        <button
+          type="button"
+          className="ui-btn"
+          onClick={triggerPicker}
+          disabled={running}
+        >
+          {running ? "Migrating…" : "Choose legacy estimates…"}
+        </button>
+        {results.length > 0 && (
+          <div className="micro" style={{ fontWeight: 700 }}>
+            {counts.migrated} migrated · {counts.skipped} skipped · {counts.error} errors
+          </div>
+        )}
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".duest,.est,.json,application/json"
+        multiple
+        style={{ display: "none" }}
+        onChange={(e) => onFilesPicked(e.target.files)}
+      />
+
+      {error && (
+        <div
+          className="micro"
+          style={{
+            color: "#b00020",
+            fontWeight: 700,
+            marginTop: 10,
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {results.length > 0 && (
+        <div
+          style={{
+            marginTop: 12,
+            border: "1px solid #e5e7eb",
+            borderRadius: 8,
+            overflow: "hidden",
+            maxHeight: 280,
+            overflowY: "auto",
+          }}
+        >
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", textAlign: "left" }}>
+                <th style={{ padding: "8px 10px", borderBottom: "1px solid #e5e7eb" }}>
+                  File
+                </th>
+                <th style={{ padding: "8px 10px", borderBottom: "1px solid #e5e7eb" }}>
+                  Status
+                </th>
+                <th style={{ padding: "8px 10px", borderBottom: "1px solid #e5e7eb" }}>
+                  Note
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.map((r, i) => {
+                const color =
+                  r.status === "migrated"
+                    ? "#047857"
+                    : r.status === "skipped"
+                    ? "#6b7280"
+                    : "#b91c1c";
+                return (
+                  <tr key={i}>
+                    <td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>
+                      {r.fileName}
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px 10px",
+                        borderBottom: "1px solid #f1f5f9",
+                        color,
+                        fontWeight: 700,
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {r.status}
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px 10px",
+                        borderBottom: "1px solid #f1f5f9",
+                        color: "#374151",
+                      }}
+                    >
+                      {r.message || ""}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
 }
