@@ -3045,6 +3045,8 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
   // ------------------------------
   const usedPricingItemIds = useMemo(() => {
     const ids = new Set<string>();
+
+    // 1) Direct selections (ID-based)
     [
       selectedDeckingId,
       selectedRailingId,
@@ -3058,6 +3060,79 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
     addItems.forEach((r) => {
       if (r.itemId && !r.isFixedPrice) ids.add(String(r.itemId));
     });
+
+    // 2) Construction adjustment (matched by NAME against constructionType,
+    //    not stored as a *Id field) — its cost feeds the decking subtotal.
+    if (selectedConstruction?.id) {
+      ids.add(String(selectedConstruction.id));
+    }
+
+    // 3) Base stair row — name-matched in category "stair" against the
+    //    selected decking name. Consulted by both main stairs and stair_options add-items.
+    const stairAddItemPresent = addItems.some(
+      (r) => normalizeCat(r.category || "") === "stair_options" || normalizeCat(r.category || "").includes("stair")
+    );
+    if (selectedDecking && (Number(stairsCount || 0) > 0 || stairAddItemPresent)) {
+      const deckNm = normalizeName(selectedDecking.name || "");
+      const baseStairRow = pricingItems.find((it) => {
+        if (it.active === false) return false;
+        if ((it.deleted_at ?? null) != null) return false;
+        if (normalizeCat(it.category || "") !== "stair") return false;
+        return normalizeName(it.name || "") === deckNm;
+      });
+      if (baseStairRow?.id) ids.add(String(baseStairRow.id));
+    }
+
+    // 4) Global multipliers — always consulted for uplift / permit math.
+    //    Covers Finance, Perceived Value, and the various Permit Deck rows.
+    pricingItems.forEach((p) => {
+      const u = (p.unit || "").toLowerCase().trim();
+      if (u === "global_multiplier") ids.add(String(p.id));
+    });
+
+    // 5) Add-item by-name lookups (mirrors the lookup logic in addItemsDetailed)
+    addItems.forEach((row) => {
+      // 5a) Construction-type add-item — looks up a decking_adjustment row by name
+      if (isConstructionTypeCategory(row.category || "")) {
+        const ctLabel = getConstructionTypeLabel(row.category || "") || "";
+        const dbAdjRow = pricingItems.find((it) => {
+          if ((it.unit || "").toLowerCase().trim() !== "decking_adjustment") return false;
+          const cn = normalizeName(it.name || "");
+          const ct = normalizeName(ctLabel || "");
+          return (
+            cn === ct ||
+            (ct && cn.includes(ct)) ||
+            (cn && ct.includes(cn)) ||
+            cn.startsWith(ct) ||
+            ct.startsWith(cn)
+          );
+        });
+        if (dbAdjRow?.id) ids.add(String(dbAdjRow.id));
+        if (row.deckingId) ids.add(String(row.deckingId));
+      }
+
+      // 5b) Bench add-item — base row keyed by "<decking> bench" / "<decking> bench 18in"
+      if (normalizeCat(row.category || "") === "bench" && selectedDecking) {
+        const deckName = (selectedDecking.name || "").trim();
+        if (deckName) {
+          const bt = String(row.benchType || "12_flat");
+          const is18 = bt.startsWith("18_");
+          const baseNeedle = is18
+            ? normalizeName(`${deckName} bench 18in`)
+            : normalizeName(`${deckName} bench`);
+          const baseRow = pricingItems.find((it) => {
+            if (it.active === false) return false;
+            if ((it.deleted_at ?? null) != null) return false;
+            const cat = normalizeCat(it.category || "");
+            const wantCat = is18 ? "bench_18in" : "bench";
+            if (cat !== wantCat) return false;
+            return normalizeName(it.name || "") === baseNeedle;
+          });
+          if (baseRow?.id) ids.add(String(baseRow.id));
+        }
+      }
+    });
+
     return ids;
   }, [
     selectedDeckingId,
@@ -3067,6 +3142,10 @@ const skirtingSubtotal = effectiveSkirtingRate * skirtingSf;
     selectedDemoId,
     selectedSkirtingId,
     addItems,
+    selectedConstruction,
+    selectedDecking,
+    stairsCount,
+    pricingItems,
   ]);
 
   const frozenPriceDiffs = useMemo(() => {
