@@ -10,13 +10,15 @@ jobs:
   build-windows:
     runs-on: windows-latest
     env:
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+      # CI=true makes react-scripts treat warnings as errors — this project
+      # has many pre-existing warnings, so build the production bundle in
+      # non-CI mode.
       CI: "false"
     steps:
+      # Use the auto-provided GITHUB_TOKEN (default) instead of a custom GH_TOKEN
+      # secret. Sufficient for checkout + upload-artifact. Restore the custom
+      # token if you later want electron-builder to auto-publish releases.
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GH_TOKEN }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
