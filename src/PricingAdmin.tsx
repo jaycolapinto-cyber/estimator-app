@@ -272,24 +272,8 @@ const PricingAdmin: React.FC<{ readOnly?: boolean }> = ({
     [categories]
   );
 
-  // Add a virtual admin-only category for decking adjustments (items with unit === 'decking_adjustment')
-  const DECKING_CAT_ID = -999999;
-  const deckingVirtualCategory = useMemo(
-    () => ({ id: DECKING_CAT_ID, name: "Decking Adjustments", sort_order: -1, is_active: true }),
-    []
-  );
-
-  // Use this list only for the Pricing Admin category select so we don't modify real categories in DB
-  const activeCatsWithDecking = useMemo(() => [deckingVirtualCategory, ...activeCats], [deckingVirtualCategory, activeCats]);
-
   const itemsForCategory = useMemo(() => {
     if (!selectedCategoryId) return [];
-
-    // Special case: show decking_adjustment items when our virtual Decking Adjustments category is selected
-    if (Number(selectedCategoryId) === Number(DECKING_CAT_ID)) {
-      return items.filter((it) => (it.unit || "") === "decking_adjustment");
-    }
-
     return items.filter((it) => Number(it.category_id) === Number(selectedCategoryId));
   }, [items, selectedCategoryId]);
 
@@ -643,7 +627,7 @@ await Promise.all([handleSaveCategories(), handleSaveItems()]);
 <button
   className="paBtn primary"
   onClick={handleAddItem}
-  disabled={readOnly || !selectedCategoryId || selectedCategoryId === DECKING_CAT_ID}
+  disabled={readOnly || !selectedCategoryId}
 >
   + Add Item
 </button>
@@ -672,12 +656,12 @@ await Promise.all([handleSaveCategories(), handleSaveItems()]);
               setShowTrash(false);
               setItemSearch("");
             }}
-            disabled={loading || activeCatsWithDecking.length === 0}
+            disabled={loading || activeCats.length === 0}
           >
-            {activeCatsWithDecking.length === 0 ? (
+            {activeCats.length === 0 ? (
               <option value="">No categories</option>
             ) : (
-              activeCatsWithDecking.map((c) => (
+              activeCats.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name.replace(/_/g, " ")}
                 </option>
@@ -694,7 +678,7 @@ await Promise.all([handleSaveCategories(), handleSaveItems()]);
           <button
             className={`paBtn ${showTrash ? "on" : ""}`}
             onClick={() => setShowTrash((v) => !v)}
-            disabled={!selectedCategoryId || selectedCategoryId === DECKING_CAT_ID}
+            disabled={!selectedCategoryId}
           >
             Trash ({trashCount})
           </button>
@@ -711,7 +695,7 @@ await Promise.all([handleSaveCategories(), handleSaveItems()]);
             <button
               className="paBtn primary"
               onClick={handleAddItem}
-              disabled={!selectedCategoryId || readOnly || selectedCategoryId === DECKING_CAT_ID}
+              disabled={!selectedCategoryId || readOnly}
               title={readOnly ? "Read-only" : ""}
             >
               + Add Item
