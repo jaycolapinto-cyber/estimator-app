@@ -1,8 +1,16 @@
 // App.tsx
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import { fetchProposalSections } from "./proposalSections"; // <-- add this import near the top
+import {
+  AppUserSettings,
+  DEFAULT_SETTINGS,
+  fetchSettings,
+  readCachedSettings,
+  upsertSettings,
+  writeCachedSettings,
+} from "./settings";
 import PricingAdmin from "./PricingAdmin";
 import ProposalPage from "./ProposalPage";
 import SettingsPage from "./SettingsPage";
@@ -927,6 +935,7 @@ function AuthedApp() {
         <AppShell
           isAdmin={cachedOfflineAdmin}
           orgId={cachedOfflineOrg}
+          userId={session?.user?.id ?? null}
           onLogout={async () => {}}
           userEmail={email}
           startupNotice={startupNotice}
@@ -963,6 +972,7 @@ function AuthedApp() {
     <AppShell
       isAdmin={isAdmin}
       orgId={orgId}
+      userId={session?.user?.id ?? null}
       onLogout={handleLogout}
       userEmail={email}
       startupNotice={startupNotice}
@@ -973,12 +983,14 @@ function AuthedApp() {
 function AppShell({
   isAdmin,
   orgId,
+  userId,
   onLogout,
   userEmail,
   startupNotice,
 }: {
   isAdmin: boolean;
   orgId: string | null;
+  userId: string | null;
   onLogout: () => void;
   userEmail: string;
   startupNotice?: string | null;
@@ -1554,6 +1566,14 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     if (dirtySuspendedRef.current) return;
     setIsDirty(true);
   };
+
+  // Contract data — lifted up so it persists with the .DUest file via buildSnapshot.
+  // ContractPage is now a controlled component: see ContractPage.tsx for the shape.
+  const [contract, setContract] = useState<any | null>(null);
+  const handleContractChange = useCallback((next: any) => {
+    setContract(next);
+    markDirty();
+  }, []);
   const [lastSavedFileName, setLastSavedFileName] = useState<string | null>(
     null
   );
@@ -1564,57 +1584,69 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
   // ===============================
   // USER SETTINGS (for Proposal PDF)
   // ===============================
-  // NOTE: Keeping your existing shape so SettingsPage / ProposalPage don't break.
-  // We are only removing “email proposal / email preview” UI behavior from App.
-  const [userSettings, setUserSettings] = useState(() => {
-    try {
-      const saved = localStorage.getItem("du_user_settings");
-      return saved
-        ? {
-            proposalLayoutOrder: [],
-            ...JSON.parse(saved),
-          }
-        : {
-            userName: "Jason Colapinto",
-            userPhone: "",
-            userEmail: "",
+  // Persistence:
+  //   - org_settings + user_settings tables in Supabase (source of truth)
+  //   - localStorage (du_user_settings) kept as a cache for offline / fast paint
+  // Fetch order on app load:
+  //   1) Render from localStorage cache immediately (no waiting on network)
+  //   2) Once orgId + auth user id are known, fetch from Supabase and merge in
+  //   3) If both Supabase rows are empty AND cache has meaningful data, auto-
+  //      migrate the cache up to Supabase (one-time silent migration)
+  // State stays loosely typed (any) to match SettingsPage's existing
+  // UserSettings shape (which allows nullable fields). Strict typing lives
+  // in src/settings.ts.
+  const [userSettings, setUserSettings] = useState<any>(
+    () => readCachedSettings() ?? { ...DEFAULT_SETTINGS }
+  );
 
-            companyName: "Decks Unique",
-            companyPhone: "",
-            companyAddress: "",
-            companyWebsite: "",
-            companySlogan: "",
-            license: "",
+  // Track whether the initial Supabase fetch has completed; until then we
+  // don't push local changes upstream (avoids overwriting cloud data on a
+  // first-render dirty mark while the fetch is still in flight).
+  const settingsHydratedRef = useRef(false);
 
-            logoDataUrl: "",
-            emailSubjectTemplate:
-              "Your Decks Unique Proposal – {{clientTown}} {{clientLastName}}",
-            emailBodyTemplate:
-              "Hi {{clientTitle}} {{clientLastName}},\n\n" +
-              "Thank you for the opportunity to quote your project.\n" +
-              "Attached is your proposal for review.\n\n" +
-              "If you have any questions, reply here or call/text me at {{userPhone}}.\n\n" +
-              "Thanks,\n" +
-              "{{userName}}\n" +
-              "{{companyName}}",
-          };
-    } catch {
-      return {
-        companyName: "Decks Unique",
-        userName: "Jason Colapinto",
-        userPhone: "",
-        userEmail: "",
-        license: "",
-        logoDataUrl: "",
-      };
-    }
-  });
-
+  // Fetch from Supabase once we know orgId + authenticated user
   useEffect(() => {
-    try {
-      localStorage.setItem("du_user_settings", JSON.stringify(userSettings));
-    } catch {}
-  }, [userSettings]);
+    if (!orgId || !userId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const fetched = await fetchSettings(orgId, userId);
+        if (cancelled) return;
+        setUserSettings((prev: any) => ({ ...prev, ...fetched }));
+      } catch (err) {
+        console.warn("settings fetch failed; keeping cache:", err);
+      } finally {
+        if (!cancelled) settingsHydratedRef.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, userId]);
+
+  // Cache every change immediately; debounce-save to Supabase
+  const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    writeCachedSettings(userSettings as AppUserSettings);
+
+    if (!orgId || !userId) return;
+    if (!settingsHydratedRef.current) return; // wait for initial fetch first
+
+    if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
+    settingsSaveTimerRef.current = setTimeout(() => {
+      upsertSettings(orgId, userId, userSettings as AppUserSettings).catch(
+        (err) => {
+          console.warn("settings save failed; cache only:", err);
+        }
+      );
+    }, 800);
+
+    return () => {
+      if (settingsSaveTimerRef.current) {
+        clearTimeout(settingsSaveTimerRef.current);
+      }
+    };
+  }, [userSettings, orgId, userId]);
 
   // ===============================
   // FILE OPEN/SAVE helpers
@@ -1676,6 +1708,7 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     setEstimateId("");
     setProposalId("");
     setEstimateNameLocked(false);
+    setContract(null);
 
     try {
       localStorage.removeItem("du_estimate_name");
@@ -1737,6 +1770,8 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
     pricingItems,
     pricingCategories,
     pricingSnapshotAt: new Date().toISOString(),
+    // Contract data travels with the file so it survives reopen on any machine.
+    contract,
   });
 
   const applySnapshot = (snap: any) => {
@@ -1812,6 +1847,8 @@ const [showDeckingLevels, setShowDeckingLevels] = useState(false);
       setPricingFrozenFromFile(false);
       setPricingSnapshotAt(null);
     }
+
+    setContract(snap?.contract ?? null);
 
     setIsDirty(false);
     setShowBreakdown(false);
@@ -5733,6 +5770,8 @@ Rate: ${(effectiveSkirtingRate || 0).toFixed(2)} / sf
   <ContractPage
     orgId={orgId}
     estimateId={estimateId}
+    contract={contract}
+    onContractChange={handleContractChange}
 
     finalEstimate={finalEstimate}
     selectedDecking={selectedDecking}
